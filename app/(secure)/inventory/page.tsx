@@ -301,7 +301,7 @@ export default function InventoryPage() {
                 />
                 <p className="text-sm text-gray-500 dark:text-gray-400">or</p>
                 <button
-                  className="mt-4 px-6 py-3 text-white rounded-lg transition-all duration-300 hover:scale-105 accent-bg accent-hover"
+                  className="mt-4 px-6 py-3 text-white rounded-lg transition-all duration-300 hover:scale-105 accent-bg accent-hover "
                 >
                   Browse Metrc Packages
                 </button>
