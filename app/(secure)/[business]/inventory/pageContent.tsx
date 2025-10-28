@@ -165,11 +165,11 @@ export default function PageContent({ business }: { business: string }) {
       });
 */
       // Update the UI instantly (no need to reload)
-      setCurrentProducts((prev) =>
+     /* setCurrentProducts((prev) =>
         prev.map((p) =>
           p.id === productId ? { ...p, enable_product: newStatus } : p
         )
-      );
+      );*/
 	  toast.success(`Changed successfully`);
     } catch (err) {
 	  toast.error(err);
