@@ -154,15 +154,16 @@ export default function PageContent({ business }: { business: string }) {
   };
   
   const handlePublishToggle = async (productId: string | number, currentStatus: boolean) => {
-    const newStatus = currentStatus === "1" ? "0" : "1";
+    //const newStatus = currentStatus === "1" ? "0" : "1";
+		  const newStatus = !currentStatus;
 
     try {
       // Call your backend API
-      await axios.post("/api/products/toggle", {
+     /* await axios.post("/api/products/toggle", {
         product_id: productId,
         enable_product: newStatus,
       });
-
+*/
       // Update the UI instantly (no need to reload)
       setCurrentProducts((prev) =>
         prev.map((p) =>
