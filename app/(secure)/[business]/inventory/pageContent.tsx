@@ -171,10 +171,9 @@ export default function PageContent({ business }: { business: string }) {
         )
       );*/
 	  toast.success(`Changed successfully`);
-    } catch (err) {
-	  toast.error(err);
-    } finally {
-    }
+    } catch (error: any) {
+	  toast.error(error);
+    } 
   };
 
   // Generate page numbers for pagination
