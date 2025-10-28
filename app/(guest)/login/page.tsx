@@ -1,22 +1,64 @@
 'use client';
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import axios from "axios";
+import Cookies from "js-cookie"; 
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false); // ✅ for spinner
 
-  const handleLogin = (e: React.FormEvent) => {
+
+	// ✅ Redirect to dashboard if already logged in
+	useEffect(() => {
+		
+		const token = localStorage.getItem("token");
+		if (token) {
+		router.replace("/dashboard");
+		}
+	}, [router]);
+	
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: replace with real login API call
-    if (email && password) {
-      router.push("/dashboard"); // ✅ redirect after login
-    } else {
-      alert("Please enter both email and password");
+    setMessage("Logging in...");
+	    setLoading(true); // start loading
+
+    try {
+      const payload = {
+        username,
+        password,
+        grant_type: "password",
+      };
+
+      const res = await axios.post("/api/auth/login", payload);
+		
+      localStorage.setItem("token", JSON.stringify(res.data));
+	  
+	  /*Get User Details*/
+	  const aUserDetails = await axios.get("/api/auth/mine");
+	  localStorage.setItem("user", JSON.stringify(aUserDetails.data));
+	  
+	  Cookies.set("user_id", aUserDetails.data.user_id, { expires: 1 }); 
+
+      setMessage("Login successful!");
+	  
+      if (res.status === 200) {
+        router.push("/dashboard");
+      }
+    } catch (err: any) {
+      setMessage(err.response?.data?.message || "Login failed");
+    }
+	finally {
+      setLoading(false); // stop loading
     }
   };
+
+	
+
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
@@ -25,10 +67,10 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <input
-            type="email"
-            placeholder="Email address"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="email" 
+            placeholder="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)} // ✅ correct setter
             className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-teal-500"
           />
           <input
@@ -39,10 +81,38 @@ export default function LoginPage() {
             className="w-full border p-3 rounded-lg focus:ring-2 focus:ring-teal-500"
           />
           <button
-            type="submit"
-            className="w-full bg-teal-600 text-white py-3 rounded-lg hover:bg-teal-700 transition-colors"
+            type="submit" disabled={loading}
+			className={`w-full flex justify-center items-center bg-teal-600 text-white py-3 rounded-lg transition-colors ${
+              loading ? "opacity-70 cursor-not-allowed" : "hover:bg-teal-700"
+            }`}
           >
-            Login
+            {loading ? (
+              <>
+                <svg
+                  className="animate-spin h-5 w-5 mr-2 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8v8H4z"
+                  ></path>
+                </svg>
+                Logging in...
+              </>
+            ) : (
+              "Login"
+            )}
           </button>
         </form>
 
@@ -52,6 +122,10 @@ export default function LoginPage() {
             Register
           </Link>
         </p>
+
+        {message && (
+          <p className="mt-4 text-center text-sm text-gray-700">{message}</p>
+        )}
       </div>
     </div>
   );

@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Menu, Bell, User, Settings, LogOut } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import Cookies from "js-cookie";
 
 interface TopBarProps {
   isMobileOpen: boolean;
@@ -13,8 +14,35 @@ interface TopBarProps {
 export default function TopBar({ isMobileOpen, setIsMobileOpen }: TopBarProps) {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
+  const [fullname, setFullname] = useState<string | null>(null);
+  const [initials, setInitials] = useState("U"); 
+
 	const router = useRouter();
 	
+	useEffect(() => {
+		// ✅ Fetch and parse saved user info
+		const userData = localStorage.getItem("user");
+
+		if (userData) {
+		  try {
+			const user = JSON.parse(userData);
+			setFullname(user.data.full_name || null);
+			setEmail(user.data.email || null);
+			
+			if (user.data.full_name.trim() !== "") {
+			  // ✅ Split name and take first letters of first + last name
+			  const nameParts = user.data.full_name.trim().split(" ");
+			  const firstInitial = nameParts[0]?.[0] || "";
+			  const secondInitial = nameParts.length > 1 ? nameParts[1]?.[0] : nameParts[0]?.[1] || "";
+			  setInitials((firstInitial + secondInitial).toUpperCase());
+			}
+		  } catch (err) {
+			console.error("Invalid user data in localStorage:", err);
+		  }
+		}
+	 }, []);
+	  
   return (
     <div className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-6 transition-colors duration-300">
       {/* Left side */}
@@ -79,14 +107,14 @@ export default function TopBar({ isMobileOpen, setIsMobileOpen }: TopBarProps) {
             }}
             className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-300"
           >
-            <span className="text-white font-semibold text-sm">SR</span>
+            <span className="text-white font-semibold text-sm">{initials}</span>
           </button>
 
           {showUserMenu && (
             <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50">
               <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                <p className="font-semibold text-sm">Sridhar</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">sridhar@example.com</p>
+                <p className="font-semibold text-sm">{fullname}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{email}</p>
               </div>
 
               <button
@@ -113,8 +141,12 @@ export default function TopBar({ isMobileOpen, setIsMobileOpen }: TopBarProps) {
 
               <button
                 onClick={() => {
-                  router.push('/login');
-                  setShowUserMenu(false);
+					localStorage.removeItem('token');
+					localStorage.removeItem('user');
+					Cookies.remove("access_token", { path: "/" });
+Cookies.remove("user_id", { path: "/" });
+
+					router.push('/');
                 }}
                 className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left text-red-600 dark:text-red-400"
               >
