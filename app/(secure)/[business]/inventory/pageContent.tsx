@@ -266,9 +266,14 @@ export default function PageContent({ business }: { business: string }) {
                   defaultValue={editingProduct.type}
                   className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 >
-                  {categories.filter(c => c !== 'All').map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
+                  {categories
+				  .filter(c => c.name !== 'All')
+				  .map(cat => (
+					<option key={cat.name} value={cat.name}>
+					  {cat.name}
+					</option>
+				  ))}
+
                 </select>
               </div>
             </div>
