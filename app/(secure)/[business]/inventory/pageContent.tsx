@@ -153,7 +153,7 @@ export default function PageContent({ business }: { business: string }) {
     setItemsPerPage(value);
   };
   
-  const handlePublishToggle = async (productId, currentStatus) => {
+  const handlePublishToggle = async (productId: string | number, currentStatus: boolean) => {
     const newStatus = currentStatus === "1" ? "0" : "1";
 
     try {
