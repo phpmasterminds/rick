@@ -153,28 +153,6 @@ export default function PageContent({ business }: { business: string }) {
     setItemsPerPage(value);
   };
   
-  const handlePublishToggle = async (productId: string | number, currentStatus: boolean) => {
-    //const newStatus = currentStatus === "1" ? "0" : "1";
-		  const newStatus = !currentStatus;
-
-    try {
-      // Call your backend API
-     /* await axios.post("/api/products/toggle", {
-        product_id: productId,
-        enable_product: newStatus,
-      });
-*/
-      // Update the UI instantly (no need to reload)
-     /* setCurrentProducts((prev) =>
-        prev.map((p) =>
-          p.id === productId ? { ...p, enable_product: newStatus } : p
-        )
-      );*/
-	  toast.success(`Changed successfully`);
-    } catch (error: any) {
-	  toast.error(error);
-    } 
-  };
 
   // Generate page numbers for pagination
   const getPageNumbers = () => {
@@ -383,10 +361,6 @@ export default function PageContent({ business }: { business: string }) {
 					  <label className="relative inline-flex items-center cursor-pointer">
 						<input
 						  type="checkbox"
-						  checked={product.enable_product === "1"}
-						  onChange={() =>
-							handlePublishToggle(product.product_id, product.enable_product)
-						  }
 						  className="sr-only peer"
 						/>
 						<div
