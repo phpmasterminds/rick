@@ -11,7 +11,7 @@ const axiosClient = axios.create({
 axiosClient.interceptors.request.use(async (config) => {
   // If already has Bearer token (set by serverAxios), skip Basic Auth
   
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const token = cookieStore.get("access_token")?.value;
  
   /*config.headers.Authorization*/
