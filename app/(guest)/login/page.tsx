@@ -4,13 +4,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
 import Cookies from "js-cookie"; 
+import { toast } from "react-toastify";
 
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false); // ✅ for spinner
+  const [loading, setLoading] = useState(false);
 
 
 	// ✅ Redirect to dashboard if already logged in
@@ -24,8 +24,7 @@ export default function LoginPage() {
 	
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage("Logging in...");
-	    setLoading(true); // start loading
+	setLoading(true);
 
     try {
       const payload = {
@@ -34,23 +33,35 @@ export default function LoginPage() {
         grant_type: "password",
       };
 
-      const res = await axios.post("/api/auth/login", payload);
-		
-      localStorage.setItem("token", JSON.stringify(res.data));
-	  
-	  /*Get User Details*/
-	  const aUserDetails = await axios.get("/api/auth/mine");
-	  localStorage.setItem("user", JSON.stringify(aUserDetails.data));
-	  
-	  Cookies.set("user_id", aUserDetails.data.user_id, { expires: 1 }); 
+		const res = await axios.post("/api/auth/login", payload);
 
-      setMessage("Login successful!");
-	  
-      if (res.status === 200) {
-        router.push("/dashboard");
-      }
+		localStorage.setItem("token", JSON.stringify(res.data));
+
+		/*Get User Details*/
+		const aUserDetails = await axios.get("/api/auth/mine");
+		localStorage.setItem("user", JSON.stringify(aUserDetails.data));
+		Cookies.set("user_id", aUserDetails.data.user_id, { expires: 1 }); 
+		
+		router.push("/dashboard");
+		
+		toast.success("Login successful!", {
+			position: "bottom-center",
+			autoClose: 3000,
+		});
+
+      
     } catch (err: any) {
-      setMessage(err.response?.data?.message || "Login failed");
+		const data = err.response?.data;
+		const errorMsg =
+			data?.error_description ||
+			data?.error ||
+			err.message ||
+			"Login failed";
+			
+		toast.error(errorMsg, {
+		  position: "bottom-center",
+		  autoClose: 4000,
+		});
     }
 	finally {
       setLoading(false); // stop loading
@@ -122,10 +133,6 @@ export default function LoginPage() {
             Register
           </Link>
         </p>
-
-        {message && (
-          <p className="mt-4 text-center text-sm text-gray-700">{message}</p>
-        )}
       </div>
     </div>
   );

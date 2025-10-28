@@ -6,7 +6,6 @@ export async function createServerAxios() {
   const cookieStore = await cookies();
   const token = cookieStore.get("access_token")?.value;
   const instance = axiosClient;
-
   if (token) {
     // ✅ Use Bearer token — skip Basic Auth
     instance.defaults.headers.Authorization = `Bearer ${token}`;
