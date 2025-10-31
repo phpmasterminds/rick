@@ -29,10 +29,25 @@ interface Product {
   i_par: string | null;
   i_weight: string;
   i_onhand: string;
+  i_safehand?: string | number; 
   i_total_weight: string;
   text_parsed: string;
   thc: string;
   cbd: string;
+  strain?: string;
+  product_code?: string;
+  batch_id?: string;
+  cat_id?: string;
+  fla_cat_id?: string;
+  fle_cat_id?: string;
+  med_measurements?: string;
+  value1?: string | number;
+  value2?: string | number;
+  value3?: string | number;
+  value4?: string | number;
+  value5?: string | number;
+  value6?: string | number;
+  value7?: string | number;
 }
 
 interface Category {
@@ -69,6 +84,12 @@ interface ShakeSaleTier {
   gram_7: string;
   gram_14: string;
   gram_28: string;
+}
+
+interface FlowerTier {
+  tire_id: string;
+  c_name?: string;
+  [key: string]: string | undefined; // For dynamic properties like "1_gram", "3_point_5_gram", etc.
 }
 
 interface DealData {
@@ -209,9 +230,9 @@ export default function PageContent({ business }: { business: string }) {
   const [loadingDropdowns, setLoadingDropdowns] = useState(false);
   
   // Edit Modal dropdown data from API
-  const [editModalCategories, setEditModalCategories] = useState<ApiCategory[]>([]);
-  const [editModalFlavors, setEditModalFlavors] = useState<Flavor[]>([]);
-  const [editModalFeelings, setEditModalFeelings] = useState<Feeling[]>([]);
+  const [editModalCategories, setEditModalCategories] = useState<Category[]>([]);
+  const [editModalFlavors, setEditModalFlavors] = useState<ApiCategory[]>([]);
+  const [editModalFeelings, setEditModalFeelings] = useState<ApiCategory[]>([]);
   const [editModalLoading, setEditModalLoading] = useState(false);
   
   // Form state for edit modal
@@ -239,11 +260,18 @@ export default function PageContent({ business }: { business: string }) {
     price1: '',
     price2: '',
     price3: '',
-    selectedRoom: [],
+    selectedRoom: [] as string[],
     pos: false,
     page: false,
     thc: '',
-    cbd: ''
+    cbd: '',
+    value1: '',
+    value2: '',
+    value3: '',
+    value4: '',
+    value5: '',
+    value6: '',
+    value7: ''
   });
   
   // Shake Sale Tier states
@@ -257,7 +285,7 @@ export default function PageContent({ business }: { business: string }) {
   // Subcategories state
   const [editModalSubcategories, setEditModalSubcategories] = useState<ApiCategory[]>([]);
   
-  const [editModalFlowerTier, setEditModalFlowerTier] = useState<ApiCategory[]>([]);
+  const [editModalFlowerTier, setEditModalFlowerTier] = useState<FlowerTier[]>([]);
   
   // Strain categories (static options)
   const strainCatOptions = ['Indica', 'Sativa', 'Hybrid', 'Indica Hybrid', 'Sativa Hybrid'];
@@ -449,7 +477,7 @@ export default function PageContent({ business }: { business: string }) {
 
   const handleSafeClick = (product: Product) => {
     const onHand = parseInt(product.i_onhand) || 0;
-    const safeStorage = parseInt(product.i_safehand) || 0; // Use i_safehand field from product
+    const safeStorage = parseInt(String(product.i_safehand ?? 0)) || 0; // Use i_safehand field from product
     setSafeProduct(product);
     setSafeValues({
       onHand,
@@ -633,19 +661,20 @@ export default function PageContent({ business }: { business: string }) {
       flavor: product.fla_cat_id || '',
       feeling: product.fle_cat_id || '',
       medMeasurements: product.med_measurements || 'unit',
-      medEachValue: product.value1,
-      medEachPrice: product.value2,
+      medEachValue: String(product.value1 || ''),
+      medEachPrice: String(product.value2 || ''),
       medGramPrice: '',
+      medValue: ['', '', '', '', '', '', ''], // For bulk/pounds gram prices
       price1: '',
       price2: product.p_offer_price || '',
       price3: '',
-	  value1: product.value1,
-	  value2: product.value2,
-	  value3: product.value3,
-	  value4: product.value4,
-	  value5: product.value5,
-	  value6: product.value6,
-	  value7: product.value7,
+	  value1: String(product.value1 || ''),
+	  value2: String(product.value2 || ''),
+	  value3: String(product.value3 || ''),
+	  value4: String(product.value4 || ''),
+	  value5: String(product.value5 || ''),
+	  value6: String(product.value6 || ''),
+	  value7: String(product.value7 || ''),
 	  thc: product.thc,
 	  cbd: product.cbd,
       selectedRoom: product.selected_rooms || [],
@@ -735,13 +764,13 @@ export default function PageContent({ business }: { business: string }) {
 	  setSelectedShakeTier(tierId);
 	  setEditFormData(prev => ({
 		...prev,
-		value1: tier["1_gram"],
-		value7: tier["2_gram"],
-		value2: tier["3_point_5_gram"],
-		value3: tier["7_gram"],
-		value4: tier["14_gram"],
-		value5: tier["28_gram"],
-		value6: tier["point_5_gram"],
+		value1: tier["1_gram"] || '',
+		value7: tier["2_gram"] || '',
+		value2: tier["3_point_5_gram"] || '',
+		value3: tier["7_gram"] || '',
+		value4: tier["14_gram"] || '',
+		value5: tier["28_gram"] || '',
+		value6: tier["point_5_gram"] || '',
 	  }));
 	}
 
@@ -797,7 +826,10 @@ export default function PageContent({ business }: { business: string }) {
       }
       
       formData.append('med_gram_price', editFormData.medGramPrice);
-      formData.append('s_rooms[]', editFormData.selectedRoom);
+      // Append each selected room
+      editFormData.selectedRoom.forEach(room => {
+        formData.append('s_rooms[]', room);
+      });
       formData.append('is_pos', editFormData.pos ? '1' : '0');
       formData.append('enable_product', editFormData.page ? '1' : '0');
       formData.append('page_id', editFormData.page_id);
