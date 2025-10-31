@@ -1,4 +1,4 @@
-// app/api/business/update-safe-storage/route.ts
+// app/api/business/toggle-publish/route.ts
 import { NextResponse, NextRequest } from "next/server";
 import { createServerAxios } from "@/lib/serverAxios";
 
@@ -6,36 +6,26 @@ export async function POST(request: NextRequest) {
   try {
     const axios = await createServerAxios();
     const body = await request.json();
-    const { product_id, safe_storage } = body;
 
     // Validate required fields
-    if (!product_id) {
+    if (!body.product_id) {
       return NextResponse.json(
         { status: 'failed', message: 'Missing required field: product_id' },
         { status: 400 }
       );
     }
+	
 
-    if (safe_storage === undefined || safe_storage === null) {
-      return NextResponse.json(
-        { status: 'failed', message: 'Missing required field: safe_storage' },
-        { status: 400 }
-      );
-    }
 
-    console.log('📤 Updating safe storage:', { product_id, safe_storage });
-
-    // Call external API to update safe storage
-    const response = await axios.post("/business/pos-inventory/update-safe-storage", {
-      product_id,
-      i_safehand:safe_storage
+    const response = await axios.post("/business/pos-inventory/add-deal", {
+      body
     });
 
     console.log('✅ Backend response:', response.data);
     return NextResponse.json(response.data);
 
   } catch (error: any) {
-    console.error('❌ Error updating safe storage:', error.message);
+    console.error('❌ Error toggling publish:', error.message);
     if (error.response?.data) {
       console.error('❌ Backend error:', error.response.data);
     }
@@ -43,7 +33,7 @@ export async function POST(request: NextRequest) {
     const errorMessage = error.response?.data?.message || 
                         error.response?.data?.error?.message || 
                         error.message || 
-                        'Failed to update safe storage';
+                        'Failed to toggle publish';
 
     return NextResponse.json(
       { 

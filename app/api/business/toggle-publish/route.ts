@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const axios = await createServerAxios();
     const body = await request.json();
-    const { product_id, enable_product } = body;
+    const { product_id, enable_product, publish_type, is_pos } = body;
 
     // Validate required fields
     if (!product_id) {
@@ -15,19 +15,29 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    if (enable_product === undefined || enable_product === null) {
-      return NextResponse.json(
-        { status: 'failed', message: 'Missing required field: enable_product' },
-        { status: 400 }
-      );
-    }
+	if(publish_type === 'PAGE'){
+		if (enable_product === undefined || enable_product === null) {
+		  return NextResponse.json(
+			{ status: 'failed', message: 'Missing required field: enable_product' },
+			{ status: 400 }
+		  );
+		}
+	}else{
+		if (is_pos === undefined || is_pos === null) {
+		  return NextResponse.json(
+			{ status: 'failed', message: 'Missing required field: is_pos' },
+			{ status: 400 }
+		  );
+		}
+	}
 
     console.log('📤 Toggling publish:', { product_id, enable_product });
 
-    const response = await axios.post("/business/toggle-publish", {
+    const response = await axios.post("/business/pos-inventory/toggle-publish", {
       product_id,
-      enable_product
+      enable_product,
+	  publish_type,
+	  is_pos
     });
 
     console.log('✅ Backend response:', response.data);

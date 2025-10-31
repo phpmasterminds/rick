@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const axios = await createServerAxios();
     const body = await request.json();
-    const { product_id, room_id } = body;
+    const { product_id, s_rooms } = body;
 
     // Validate required fields
     if (!product_id) {
@@ -16,18 +16,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!room_id) {
+    /*if (!s_rooms) {
       return NextResponse.json(
-        { status: 'failed', message: 'Missing required field: room_id' },
+        { status: 'failed', message: 'Missing required field: s_rooms' },
         { status: 400 }
       );
-    }
+    }*/
 
-    console.log('📤 Updating room:', { product_id, room_id });
+    console.log('📤 Updating room:', { product_id, s_rooms });
 
-    const response = await axios.post("/business/update-room", {
+    const response = await axios.post("/business/pos-inventory/update-product", {
       product_id,
-      room_id
+      s_rooms
     });
 
     console.log('✅ Backend response:', response.data);
