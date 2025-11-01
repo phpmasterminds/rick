@@ -9,9 +9,10 @@ export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
 	const business = searchParams.get("business");
 	const page = searchParams.get("page") || "1";
+	const is_from = searchParams.get("is_from") || "pos";
 
     // 🔹 Replace this with your external API path
-    const response = await axios.get("/business/pos-inventory",{params: { business, page }});
+    const response = await axios.get("/business/pos-inventory",{params: { business, page, is_from  }});
 
     return NextResponse.json(response.data);
   } catch (error: any) {

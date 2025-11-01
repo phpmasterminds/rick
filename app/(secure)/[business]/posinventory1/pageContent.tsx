@@ -338,7 +338,7 @@ export default function PageContent({ business }: { business: string }) {
         setLoading(true);
         setError(null);
         
-        const response = await axios.get(`/api/business/posinventory?business=${business}&page=${page}&is_from=pos`);
+        const response = await axios.get(`/api/business/posinventory?business=${business}&page=${page}`);
         
         if (response.data.status === 'success') {
           const productsData = response.data.data.products || [];
