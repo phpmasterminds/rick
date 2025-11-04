@@ -1013,7 +1013,7 @@ export default function PageContent({ business }: { business: string }) {
     return (
       <div className="flex-1 p-4 md:p-6 overflow-auto">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Inventory Management</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 capitalize">{readableName} Inventory Management</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Loading inventory for {readableName}</p>
         </div>
         <div className="flex flex-col items-center justify-center py-20">
@@ -1030,7 +1030,7 @@ export default function PageContent({ business }: { business: string }) {
     return (
       <div className="flex-1 p-4 md:p-6 overflow-auto bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Inventory Management</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 capitalize">{readableName} Inventory Management</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Error loading inventory for {readableName}</p>
         </div>
         
@@ -1094,11 +1094,12 @@ export default function PageContent({ business }: { business: string }) {
     <div className="flex-1 p-4 md:p-6 overflow-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Inventory Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 capitalize">{readableName} Inventory Management</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
           Manage your product inventory for {readableName} • {filteredProducts.length} products
           {loading && allProducts.length > 0 && <span className="ml-2 text-blue-500">(Loading more...)</span>}
         </p>
+		<div className="h-1 bg-gradient-to-r accent-bg accent-hover"></div>
       </div>
 
       {/* Category Filters */}
