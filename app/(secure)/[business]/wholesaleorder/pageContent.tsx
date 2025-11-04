@@ -404,7 +404,7 @@ export default function WholesaleOrderPage({ business }: { business: string }) {
                 >
                   <span>
                     {selectedCustomer
-                      ? `${selectedCustomer.contact_company_name} (${selectedCustomer.contact_email})`
+                      ? `${selectedCustomer.account_name} (${selectedCustomer.contact_email})`
                       : 'Select a customer...'}
                   </span>
                   <ChevronDown size={20} />
@@ -428,7 +428,7 @@ export default function WholesaleOrderPage({ business }: { business: string }) {
                           className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0 text-gray-900 dark:text-gray-100 transition"
                         >
                           <div className="font-medium">
-                            {customer.contact_company_name}
+                            {customer.account_name}
                           </div>
                           <div className="text-sm text-gray-600 dark:text-gray-400">
                             {customer.account_name} - {customer.contact_email}
