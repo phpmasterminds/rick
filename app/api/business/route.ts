@@ -9,11 +9,9 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const business = searchParams.get("business");
-    const page = searchParams.get("page") || "1";
-    const is_from = searchParams.get("is_from") || "pos";
-
-    const response = await axios.get("/business/pos/customer", {
-      params: { business, page, is_from },
+	
+    const response = await axios.get("/business/get", {
+      params: { business },
     });
 
     return NextResponse.json(response.data);

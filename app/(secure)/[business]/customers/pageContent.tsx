@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   ChevronDown, Trash2, Plus, AlertCircle, Edit2, Search, Filter, ChevronLeft, 
   ChevronRight, Eye, EyeOff, X, Mail, Phone, MapPin, Loader2, Minus
@@ -33,15 +33,12 @@ interface Customer {
   license_number: string;
   expiration_date: string;
   annual_revenue: string;
-  contact_company_name: string;
-  contact_name: string;
   contact_first_name: string;
   contact_last_name: string;
   contact_office_phone: string;
-  contact_phone: string;
+  contact_mobile: string;
   contact_job_title: string;
   contact_department: string;
-  contact_email: string;
   contact_address: string;
   contact_city: string;
   contact_state: string;
@@ -50,6 +47,35 @@ interface Customer {
   contact_fax?: string;
   contact_description?: string;
   copy_address_from_left?: boolean;
+  sales_person?: string;
+  crm_rep?: string;
+  marketplace_blanket_discount?: string;
+  // Nested objects from API
+  account_details?: any;
+  detail?: any;
+  contact_company_name?: string;
+  contact_name?: string;
+  contact_email?: string;
+  office_phone?: string;
+  business_url?: string;
+  state_name?: string;
+  primary_email?: string;
+  first_name?: string;
+  last_name?: string;
+  state_license_number?: string;
+  contact_zip_code?: string;
+}
+
+interface SalesPersonOption {
+  user_id: string;
+  full_name: string;
+  [key: string]: any;
+}
+
+interface CRMRepOption {
+  user_id: string;
+  full_name: string;
+  [key: string]: any;
 }
 
 interface CustomerListPageProps {
@@ -58,16 +84,18 @@ interface CustomerListPageProps {
 }
 
 const states: Record<string, string> = {
-  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California',
-  CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia',
-  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
-  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland',
-  MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri',
-  MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
-  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio',
-  OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina',
-  SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont',
-  VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
+  '1': 'Alabama', '2': 'Alaska', '3': 'American Samoa', '4': 'Arizona', '5': 'Arkansas',
+  '6': 'California', '7': 'Colorado', '8': 'Connecticut', '9': 'Delaware', '10': 'District Of Columbia',
+  '11': 'Federated States Of Micronesia', '12': 'Florida', '13': 'Georgia', '14': 'Guam', '15': 'Hawaii',
+  '16': 'Idaho', '17': 'Illinois', '18': 'Indiana', '19': 'Iowa', '20': 'Kansas',
+  '21': 'Kentucky', '22': 'Louisiana', '23': 'Maine', '24': 'Marshall Islands', '25': 'Maryland',
+  '26': 'Massachusetts', '27': 'Michigan', '28': 'Minnesota', '29': 'Mississippi', '30': 'Missouri',
+  '31': 'Montana', '32': 'Nebraska', '33': 'Nevada', '34': 'New Hampshire', '35': 'New Jersey',
+  '36': 'New Mexico', '37': 'New York', '38': 'North Carolina', '39': 'North Dakota', '40': 'Northern Mariana Islands',
+  '41': 'Ohio', '42': 'Oklahoma', '43': 'Oregon', '44': 'Palau', '45': 'Pennsylvania',
+  '46': 'Puerto Rico', '47': 'Rhode Island', '48': 'South Carolina', '49': 'South Dakota', '50': 'Tennessee',
+  '51': 'Texas', '52': 'Utah', '53': 'Vermont', '54': 'Virgin Islands', '55': 'Virginia',
+  '56': 'Washington', '57': 'West Virginia', '58': 'Wisconsin', '59': 'Wyoming',
 };
 
 export default function CustomerListPage({
@@ -95,19 +123,23 @@ export default function CustomerListPage({
 
   useEffect(() => {
     let filtered = customers.filter((customer) =>
-      customer.contact_company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.contact_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.contact_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.billing_city.toLowerCase().includes(searchTerm.toLowerCase())
+      (customer.contact_company_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (customer.contact_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (customer.contact_email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (customer.billing_city?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
 
     filtered.sort((a, b) => {
       let aVal: any = a[sortColumn as keyof Customer];
       let bVal: any = b[sortColumn as keyof Customer];
       
-      if (typeof aVal === 'string') {
+      // Handle null/undefined values
+      if (aVal === null || aVal === undefined) aVal = '';
+      if (bVal === null || bVal === undefined) bVal = '';
+      
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
         aVal = aVal.toLowerCase();
-        bVal = (bVal as string).toLowerCase();
+        bVal = bVal.toLowerCase();
       }
 
       if (sortDirection === 'asc') {
@@ -156,11 +188,12 @@ export default function CustomerListPage({
 
   const handleDelete = async (customerId: string) => {
     try {
-      const response = await axios.delete(
-        `/api/customers/${customerId}?business=${business}`
-      );
+		const response = await axios.delete(`/api/business/posinventory`, {
+			data: { id: customerId },
+		});
       
-      if (response.data.success) {
+      // Handle new API response format: {status: "success", data: [], message: "..."}
+      if (response.data.status === 'success' || response.data.success) {
         setCustomers(customers.filter(c => c.customer_id !== customerId));
         toast.success(response.data.message || 'Customer deleted successfully');
         setDeleteConfirm(null);
@@ -201,7 +234,7 @@ export default function CustomerListPage({
           Manage all your customers and contact information
         </p>
       </div>
-
+	
       {/* Toolbar */}
       <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         {/* Search and Filter */}
@@ -233,7 +266,21 @@ export default function CustomerListPage({
 
       {/* Customers Table */}
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden shadow-md">
-        {filteredCustomers.length === 0 ? (
+		{/* Loading State */}
+        {loading && (
+          <div className="p-12 text-center">
+            <div className="flex justify-center mb-4">
+              <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Loading Customers</h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              Please wait while we fetch your customers...
+            </p>
+          </div>
+        )}
+		
+        {/* No Data State */}
+        {!loading && filteredCustomers.length === 0 && (
           <div className="p-12 text-center">
             <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No customers found</h3>
@@ -253,7 +300,9 @@ export default function CustomerListPage({
               </button>
             )}
           </div>
-        ) : (
+		)}
+        {/* Data Table */}
+        {!loading && filteredCustomers.length > 0 && (
           <>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -304,11 +353,11 @@ export default function CustomerListPage({
                       <td className="px-6 py-4">
                         <div className="flex flex-col">
                           <span className="font-semibold text-gray-900 dark:text-gray-100">
-                            {customer.contact_company_name}
+                            {customer.account_details?.account_name || customer.contact_company_name || customer.account_name || 'N/A'}
                           </span>
-                          {customer.license_type && (
+                          {(customer.account_details?.license_type || customer.license_type) && (
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {customer.license_type}
+                              {customer.account_details?.license_type || customer.license_type}
                             </span>
                           )}
                         </div>
@@ -329,11 +378,11 @@ export default function CustomerListPage({
                       </td>
                       <td className="px-6 py-4">
                         <a
-                          href={`tel:${customer.contact_phone}`}
+                          href={`tel:${customer.account_details?.contact_mobile || customer.contact_mobile}`}
                           className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 text-sm flex items-center gap-1"
                         >
                           <Phone className="w-4 h-4" />
-                          {customer.contact_phone}
+                          {customer.account_details?.contact_mobile || customer.contact_mobile || 'N/A'}
                         </a>
                       </td>
                       <td className="px-6 py-4">
@@ -421,6 +470,7 @@ export default function CustomerListPage({
           }}
           business={business}
           theme={currentTheme}
+          page_id={editingCustomer?.page_id || (customers.length > 0 ? customers[0].page_id : '')}
         />
       )}
 
@@ -467,6 +517,7 @@ interface CustomerFormModalProps {
   onSave: (customer: Customer) => void;
   business: string;
   theme: 'light' | 'dark';
+  page_id: string;
 }
 
 function CustomerFormModal({
@@ -475,52 +526,197 @@ function CustomerFormModal({
   onSave,
   business,
   theme,
+  page_id,
 }: CustomerFormModalProps) {
-  const [formData, setFormData] = useState<Partial<Customer>>(
-    customer || {
-      account_name: '',
-      website: '',
-      email: [{ name: '', email_primary: true }],
-      billing_street: '',
-      billing_city: '',
-      billing_state: '',
-      billing_postal_code: '',
-      billing_phone: '',
-      shipping_street: '',
-      shipping_city: '',
-      shipping_state: '',
-      shipping_postal_code: '',
-      license_type: '',
-      license_number: '',
-      expiration_date: '',
-      annual_revenue: '',
-      contact_company_name: '',
-      contact_name: '',
-      contact_first_name: '',
-      contact_last_name: '',
-      contact_office_phone: '',
-      contact_phone: '',
-      contact_job_title: '',
-      contact_department: '',
-      contact_account_name: '',
-      contact_fax: '',
-      contact_email: '',
-      contact_address: '',
-      contact_city: '',
-      contact_state: '',
-      contact_postal_code: '',
-      contact_description: '',
-      copy_address_from_left: false,
+  // States for dropdown data
+  const [salesPersonList, setSalesPersonList] = useState<SalesPersonOption[]>([]);
+  const [crmRepList, setCRMRepList] = useState<CRMRepOption[]>([]);
+  const [loadingDropdowns, setLoadingDropdowns] = useState(false);
+  const dropdownsFetchedRef = useRef(false);
+
+  // Fetch Sales Person and CRM Rep data (only once per modal instance)
+  const fetchDropdownData = useCallback(async () => {
+    if (!page_id || dropdownsFetchedRef.current) return;
+    
+    dropdownsFetchedRef.current = true;
+    setLoadingDropdowns(true);
+    try {
+      // Fetch Sales Person data
+      try {
+        const salesResponse = await axios.get(
+          `/api/business/sales-persons?page_id=${page_id}`
+        );
+        if (salesResponse.data.status === 'success' && Array.isArray(salesResponse.data.data)) {
+          setSalesPersonList(salesResponse.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching sales persons:', error);
+      }
+
+      // Fetch CRM Rep data
+      try {
+        const crmResponse = await axios.get(
+          `/api/business/crm-reps?page_id=${page_id}`
+        );
+        if (crmResponse.data.status === 'success' && Array.isArray(crmResponse.data.data)) {
+          setCRMRepList(crmResponse.data.data);
+        }
+      } catch (error) {
+        console.error('Error fetching CRM reps:', error);
+      }
+    } catch (error) {
+      console.error('Error fetching dropdown data:', error);
+    } finally {
+      setLoadingDropdowns(false);
     }
-  );
+  }, [page_id]);
+
+  // Fetch dropdown data on component mount
+  useEffect(() => {
+    fetchDropdownData();
+  }, [page_id, fetchDropdownData]);
+
+  // Initialize form data with proper mapping from customer/API response
+  const initializeFormData = (): Partial<Customer> => {
+    // Helper to convert state name to ID
+    const getStateIdByName = (stateName: string): string => {
+      if (!stateName) return '';
+      
+      // If already a number (1-59), return it
+      if (/^\d+$/.test(stateName)) return stateName;
+      
+      // Find the state by name
+      const stateEntry = Object.entries(states).find(([_, name]) => 
+        name.toLowerCase() === stateName.toLowerCase()
+      );
+      return stateEntry ? stateEntry[0] : '';
+    };
+
+    if (!customer) {
+      // New customer form
+      return {
+        account_name: '',
+        website: '',
+        email: [{ name: '', email_primary: true }],
+        billing_street: '',
+        billing_city: '',
+        billing_state: '',
+        billing_postal_code: '',
+        billing_phone: '',
+        shipping_street: '',
+        shipping_city: '',
+        shipping_state: '',
+        shipping_postal_code: '',
+        license_type: '',
+        license_number: '',
+        expiration_date: '',
+        annual_revenue: '',
+        contact_company_name: '',
+        contact_name: '',
+        contact_first_name: '',
+        contact_last_name: '',
+        contact_office_phone: '',
+        contact_mobile: '',
+        contact_job_title: '',
+        contact_department: '',
+        contact_account_name: '',
+        contact_fax: '',
+        contact_email: '',
+        contact_address: '',
+        contact_city: '',
+        contact_state: '',
+        contact_postal_code: '',
+        contact_description: '',
+        copy_address_from_left: false,
+        sales_person: '',
+        crm_rep: '',
+        marketplace_blanket_discount: '',
+      };
+    }
+
+    // Parse email field if it's a JSON string (from API response)
+    let parsedEmails: Email[] = [];
+    if (typeof customer.email === 'string') {
+      try {
+        parsedEmails = JSON.parse(customer.email);
+      } catch (e) {
+        parsedEmails = [{ name: customer.contact_email || '', email_primary: true }];
+      }
+    } else if (Array.isArray(customer.email)) {
+      parsedEmails = customer.email;
+    } else {
+      parsedEmails = [{ name: customer.contact_email || '', email_primary: true }];
+    }
+
+    // Ensure we have at least one email
+    if (parsedEmails.length === 0) {
+      parsedEmails = [{ name: customer.contact_email || '', email_primary: true }];
+    }
+
+    // Ensure we have account_details and detail objects
+    const accountDetails = customer.account_details || {};
+    const detail = customer.detail || {};
+
+    // Map API response fields to form fields
+    return {
+      customer_id: customer.customer_id || '',
+      account_id: accountDetails.account_id || customer.account_id || '',
+      account_name: customer.contact_company_name || accountDetails.account_name || customer.account_name || '',
+      website:  accountDetails.website || customer.business_url || '',
+      email: parsedEmails,
+      billing_street: customer.billing_street || accountDetails.billing_street || '',
+      billing_city: customer.billing_city || accountDetails.billing_city || '',
+      billing_state: getStateIdByName(customer.billing_state || accountDetails.billing_state || customer.state_name || ''),
+      billing_postal_code: customer.billing_postal_code || accountDetails.billing_postal_code || '',
+      billing_phone: customer.office_phone || accountDetails.office_phone || '',
+      shipping_street: customer.shipping_street || accountDetails.shipping_street || '',
+      shipping_city: customer.shipping_city || accountDetails.shipping_city || '',
+      shipping_state: getStateIdByName(customer.shipping_state || detail.shipping_state || accountDetails.shipping_state || customer.state_name || ''),
+      shipping_postal_code: customer.shipping_postal_code || accountDetails.shipping_postal_code || customer.contact_zip_code || '',
+      license_type: customer.license_type || accountDetails.license_type || '',
+      license_number: customer.license_number || accountDetails.license_number || customer.state_license_number || '',
+      expiration_date: customer.expiration_date || accountDetails.expiration_date || '',
+      annual_revenue: customer.annual_revenue || accountDetails.annual_revenue || '',
+      contact_company_name: customer.contact_company_name || accountDetails.contact_company_name || '',
+      contact_name: customer.contact_name || detail.contact_name || '',
+      contact_first_name: customer.contact_first_name || detail.contact_first_name || accountDetails.contact_first_name || customer.first_name || '',
+      contact_last_name: customer.contact_last_name || detail.contact_last_name || accountDetails.contact_last_name || customer.last_name || '',
+      contact_office_phone: customer.contact_office_phone || accountDetails.contact_office_phone || customer.office_phone || '',
+      contact_mobile: customer.contact_mobile || accountDetails.contact_mobile || detail.contact_mobile || '',
+      contact_job_title: customer.contact_job_title || accountDetails.contact_job_title || '',
+      contact_department: customer.contact_department || accountDetails.contact_department || detail.contact_department || '',
+      contact_account_name: customer.contact_account_name || accountDetails.contact_account_name || '',
+      contact_fax: customer.contact_fax || accountDetails.contact_fax || accountDetails.fax || '',
+      contact_email: customer.contact_email || customer.primary_email || accountDetails.contact_email || detail.contact_email || '',
+      contact_address: customer.contact_address || accountDetails.contact_address || detail.contact_address || '',
+      contact_city: customer.contact_city || accountDetails.contact_city || detail.contact_city || '',
+      contact_state: getStateIdByName(customer.contact_state || accountDetails.contact_state || detail.contact_state || customer.state_name || ''),
+      contact_postal_code: customer.contact_postal_code || accountDetails.contact_postal_code || customer.contact_zip_code || detail.contact_postal_code || '',
+      contact_description: customer.contact_description || accountDetails.contact_description || detail.contact_description || '',
+      copy_address_from_left: false,
+      sales_person: customer.sales_person || detail.sales_person || '',
+      crm_rep: customer.crm_rep || '',
+      marketplace_blanket_discount: customer.marketplace_blanket_discount || accountDetails.marketplace_blanket_discount || '',
+    };
+  };
+
+  const [formData, setFormData] = useState<Partial<Customer>>(initializeFormData());
 
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('business');
-  const [emails, setEmails] = useState<Email[]>(
-    Array.isArray(formData.email) && formData.email.length > 0 
-      ? formData.email 
-      : [{ name: '', email_primary: true }]
-  );
+  
+  // Initialize emails from formData
+  const getInitialEmails = (): Email[] => {
+    if (Array.isArray(formData.email) && formData.email.length > 0) {
+      return formData.email;
+    }
+    if (formData.contact_email) {
+      return [{ name: formData.contact_email, email_primary: true }];
+    }
+    return [{ name: '', email_primary: true }];
+  };
+
+  const [emails, setEmails] = useState<Email[]>(getInitialEmails());
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -584,8 +780,8 @@ function CustomerFormModal({
       }
 
       const endpoint = customer 
-        ? `/api/customers/${customer.customer_id}`
-        : `/api/customers`;
+        ? `/api/business/customers`
+        : `/api/business/customers`;
 
       const method = customer ? 'put' : 'post';
 
@@ -593,6 +789,7 @@ function CustomerFormModal({
         ...formData,
         email: emails,
         business: business,
+        page_id: page_id,
       };
 
       const response = await axios({
@@ -604,18 +801,22 @@ function CustomerFormModal({
         },
       });
 
-      if (response.data.success) {
+      // Handle new API response format: {status: "success", data: [], message: "..."}
+      if (response.data.status === 'success' || response.data.success) {
         toast.success(
           response.data.message || 
           (customer ? 'Customer updated successfully' : 'Customer added successfully')
         );
         
         onSave({
-          customer_id: response.data.customer?.customer_id || customer?.customer_id || '',
-          account_id: response.data.customer?.account_id || customer?.account_id || '',
+          customer_id: response.data.customer?.customer_id || response.data.data?.[0]?.customer_id || customer?.customer_id || '',
+          account_id: response.data.customer?.account_id || response.data.data?.[0]?.account_id || customer?.account_id || '',
           page_id: business,
           ...formData,
           email: emails,
+          // Preserve nested objects if they exist
+          account_details: customer?.account_details || undefined,
+          detail: customer?.detail || undefined,
         } as Customer);
       } else {
         toast.error(response.data.message || 'Failed to save customer');
@@ -729,7 +930,7 @@ function CustomerFormModal({
                 <div className="space-y-3">
                   {emails.map((email, index) => (
                     <div
-                      key={index}
+                      key={`email_${index}_${email.name}`}
                       className={`flex items-center gap-3 p-3 rounded-md ${
                         theme === 'dark' 
                           ? 'bg-gray-700 border border-gray-600' 
@@ -801,6 +1002,75 @@ function CustomerFormModal({
                 </div>
               </div>
 
+              {/* Sales Person and CRM Rep Dropdowns */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Sales Person
+                  </label>
+                  <select
+                    name="sales_person"
+                    value={formData.sales_person || ''}
+                    onChange={handleInputChange}
+                    disabled={loadingDropdowns || salesPersonList.length === 0}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
+                      theme === 'dark' 
+                        ? 'bg-gray-800 text-gray-100' 
+                        : 'bg-white text-gray-900'
+                    } ${loadingDropdowns || salesPersonList.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <option value="">
+                      {loadingDropdowns ? 'Loading...' : 'Select Sales Person'}
+                    </option>
+                    {salesPersonList.map((person) => (
+                      <option key={`sales_person_${person.user_id}`} value={person.user_id}>
+                        {person.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                    CRM Rep
+                  </label>
+                  <select
+                    name="crm_rep"
+                    value={formData.crm_rep || ''}
+                    onChange={handleInputChange}
+                    disabled={loadingDropdowns || crmRepList.length === 0}
+                    className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${
+                      theme === 'dark' 
+                        ? 'bg-gray-800 text-gray-100' 
+                        : 'bg-white text-gray-900'
+                    } ${loadingDropdowns || crmRepList.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <option value="">
+                      {loadingDropdowns ? 'Loading...' : 'Select CRM Rep'}
+                    </option>
+                    {crmRepList.map((rep) => (
+                      <option key={`crm_rep_${rep.user_id}`} value={rep.user_id}>
+                        {rep.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Marketplace Blanket Discount */}
+              <div>
+                <label className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                  Marketplace Blanket Discount
+                </label>
+                <input
+                  type="text"
+                  name="marketplace_blanket_discount"
+                  value={formData.marketplace_blanket_discount || ''}
+                  onChange={handleInputChange}
+                  placeholder="e.g., 10% or 0.10"
+                  className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${theme === 'dark' ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-900'}`}
+                />
+              </div>
+
               {/* Billing Address Section */}
               <div className={`border-t pt-6 ${theme === 'dark' ? 'border-gray-700' : 'border-gray-200'}`}>
                 <h4 className={`font-semibold mb-4 text-lg ${theme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>
@@ -845,7 +1115,7 @@ function CustomerFormModal({
                     >
                       <option value="">Select State</option>
                       {Object.entries(states).map(([code, name]) => (
-                        <option key={code} value={code}>{name}</option>
+                        <option key={`billing_state_${code}`} value={code}>{name}</option>
                       ))}
                     </select>
                   </div>
@@ -942,7 +1212,7 @@ function CustomerFormModal({
                     >
                       <option value="">Select State</option>
                       {Object.entries(states).map(([code, name]) => (
-                        <option key={code} value={code}>{name}</option>
+                        <option key={`shipping_state_${code}`} value={code}>{name}</option>
                       ))}
                     </select>
                   </div>
@@ -1168,8 +1438,8 @@ function CustomerFormModal({
                   </label>
                   <input
                     type="tel"
-                    name="contact_phone"
-                    value={formData.contact_phone || ''}
+                    name="contact_mobile"
+                    value={formData.contact_mobile || ''}
                     onChange={handleInputChange}
                     placeholder="(xxx) xxx-xxxx"
                     className={`w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition ${theme === 'dark' ? 'bg-gray-800 text-gray-100' : 'bg-white text-gray-900'}`}
@@ -1274,7 +1544,7 @@ function CustomerFormModal({
                     >
                       <option value="">Select State</option>
                       {Object.entries(states).map(([code, name]) => (
-                        <option key={code} value={code}>{name}</option>
+                        <option key={`contact_state_${code}`} value={code}>{name}</option>
                       ))}
                     </select>
                   </div>
