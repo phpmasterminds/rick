@@ -930,7 +930,7 @@ function CustomerFormModal({
                 <div className="space-y-3">
                   {emails.map((email, index) => (
                     <div
-                      key={`email_${index}_${email.name}`}
+                      key={`email_${index}`}
                       className={`flex items-center gap-3 p-3 rounded-md ${
                         theme === 'dark' 
                           ? 'bg-gray-700 border border-gray-600' 
