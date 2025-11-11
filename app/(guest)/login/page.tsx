@@ -38,9 +38,31 @@ export default function LoginPage() {
 		localStorage.setItem("token", JSON.stringify(res.data));
 
 		/*Get User Details*/
-		const aUserDetails = await axios.get("/api/auth/mine");
-		localStorage.setItem("user", JSON.stringify(aUserDetails.data));
-		Cookies.set("user_id", aUserDetails.data.user_id, { expires: 1 }); 
+		try {
+		  const aUserDetails = await axios.get("/api/auth/mine");
+
+		  // 2️⃣ Store user details in localStorage and cookie
+		  localStorage.setItem("user", JSON.stringify(aUserDetails.data));
+		  Cookies.set("user_id", aUserDetails.data.data.user_id, { expires: 1 });
+		  // 3️⃣ Fetch business details only after user_id is available
+		  if (aUserDetails.data.data?.user_id) {
+			const aUserBusinessDetails = await axios.get(
+			  `/api/business/mine?user_id=${aUserDetails.data.data.user_id}`
+			);
+			const business = aUserBusinessDetails.data.data.business[0];
+
+			if (business?.page_id) {
+			  Cookies.set("page_id", business.page_id, { expires: 1 });
+			  Cookies.set("vanity_url", business.vanity_url, { expires: 1 });
+			  Cookies.set("type_id", business.type_id, { expires: 1 });
+			}
+		  } else {
+			console.error("User ID not found in user details response");
+		  }
+		} catch (error) {
+		  console.error("Error fetching user or business details:", error);
+		}
+
 		
 		router.push("/dashboard");
 		

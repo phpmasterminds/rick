@@ -22,3 +22,21 @@ export async function GET(req: Request) {
     );
   }
 }
+
+// ✅ PUT - Update existing inventory item
+export async function PUT(req: Request) {
+  try {
+    const axios = await createServerAxios();
+    const body = await req.json();
+    
+	const response = await axios.put(`/business/sales-person`, body);
+
+    return NextResponse.json(response.data);
+  } catch (error: any) {
+    console.error("PUT Error:", error.response?.data || error.message);
+    return NextResponse.json(
+      { message: error.response?.data?.message || "Failed to update item" },
+      { status: error.response?.status || 500 }
+    );
+  }
+}

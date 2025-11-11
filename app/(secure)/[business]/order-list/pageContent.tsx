@@ -578,7 +578,7 @@ export default function OrderPageContent({ business }: { business: string }) {
   useEffect(() => {
     const fetchSalesReps = async () => {
       try {
-        const response = await axios.get(`/api/business/?business=${business}`);
+        const response = await axios.get(`/api/business/sales-persons`);
         if (response.data?.data?.sales_reps) {
           setSalesReps(response.data.data.sales_reps);
         }

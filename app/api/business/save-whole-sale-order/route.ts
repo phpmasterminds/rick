@@ -9,6 +9,7 @@ export async function GET(req: Request) {
 
 	const { searchParams } = new URL(req.url);
 	const business = searchParams.get("business");
+	const order_id = searchParams.get("order_id");
 	const page = searchParams.get("page") || "1";
 	const is_from = searchParams.get("is_from") || "pos";
 	const limit = searchParams.get("limit") || "30";
