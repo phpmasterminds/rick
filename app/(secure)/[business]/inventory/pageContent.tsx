@@ -20,11 +20,10 @@ interface Product {
   strain_cat: string;
   tag_no: string;
   is_safe: string;
-  is_pos: string; // "0" or "1"
+  enable_catalog: string; // "0" or "1"
   s_rooms: string | null;
   selected_rooms?: string[]; // Array from API
   enable_product: string; // "0" or "1" for PAGE
-  enable_catalog: string; // "0" or "1" for PAGE
   is_sample: string; // "0" or "1" for PAGE
   p_offer_price: string;
   i_price?: string | null;
@@ -41,8 +40,12 @@ interface Product {
   product_code?: string;
   batch_id?: string;
   cat_id?: string;
+  cat_parent_id?: string; // Parent category ID
   fla_cat_id?: string;
   fle_cat_id?: string;
+  fla_sub_cat_id?: string | number; // Subcategory for flavors
+  bne_cat_id?: string | number; // Alternative subcategory ID
+  fle_sub_cat_id?: string | number; // Alternative subcategory ID
   med_measurements?: string;
   value1?: string | number;
   value2?: string | number;
@@ -51,6 +54,8 @@ interface Product {
   value5?: string | number;
   value6?: string | number;
   value7?: string | number;
+  variant_name?: string; // Product variant name
+  flavors?: string; // Comma-separated flavors
 }
 
 interface Category {
@@ -133,7 +138,7 @@ interface DiscountScope {
 function PublishedToggle({ product, onToggle }: { product: Product, onToggle: (id: string, status: string, type?: string) => void }) {
   return (
     <div className="flex flex-col gap-3">
-      {/* POS Toggle */}
+      {/* catalog Toggle */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Catalog</span>
         <button
@@ -225,6 +230,7 @@ export default function PageContent({ business }: { business: string }) {
   const [selectedSubcategory, setSelectedSubcategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isAddMode, setIsAddMode] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -288,7 +294,7 @@ export default function PageContent({ business }: { business: string }) {
     price2: '',
     price3: '',
     selectedRoom: [] as string[],
-    pos: false,
+    catalog: false,
     page: false,
     enable_catalog: false,
     is_sample: false,
@@ -330,7 +336,7 @@ export default function PageContent({ business }: { business: string }) {
     price2: '',
     price3: '',
     selectedRoom: [] as string[],
-    pos: false,
+    catalog: false,
     page: false,
     thc: '',
     cbd: '',
@@ -418,6 +424,12 @@ export default function PageContent({ business }: { business: string }) {
         
         if (response.data.status === 'success') {
           const productsData = response.data.data.products || [];
+          
+          // Set globalPageId from API response data
+          if (response.data.data.page_id && !globalPageId) {
+            setGlobalPageId(response.data.data.page_id);
+          }
+          
           const roomsData = response.data.data.aRooms || [];
           
           // Transform selected_rooms array to s_rooms string
@@ -564,6 +576,10 @@ export default function PageContent({ business }: { business: string }) {
         payload.is_pos = newStatus;
       } else if (publishType === 'PAGE') {
         payload.enable_product = newStatus;
+      }else if (publishType === 'CATALOG') {
+        payload.enable_catalog = newStatus;
+      }else if (publishType === 'SAMPLE') {
+        payload.is_sample = newStatus;
       }
       
       const response = await axios.post('/api/business/toggle-publish', payload);
@@ -574,6 +590,8 @@ export default function PageContent({ business }: { business: string }) {
           p.product_id === productId 
             ? { 
                 ...p,
+                ...(publishType === 'SAMPLE' && { is_sample: newStatus }),
+                ...(publishType === 'CATALOG' && { enable_catalog: newStatus }),
                 ...(publishType === 'POS' && { is_pos: newStatus }),
                 ...(publishType === 'PAGE' && { enable_product: newStatus })
               }
@@ -583,9 +601,9 @@ export default function PageContent({ business }: { business: string }) {
         setProducts(updateFn);
         setAllProducts(updateFn);
         
-        const typeLabel = publishType === 'POS' ? 'POS' : 'Page';
+        //const typeLabel = publishType === 'POS' ? 'POS' : 'Page';
         const action = newStatus === '1' ? 'enabled for' : 'disabled for';
-        toast.success(`Product ${action} ${typeLabel}!`);
+        toast.success(`Product ${action} ${publishType}!`);
       }
     } catch (error: any) {
       showErrorToast(error, 'Failed to update product');
@@ -602,18 +620,20 @@ export default function PageContent({ business }: { business: string }) {
       page_id: product.page_id || '',
       productName: product.name || '',
       description: product.text_parsed || '',
-      variantName: '',
+      variantName: product.variant_name || '',
       strainName: product.strain || '',
       quantityOnHand: product.i_onhand || '',
       weight: product.i_weight || '',
       sku: product.product_code || '',
       batchId: product.batch_id || '',
       tagNo: product.tag_no || '',
-      category: product.cat_id || '',
-      subcategory: '',
+      category: String(product.cat_parent_id || ''),
+      // Try to get subcategory - could be from multiple sources
+      //subcategory: String(product.bne_cat_id || product.fla_sub_cat_id || product.fle_sub_cat_id || ''),
+      subcategory: String(product.cat_id),
       strainCat: product.strain_cat || '',
       flavor: product.fla_cat_id || '',
-      addedFlavors: product.fla_cat_id ? [product.fla_cat_id] : [],
+      addedFlavors: product.flavors ? product.flavors.split(',').map(f => f.trim()) : [],
       newFlavorInput: '',
       feeling: product.fle_cat_id || '',
       medMeasurements: product.med_measurements || 'unit',
@@ -631,10 +651,10 @@ export default function PageContent({ business }: { business: string }) {
 	  value5: String(product.value5 || ''),
 	  value6: String(product.value6 || ''),
 	  value7: String(product.value7 || ''),
-	  thc: product.thc,
-	  cbd: product.cbd,
+	  thc: product.thc || '',
+	  cbd: product.cbd || '',
       selectedRoom: product.selected_rooms || [],
-      pos: product.is_pos === '1',
+      catalog: product.enable_catalog === '1',
       page: product.enable_product === '1',
       enable_catalog: product.enable_catalog === '1',
       is_sample: product.is_sample === '1'
@@ -648,28 +668,50 @@ export default function PageContent({ business }: { business: string }) {
       setEditModalLoading(true);
 	  console.log('product.product_id'+product.product_id);
       // Call API to get categories, flavors, and feelings
-      const response = await axios.get(`/api/business/categories?page_id=${product.page_id}&product_id=${product.product_id}`);
+      const response = await axios.get(`/api/business/categories?page_id=${globalPageId}&product_id=${product.product_id}`);
       
       if (response.data.status === 'success' && response.data.data) {
         const data = response.data.data;
         
-        // Extract categories
-        if (data.products) {
-          setEditModalCategories(data.products);
+        // Transform categories array to match Category interface
+        // API returns: { id, name, subcategories: [{ id, name }, ...] }
+        // We need: { cat_id, cat_name, sub: [{ cat_id, cat_name }, ...] }
+        if (data.categories && Array.isArray(data.categories)) {
+          const transformedCategories: Category[] = data.categories.map((cat: any) => ({
+            cat_id: String(cat.id),
+            cat_name: cat.name,
+            sub: (cat.subcategories || []).map((subcat: any) => ({
+              cat_id: String(subcat.id),
+              cat_name: subcat.name
+            }))
+          }));
+          
+          setEditModalCategories(transformedCategories);
           
           // Find and populate subcategories for the current product's category
-          const selectedCategory = data.products.find((cat: any) => String(cat.cat_id) === String(product.cat_id));
+          // Use cat_parent_id to find the parent category (same as what's set in handleEditClick line 617)
+          const selectedCategory = transformedCategories.find((cat) => String(cat.cat_id) === String(product.cat_parent_id));
           if (selectedCategory && selectedCategory.sub) {
             setEditModalSubcategories(selectedCategory.sub);
+            
+            // Pre-select the product's subcategory if it exists
+            const productSubcategoryId = String(product.bne_cat_id || product.fla_sub_cat_id || product.fle_sub_cat_id || product.cat_id || '');
+            if (productSubcategoryId && productSubcategoryId !== '0' && productSubcategoryId !== 'null') {
+              // Update the form data to include the selected subcategory
+              setEditFormData(prev => ({
+                ...prev,
+                subcategory: productSubcategoryId
+              }));
+            }
           }
         }
         
-        // Extract flavors
+        // Extract flavors - handle both cat_name and flavor_name formats
         if (data.flavors) {
           setEditModalFlavors(data.flavors);
         }
 		
-		// Extract flavors
+		// Extract FlowerPriceTier
         if (data.FlowerPriceTier) {
           setEditModalFlowerTier(data.FlowerPriceTier);
         }
@@ -696,8 +738,20 @@ export default function PageContent({ business }: { business: string }) {
       if (response.data.status === 'success' && response.data.data) {
         const data = response.data.data;
         
-        if (data.products) {
-          setAddModalCategories(data.products);
+        // Transform categories array to match Category interface
+        // API returns: { id, name, subcategories: [{ id, name }, ...] }
+        // We need: { cat_id, cat_name, sub: [{ cat_id, cat_name }, ...] }
+        if (data.categories && Array.isArray(data.categories)) {
+          const transformedCategories: Category[] = data.categories.map((cat: any) => ({
+            cat_id: String(cat.id),
+            cat_name: cat.name,
+            sub: (cat.subcategories || []).map((subcat: any) => ({
+              cat_id: String(subcat.id),
+              cat_name: subcat.name
+            }))
+          }));
+          
+          setAddModalCategories(transformedCategories);
         }
         
         if (data.flavors) {
@@ -790,6 +844,12 @@ export default function PageContent({ business }: { business: string }) {
       formData.append('thc', editFormData.thc);
       formData.append('cbd', editFormData.cbd);
       
+	  // Add selected flavors as comma-separated string
+      if (editFormData.addedFlavors.length > 0) {
+        formData.append('added_flavors', editFormData.addedFlavors.join(','));
+      }
+	  
+	  
       // Add pricing based on measurement type
       if (editFormData.medMeasurements === 'bulk' || editFormData.medMeasurements === 'Pounds') {
         /*editFormData.medValue.forEach((val, idx) => {
@@ -816,7 +876,7 @@ export default function PageContent({ business }: { business: string }) {
       editFormData.selectedRoom.forEach(room => {
         formData.append('s_rooms[]', room);
       });
-      formData.append('is_pos', editFormData.pos ? '1' : '0');
+      formData.append('enable_catalog', editFormData.enable_catalog ? '1' : '0');
       formData.append('enable_product', editFormData.page ? '1' : '0');
       formData.append('page_id', editFormData.page_id);
       
@@ -843,7 +903,7 @@ export default function PageContent({ business }: { business: string }) {
 				  ...p,
 				  s_rooms: editFormData.selectedRoom?.join(',') || p.s_rooms, // update rooms
 				  i_weight: editFormData.weight,                               // update weight
-				  is_pos: editFormData.pos ? '1' : '0',                        // update POS status
+				  enable_catalog: editFormData.catalog ? '1' : '0',                        // update POS status
 				  enable_product: editFormData.page ? '1' : '0',               // update enable status
 				  p_offer_price: editFormData.price2 || p.p_offer_price,       // update price
 				  i_onhand: editFormData.quantityOnHand || p.i_onhand          // update on-hand qty
@@ -859,7 +919,7 @@ export default function PageContent({ business }: { business: string }) {
 				  ...p,
 				  s_rooms: editFormData.selectedRoom?.join(',') || p.s_rooms,
 				  i_weight: editFormData.weight,
-				  is_pos: editFormData.pos ? '1' : '0',
+				  enable_catalog: editFormData.catalog ? '1' : '0',
 				  enable_product: editFormData.page ? '1' : '0',
 				  p_offer_price: editFormData.price2 || p.p_offer_price,
 				  i_onhand: editFormData.quantityOnHand || p.i_onhand
@@ -880,6 +940,173 @@ export default function PageContent({ business }: { business: string }) {
     }
   };
 
+  const handleAddProduct = async () => {
+    try {
+      // Validation
+      if (!editFormData.productName?.trim()) {
+        toast.error('Product Name is required', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        return;
+      }
+
+      if (!editFormData.category) {
+        toast.error('Category is required', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        return;
+      }
+
+      /*if (!editFormData.quantityOnHand || Number(editFormData.quantityOnHand) <= 0) {
+        toast.error('Quantity On Hand must be greater than 0', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        return;
+      }
+
+      if (!editFormData.weight || Number(editFormData.weight) <= 0) {
+        toast.error('Weight (Grams) must be greater than 0', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        return;
+      }*/
+
+      if (!editFormData.medEachPrice || Number(editFormData.medEachPrice) <= 0) {
+        toast.error('Price must be greater than 0', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        return;
+      }
+
+      // Create FormData for file upload support
+      const formData = new FormData();
+      
+      // Add all product data
+      formData.append('product_name', editFormData.productName);
+      formData.append('description', editFormData.description);
+      formData.append('variant_name', editFormData.variantName);
+      formData.append('strain_name', editFormData.strainName);
+      formData.append('quantity_on_hand', editFormData.quantityOnHand);
+      formData.append('weight', editFormData.weight);
+      formData.append('sku', editFormData.sku);
+      formData.append('batch_id', editFormData.batchId);
+      formData.append('tag_no', editFormData.tagNo);
+      formData.append('category', editFormData.category);
+      formData.append('subcategory', editFormData.subcategory);
+      formData.append('strain_cat', editFormData.strainCat);
+      formData.append('flavor', editFormData.flavor);
+      formData.append('feeling', editFormData.feeling);
+      formData.append('med_measurements', editFormData.medMeasurements);
+      formData.append('thc', editFormData.thc);
+      formData.append('cbd', editFormData.cbd);
+      if (editFormData.addedFlavors.length > 0) {
+		  formData.append('added_flavors', editFormData.addedFlavors.join(','));
+		}
+      // Add pricing based on measurement type
+      if (editFormData.medMeasurements === 'bulk' || editFormData.medMeasurements === 'Pounds') {
+        formData.append(`med_value[]`, editFormData.value1);
+        formData.append(`med_value[]`, editFormData.value2);
+        formData.append(`med_value[]`, editFormData.value3);
+        formData.append(`med_value[]`, editFormData.value4);
+        formData.append(`med_value[]`, editFormData.value5);
+        formData.append(`med_value[]`, editFormData.value6);
+        formData.append(`med_value[]`, editFormData.value7);
+        if (selectedShakeTier) {
+          formData.append('shake_tier_id', selectedShakeTier);
+        }
+      } else {
+        formData.append('med_each_value', editFormData.medEachValue);
+        formData.append('med_each_price', editFormData.medEachPrice);
+      }
+      
+      formData.append('med_gram_price', editFormData.medGramPrice);
+      formData.append('page_id', editFormData.page_id);
+      
+      // Append each selected room
+      editFormData.selectedRoom.forEach(room => {
+        formData.append('s_rooms[]', room);
+      });
+      
+      formData.append('enable_catalog', editFormData.catalog ? '1' : '0');
+      formData.append('enable_product', editFormData.page ? '1' : '0');
+      
+      // Add image if uploaded
+      if (uploadedImage) {
+        formData.append('product_image', uploadedImage);
+      }
+      
+      // API call to create product
+      const response = await axios.post('/api/business/update-product', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      if (response.data.status === 'success') {
+        toast.success('Product created successfully!', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        
+        // Reset form and close modal
+        setShowEditModal(false);
+        setIsAddMode(false);
+        setEditFormData({
+          page_id: '',
+          productName: '',
+          description: '',
+          variantName: '',
+          strainName: '',
+          quantityOnHand: '',
+          weight: '',
+          sku: '',
+          batchId: '',
+          tagNo: '',
+          category: '',
+          subcategory: '',
+          strainCat: '',
+          flavor: '',
+          addedFlavors: [],
+          newFlavorInput: '',
+          feeling: '',
+          medMeasurements: 'unit',
+          medEachValue: 'Each',
+          medEachPrice: '',
+          medGramPrice: '',
+          medValue: ['', '', '', '', '', '', ''],
+          price1: '',
+          price2: '',
+          price3: '',
+          selectedRoom: [],
+          catalog: false,
+          page: false,
+          enable_catalog: false,
+          is_sample: false,
+          thc: '',
+          cbd: '',
+          value1: '',
+          value2: '',
+          value3: '',
+          value4: '',
+          value5: '',
+          value6: '',
+          value7: ''
+        });
+        setUploadedImage(null);
+        setUploadedImagePreview('');
+        setSelectedShakeTier('');
+      }else{
+		  showErrorToast(response,response.data.error.message);
+	  }
+    } catch (error: any) {
+      showErrorToast(error, 'Failed to create product');
+    }
+  };
 
   const handleSaveWeight = async (product: Product) => {
     try {
@@ -1171,6 +1398,57 @@ export default function PageContent({ business }: { business: string }) {
             <span>Import From Metrc</span>
           </button>
           <button
+            onClick={() => {
+              setIsAddMode(true);
+              setEditingProduct(null);
+              // Reset form data for add mode
+              setEditFormData({
+                page_id: globalPageId,
+                productName: '',
+                description: '',
+                variantName: '',
+                strainName: '',
+                quantityOnHand: '',
+                weight: '',
+                sku: '',
+                batchId: '',
+                tagNo: '',
+                category: '',
+                subcategory: '',
+                strainCat: '',
+                flavor: '',
+                addedFlavors: [],
+                newFlavorInput: '',
+                feeling: '',
+                medMeasurements: 'unit',
+                medEachValue: 'Each',
+                medEachPrice: '',
+                medGramPrice: '',
+                medValue: ['', '', '', '', '', '', ''],
+                price1: '',
+                price2: '',
+                price3: '',
+                selectedRoom: [],
+                catalog: false,
+                page: false,
+                enable_catalog: false,
+                is_sample: false,
+                thc: '',
+                cbd: '',
+                value1: '',
+                value2: '',
+                value3: '',
+                value4: '',
+                value5: '',
+                value6: '',
+                value7: ''
+              });
+              // Fetch dropdown data for add mode
+              if (globalPageId) {
+                fetchEditModalDropdowns({page_id: globalPageId} as any);
+              }
+              setShowEditModal(true);
+            }}
             className="px-4 py-2 text-white rounded-lg transition-all duration-300 hover:scale-105 flex items-center gap-2 accent-bg accent-hover"
           >
             <Plus size={18} />
@@ -1357,14 +1635,22 @@ export default function PageContent({ business }: { business: string }) {
 
      
 	  
-	  {/* Edit Product Modal */}
-      {showEditModal && editingProduct && (
+	  {/* Edit/Add Product Modal */}
+      {showEditModal && (isAddMode || editingProduct) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Edit Product</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                {isAddMode ? 'Add New Product' : 'Edit Product'}
+              </h2>
               <button
-                onClick={() => setShowEditModal(false)}
+                onClick={() => {
+                  setShowEditModal(false);
+                  setIsAddMode(false);
+                  setUploadedImage(null);
+                  setUploadedImagePreview('');
+                  setSelectedShakeTier('');
+                }}
                 className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center transition-colors"
               >
                 <X size={20} />
@@ -1865,18 +2151,18 @@ export default function PageContent({ business }: { business: string }) {
                   {/* Toggles */}
                   <div className="grid grid-cols-2 gap-6">
                     <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Pos</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Catalog</label>
                       <button
-                        onClick={() => setEditFormData({...editFormData, pos: !editFormData.pos})}
+                        onClick={() => setEditFormData({...editFormData, catalog: !editFormData.catalog})}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all ${
-                          editFormData.pos
+                          editFormData.catalog
                             ? 'accent-bg'
                             : 'bg-gray-300 dark:bg-gray-600'
                         }`}
                       >
                         <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            editFormData.pos ? 'translate-x-6' : 'translate-x-1'
+                            editFormData.catalog ? 'translate-x-6' : 'translate-x-1'
                           }`}
                         />
                       </button>
@@ -1953,6 +2239,7 @@ export default function PageContent({ business }: { business: string }) {
                   <button
                     onClick={() => {
                       setShowEditModal(false);
+                      setIsAddMode(false);
                       setUploadedImage(null);
                       setUploadedImagePreview('');
                       setSelectedShakeTier('');
@@ -1962,10 +2249,16 @@ export default function PageContent({ business }: { business: string }) {
                     Cancel
                   </button>
                   <button
-                    onClick={() => handleSaveProduct()}
+                    onClick={() => {
+                      if (isAddMode) {
+                        handleAddProduct();
+                      } else {
+                        handleSaveProduct();
+                      }
+                    }}
                     className="px-6 py-3 text-white rounded-lg transition-all duration-300 hover:scale-105 accent-bg accent-hover"
                   >
-                    Update
+                    {isAddMode ? 'Create Product' : 'Update'}
                   </button>
                 </div>
               </>

@@ -6,22 +6,25 @@ export async function PUT(request: NextRequest) {
   try {
     const axios = await createServerAxios();
     const body = await request.json();
-    const { product_id, i_weight, i_total_weight } = body;
+    const { product_id, i_weight, i_total_weight, i_price, i_onhand, i_deals } = body;
 
-    // Validate required fields
-    if (!product_id || i_weight === undefined || i_total_weight === undefined) {
+    // Validate required fields || i_weight === undefined || i_total_weight === undefined
+    if (!product_id ) {
       return NextResponse.json(
         { 
           status: 'failed', 
-          message: 'Missing required fields: product_id, i_weight, i_total_weight' 
+          message: 'Missing required fields: product_id' 
         },
         { status: 400 }
       );
     }
 
     // Validate weight values
-    const weight = parseFloat(i_weight);
-    const totalWeight = parseFloat(i_total_weight);
+	let weight = 0;
+	let totalWeight = 0;
+	if(i_weight){
+     weight = parseFloat(i_weight);
+     totalWeight = parseFloat(i_total_weight);
 
     if (isNaN(weight) || isNaN(totalWeight)) {
       return NextResponse.json(
@@ -42,12 +45,16 @@ export async function PUT(request: NextRequest) {
         { status: 400 }
       );
     }
+	}
 
     // ✅ Send with original field names that match backend expectations
     const response = await axios.post(
       "/business/pos-inventory/update-product",
       {
         product_id,
+        i_price: i_price,
+        i_onhand: i_onhand,
+        i_deals: i_deals,
         i_weight: weight,
         i_total_weight: totalWeight
       }

@@ -10,14 +10,14 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
 
     // Extract required fields
-    const product_id = formData.get("product_id");
+    /*const product_id = formData.get("product_id");
     if (!product_id) {
       return NextResponse.json(
         { status: "failed", message: "Missing required field: product_id" },
         { status: 400 }
       );
     }
-console.log(formData);
+console.log(formData);*/
     // ✅ Send to your backend (pass formData directly)
     const response = await axios.post(
       "/business/pos-inventory/update-product-full",

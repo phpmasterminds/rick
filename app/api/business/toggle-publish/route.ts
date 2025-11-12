@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const axios = await createServerAxios();
     const body = await request.json();
-    const { product_id, enable_product, publish_type, is_pos } = body;
+    const { product_id, enable_product, publish_type, is_pos, enable_catalog, is_sample } = body;
 
     // Validate required fields
     if (!product_id) {
@@ -22,10 +22,24 @@ export async function POST(request: NextRequest) {
 			{ status: 400 }
 		  );
 		}
-	}else{
+	}else if(publish_type === 'POS'){
 		if (is_pos === undefined || is_pos === null) {
 		  return NextResponse.json(
 			{ status: 'failed', message: 'Missing required field: is_pos' },
+			{ status: 400 }
+		  );
+		}
+	}else if(publish_type === 'CATALOG'){
+		if (enable_catalog === undefined || enable_catalog === null) {
+		  return NextResponse.json(
+			{ status: 'failed', message: 'Missing required field: enable_catalog' },
+			{ status: 400 }
+		  );
+		}
+	}else if(publish_type === 'SAMPLE'){
+		if (is_sample === undefined || is_sample === null) {
+		  return NextResponse.json(
+			{ status: 'failed', message: 'Missing required field: is_sample' },
 			{ status: 400 }
 		  );
 		}
@@ -37,7 +51,9 @@ export async function POST(request: NextRequest) {
       product_id,
       enable_product,
 	  publish_type,
-	  is_pos
+	  is_pos,
+	  is_sample,
+	  enable_catalog
     });
 
     console.log('✅ Backend response:', response.data);
