@@ -200,202 +200,6 @@ export default function TopBar({ isMobileOpen, setIsMobileOpen }: TopBarProps) {
     );
   }
 
-  // ⭐ CONDITIONAL RENDERING BASED ON TYPEID
-  // If typeId is null, show ONLY cart icon
-  if (typeId === null) {
-    return (
-      <div className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-6 transition-colors duration-300">
-        <div className="flex items-center space-x-4">
-          <button
-            onClick={() => setIsMobileOpen(!isMobileOpen)}
-            className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-          >
-            <Menu size={20} />
-          </button>
-
-          <div className="hidden md:flex items-center space-x-2">
-            <Link href="/home">
-              <div className="flex items-center gap-2">
-                <img
-                  src="/images/natures-high-logo.png"
-                  alt="Nature's High"
-                  className="h-9 w-9 rounded-full object-cover shadow-md"
-                />
-                <span className="font-semibold">Nature's High</span>
-              </div>
-            </Link>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-3">
-          {/* ⭐ CART ICON ONLY WHEN TYPEID IS NULL */}
-          <button
-            onClick={() => {
-              setShowCartDrawer(!showCartDrawer);
-              setShowNotifications(false);
-              setShowUserMenu(false);
-            }}
-            className="relative w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300"
-          >
-            <ShoppingCart size={18} className="text-gray-600 dark:text-gray-300" />
-            {cartItemsCount > 0 && (
-              <span className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                {cartItemsCount > 99 ? "99+" : cartItemsCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* ⭐ CART DRAWER WITH BUSINESS GROUPING */}
-        {showCartDrawer && (
-          <>
-            {/* Backdrop */}
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity"
-              onClick={() => setShowCartDrawer(false)}
-            />
-
-            {/* Cart Drawer */}
-            <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white dark:bg-gray-900 shadow-2xl z-50 flex flex-col animate-in slide-in-from-right overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-xl font-semibold">Your Cart</h2>
-                <button
-                  onClick={() => setShowCartDrawer(false)}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              {/* Cart Items by Business */}
-              <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
-                {Object.keys(groupedItems).length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-center py-12">
-                    <ShoppingCart size={48} className="text-gray-300 dark:text-gray-600 mb-3" />
-                    <p className="text-gray-500 dark:text-gray-400 font-medium">Your cart is empty</p>
-                    <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Add items to get started</p>
-                  </div>
-                ) : (
-                  Object.entries(groupedItems).map(([business, items]) => (
-                    <div key={business} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                      {/* Business Header */}
-                      <h3 className="font-bold text-sm mb-3 text-gray-900 dark:text-white">
-                        {business}
-                      </h3>
-
-                      {/* Items from this business */}
-                      <div className="space-y-3">
-                        {items.map((item) => (
-                          <div
-                            key={item.cartItemId}
-                            className="flex gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
-                          >
-                            {/* Product Image */}
-                            {item.imageUrl && (
-                              <img
-                                src={item.imageUrl}
-                                alt={item.productName}
-                                className="w-16 h-16 rounded-lg object-cover flex-shrink-0"
-                              />
-                            )}
-
-                            {/* Product Details */}
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-sm line-clamp-2 text-gray-900 dark:text-white">
-                                {item.productName}
-                              </h4>
-                              <p className="text-sm font-medium text-blue-600 dark:text-blue-400 mt-1">
-                                ${(item.price || 0).toFixed(2)}
-                              </p>
-
-                              {/* Quantity Controls */}
-                              <div className="flex items-center gap-2 mt-2">
-                                <button
-                                  onClick={() => handleUpdateQuantity(item.cartItemId, (item.quantity || 0) - 1)}
-                                  className="w-6 h-6 rounded border border-gray-300 dark:border-gray-600 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 text-sm"
-                                >
-                                  −
-                                </button>
-                                <input
-                                  type="number"
-                                  value={item.quantity || 0}
-                                  onChange={(e) => {
-                                    const val = parseInt(e.target.value);
-                                    if (!isNaN(val)) handleUpdateQuantity(item.cartItemId, val);
-                                  }}
-                                  className="w-10 h-6 text-center border border-gray-300 dark:border-gray-600 rounded text-sm dark:bg-gray-700"
-                                />
-                                <button
-                                  onClick={() => handleUpdateQuantity(item.cartItemId, (item.quantity || 0) + 1)}
-                                  className="w-6 h-6 rounded border border-gray-300 dark:border-gray-600 flex items-center justify-center hover:bg-gray-200 dark:hover:bg-gray-700 text-sm"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Remove Button */}
-                            <button
-                              onClick={() => handleRemoveItem(item.cartItemId)}
-                              className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-600 dark:text-red-400 transition-colors flex-shrink-0"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Business Subtotal */}
-                      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                        <div className="flex justify-between text-sm font-semibold">
-                          <span>Subtotal:</span>
-                          <span>
-                            ${items.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 0)), 0).toFixed(2)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Footer - Total & Checkout */}
-              {Object.keys(groupedItems).length > 0 && (
-                <div className="border-t border-gray-200 dark:border-gray-700 p-4 md:p-6 space-y-3">
-                  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                    <div className="flex justify-between font-semibold text-lg">
-                      <span>Total:</span>
-                      <span>${cartTotal.toFixed(2)}</span>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      setShowCartDrawer(false);
-                      router.push("/cart");
-                    }}
-                    className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 text-white font-semibold py-3 rounded-lg transition-colors"
-                  >
-                    Review & Checkout
-                  </button>
-
-                  <button
-                    onClick={() => setShowCartDrawer(false)}
-                    className="w-full bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-medium py-2 rounded-lg transition-colors"
-                  >
-                    Continue Shopping
-                  </button>
-                </div>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // ⭐ NORMAL RENDERING WHEN TYPEID IS NOT NULL
   return (
     <div className="h-16 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 md:px-6 transition-colors duration-300">
       <div className="flex items-center space-x-4">
@@ -421,7 +225,7 @@ export default function TopBar({ isMobileOpen, setIsMobileOpen }: TopBarProps) {
       </div>
 
       <div className="flex items-center space-x-3">
-        {/* ⭐ CART ICON - OPENS DRAWER WITH BUSINESS GROUPING */}
+        {/* ⭐ CART ICON - ALWAYS SHOWN (regardless of typeId) */}
         <button
           onClick={() => {
             setShowCartDrawer(!showCartDrawer);
@@ -438,7 +242,7 @@ export default function TopBar({ isMobileOpen, setIsMobileOpen }: TopBarProps) {
           )}
         </button>
 
-        {/* Notifications */}
+        {/* ⭐ NOTIFICATIONS - ALWAYS VISIBLE FOR ALL SECTIONS */}
         <div className="relative">
           <button
             onClick={() => {
@@ -467,7 +271,7 @@ export default function TopBar({ isMobileOpen, setIsMobileOpen }: TopBarProps) {
           )}
         </div>
 
-        {/* User Menu */}
+        {/* ⭐ USER MENU - ALWAYS VISIBLE FOR ALL SECTIONS */}
         <div className="relative">
           <button
             onClick={() => {
