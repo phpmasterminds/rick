@@ -73,7 +73,37 @@ export default function Sidebar({
   // Extract vanity URL from pathname
   const getVanityUrl = useCallback(() => {
     const pathSegments = pathname.split("/").filter(Boolean);
-    const knownRoutes = ["dashboard", "login", "register", "home", "auth"];
+    // All possible app routes that are NOT business vanity URLs
+    const knownRoutes = [
+      "dashboard",
+      "login",
+      "register",
+      "home",
+      "auth",
+      "shop",
+      "buy",
+      "orders",
+      "reports",
+      "settings",
+      "dispensary-floor",
+      "customers",
+      "vendors",
+      "deals",
+      "inventory",
+      "posinventory",
+      "wholesaleorder",
+      "catalog",
+      "order-list",
+      "documents",
+      "sample-orders",
+      "projects",
+      "crm",
+      "metrc",
+      "metrc-audit",
+      "register",
+      "transactions",
+      "vendors-po",
+    ];
     const pathVanityUrl =
       pathSegments[0] && !knownRoutes.includes(pathSegments[0])
         ? pathSegments[0]
@@ -124,7 +154,7 @@ export default function Sidebar({
     return businessData?.type_id || null;
   }, [businessData]);
 
-  // Build final path helper
+  // Build final path helper - only prepend vanityUrl if it exists
   const buildPath = useCallback(
     (basePath: string) => {
       return vanityUrl ? `/${vanityUrl}${basePath}` : basePath;
@@ -134,7 +164,7 @@ export default function Sidebar({
 
   // Load menu items based on type_id from API
   useEffect(() => {
-    if (!isHydrated || !typeId) return;
+    if (!isHydrated) return;
 
     const items: MenuItem[] =
       typeId === "36"
@@ -179,7 +209,8 @@ export default function Sidebar({
               ],
             },
           ]
-        : [
+        : typeId === "20"
+        ? [
             { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
             { id: "register", icon: FileSpreadsheet, label: "Register", path: "/register" },
             { id: "dispensary-floor", icon: Store, label: "Dispensary Floor", path: "/dispensary-floor" },
@@ -193,6 +224,21 @@ export default function Sidebar({
             { id: "metrc-audit", icon: ClipboardList, label: "Metrc Audit", path: "/metrc-audit" },
             { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
             { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
+          ]
+        : [
+            { id: "dashboard", icon: Home, label: "Dashboard", path: "/dashboard" },
+            { id: "buy", icon: ShoppingBag, label: "Buy", path: "/buy" },
+            { id: "orders", icon: ClipboardList, label: "Orders", path: "/orders" },
+            { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
+            {
+              id: "settings",
+              icon: Settings,
+              label: "Settings",
+              submenu: [
+                { id: "profile", label: "Profile", path: "/settings/profile" },
+                { id: "notification", label: "Notification", path: "/settings/notification" },
+              ],
+            },
           ];
 
     setMenuItems(items);
