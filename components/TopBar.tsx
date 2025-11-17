@@ -168,6 +168,7 @@ export default function TopBar({ isMobileOpen, setIsMobileOpen }: TopBarProps) {
   };
 
   // ⭐ Group items by business
+  console.log(cartItems);
   const groupedItems: GroupedItems = cartItems.reduce((acc, item) => {
     const business = item.business || "Nature's High";
     if (!acc[business]) {
