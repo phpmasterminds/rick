@@ -557,7 +557,15 @@ export default function OrderPageContent({ business }: { business: string }) {
     const fetchOrders = async () => {
       try {
         setLoading(true);
-        const response = await axios.get(`/api/business/save-whole-sale-order/?business=${business}&page=${currentPage}`);
+		
+		const searchParams = new URLSearchParams(window.location.search);
+		const wholesale = searchParams.get("wholesale") || 0;
+
+		const response = await axios.get(
+		`/api/business/save-whole-sale-order/?business=${business}&page=${currentPage}&wholesale=${wholesale}`
+		);
+
+        //const response = await axios.get(`/api/business/save-whole-sale-order/?business=${business}&page=${currentPage}`);
         if (response.data?.data?.orders) {
           setOrders(response.data.data.orders);
           // Capture total count from API response

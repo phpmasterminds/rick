@@ -14,7 +14,15 @@ export interface CartItem {
   selectedVariant?: string;     // Selected variant
   selectedFlavor?: string;      // Selected flavor
   sku?: string;                 // SKU/Product code
-  business?: string;            // ⭐ Business name for grouping
+  business?: string;            // Business name for grouping
+  business_user_id?: number;             // Page ID
+  page_id?: number;             // Page ID
+  is_sample?: number;           // Is sample indicator
+  customer_id?: number;         // Customer ID
+  sample_order?: number;        // Sample order indicator
+  name?: string;                // Product name alternative
+  med_image?: string;                // Product name alternative
+  total?: number;               // Line item total (price * quantity)
 }
 
 interface ShopCartContextType {
@@ -29,20 +37,30 @@ interface ShopCartContextType {
 
 const ShopCartContext = createContext<ShopCartContextType | undefined>(undefined);
 
+// Helper function to calculate item total
+const calculateItemTotal = (item: CartItem): CartItem => {
+  return {
+    ...item,
+    total: (item.price || 0) * (item.quantity || 0),
+  };
+};
+
 export function ShopCartProvider({ children }: { children: ReactNode }) {
   const [cartItems, setCartItems] = useState<CartItem[]>(() => {
     // Initialize from localStorage
     if (typeof window === 'undefined') return [];
     try {
       const stored = localStorage.getItem('shopCart');
-      return stored ? JSON.parse(stored) : [];
+      const items = stored ? JSON.parse(stored) : [];
+      // Recalculate totals on initialization
+      return items.map(calculateItemTotal);
     } catch (error) {
       console.error('Error loading cart from localStorage:', error);
       return [];
     }
   });
 
-  // ⭐ Save to localStorage whenever cart changes
+  // Save to localStorage whenever cart changes
   const saveToLocalStorage = (items: CartItem[]) => {
     if (typeof window !== 'undefined') {
       try {
@@ -67,15 +85,17 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
         let updatedItems: CartItem[];
 
         if (existingItemIndex >= 0) {
-          // Update existing item quantity
-          updatedItems = prevItems.map((i, idx) =>
-            idx === existingItemIndex
-              ? { ...i, quantity: i.quantity + item.quantity }
-              : i
-          );
+          // Update existing item quantity and recalculate total
+          updatedItems = prevItems.map((i, idx) => {
+            if (idx === existingItemIndex) {
+              const updatedItem = { ...i, quantity: i.quantity + item.quantity };
+              return calculateItemTotal(updatedItem);
+            }
+            return i;
+          });
         } else {
-          // Add new item
-          updatedItems = [...prevItems, item];
+          // Add new item with calculated total
+          updatedItems = [...prevItems, calculateItemTotal(item)];
         }
 
         saveToLocalStorage(updatedItems);
@@ -113,10 +133,14 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
           return updatedItems;
         }
 
-        // Update quantity
-        const updatedItems = prevItems.map((item) =>
-          item.cartItemId === cartItemId ? { ...item, quantity } : item
-        );
+        // Update quantity and recalculate total
+        const updatedItems = prevItems.map((item) => {
+          if (item.cartItemId === cartItemId) {
+            const updatedItem = { ...item, quantity };
+            return calculateItemTotal(updatedItem);
+          }
+          return item;
+        });
 
         saveToLocalStorage(updatedItems);
         return updatedItems;
@@ -134,7 +158,7 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
 
   const getCartTotal = (): number => {
     return cartItems.reduce(
-      (total, item) => total + ((item.price || 0) * (item.quantity || 0)),
+      (total, item) => total + (item.total || 0),
       0
     );
   };

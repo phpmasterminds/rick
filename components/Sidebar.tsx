@@ -178,7 +178,7 @@ export default function Sidebar({
               submenu: [
                 { id: "place_order", label: "Place Order", path: "/wholesaleorder" },
                 { id: "product_catalog", label: "Product Catalog", path: "/catalog" },
-                { id: "order_history", label: "Order History", path: "/order-list" },
+                { id: "order_history", label: "Order History", path: "/order-list?wholesale=1" },
               ],
             },
             { id: "open_orders", icon: ClipboardList, label: "Open Orders", path: "/order-list" },

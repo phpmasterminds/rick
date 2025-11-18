@@ -56,6 +56,10 @@ interface Product {
   enable_product?: string | number;
   bus_title?: string;
   business_url?: string;
+  business_user_id?: string;
+  page_id?: string;
+  is_sample?: string | number;
+  med_image?: string;
 }
 
 interface Category {
@@ -303,6 +307,7 @@ export default function PageContent() {
 
   // Handle add to cart
   const handleAddToCart = (product: Product) => {
+	  console.log(product);
     const cartItem: CartItem = {
       productId: product.product_id,
       cartItemId: product.product_id,
@@ -312,6 +317,11 @@ export default function PageContent() {
       quantity: 1,
       imageUrl: getProductImageUrl(product),
       business: product.bus_title,
+      business_user_id: product.business_user_id ? parseInt(product.business_user_id, 10) : undefined,
+      name: product.name,
+      page_id: product.page_id ? parseInt(product.page_id, 10) : undefined,
+      is_sample: typeof product.is_sample === 'string' ? parseInt(product.is_sample, 10) : product.is_sample,
+      med_image: product.med_image,
     };
     addToCart(cartItem);
     toast.success(`${product.name} added to cart!`, {
