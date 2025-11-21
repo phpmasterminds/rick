@@ -119,6 +119,8 @@ export default function Sidebar({
     const fetchBusinessData = async () => {
       // Only fetch if vanity URL exists and is different from current business
       if (!vanityUrl || vanityUrl === currentBusiness) {
+		  console.log("businessData"+businessData);
+		  console.log("vanityUrl"+vanityUrl);
         if (!businessData && vanityUrl) {
           // If no data and vanity URL exists, still need to fetch
           setLoading(true);
@@ -127,7 +129,7 @@ export default function Sidebar({
           return;
         }
       }
-
+console.log("came");
       try {
         setLoading(true);
         const response = await axios.get(`/api/business?business=${vanityUrl}`);
@@ -165,7 +167,8 @@ export default function Sidebar({
   // Load menu items based on type_id from API
   useEffect(() => {
     if (!isHydrated) return;
-
+console.log(businessData+'businessData');
+console.log(typeId+'typeId');
     const items: MenuItem[] =
       typeId === "36"
         ? [
