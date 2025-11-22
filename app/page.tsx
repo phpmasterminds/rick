@@ -16,7 +16,9 @@ export default function Home() {
       if (token) {
         router.replace('/dashboard');
       } else {
-        router.replace('/home');
+        //router.replace('/home');
+		        router.replace('/coming-soon');
+
       }
     };
 

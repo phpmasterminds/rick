@@ -24,7 +24,7 @@ export function middleware(request: NextRequest) {
 
 	
   // Define which routes are public (no login needed)
-  const publicRoutes = ['/login', '/register','/home', '/deals','/shop', '/featured', '/strains', '/learn'];
+  const publicRoutes = ['/login', '/register','/home', '/deals','/shop', '/featured', '/strains', '/learn', '/coming-soon'];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
   // ✅ Case 1: If NO token and accessing a protected route → redirect to /login
