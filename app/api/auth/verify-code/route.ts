@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
     const accessToken = tokenResponse.data.access_token;
     // 2️⃣ Call PHPFox /business/register API with token
-    const response = await axiosClient.post("/business/register", body, {
+    const response = await axiosClient.post("/business/verify-code", body, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },

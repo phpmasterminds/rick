@@ -6,7 +6,24 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const response = await axiosClient.post("/token", body);
+   // const response = await axiosClient.post("/token", body);
+	
+	const response = await axiosClient.post(
+      "/token",
+      body,
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          Authorization:
+            "Basic " +
+            Buffer.from(
+              process.env.BACKEND_BASIC_USER +
+                ":" +
+                process.env.BACKEND_BASIC_PASS
+            ).toString("base64"),
+        },
+      }
+    );
 	
 	const { access_token, refresh_token, token_type, expires_in } = response.data;
 

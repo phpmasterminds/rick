@@ -5,6 +5,8 @@ import {
   ChevronDown, AlertCircle, Eye, EyeOff, Mail, Phone, MapPin, Loader2, X
 } from 'lucide-react';
 import axios from 'axios';
+import { toast } from 'react-toastify';
+import { useRouter } from 'next/navigation';
 
 interface RegistrationFormData {
   contact_first_name: string;
@@ -54,11 +56,20 @@ const states: Record<string, string> = {
 const licenseTypes = ['Dispensary', 'Processor', 'Grower'];
 
 export default function RegistrationPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState('contact');
   const [submitting, setSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [showMobileVerification, setShowMobileVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationInput, setVerificationInput] = useState('');
+  const [sendingOTP, setSendingOTP] = useState(false);
+  const [verifyingOTP, setVerifyingOTP] = useState(false);
+  const [mobileVerified, setMobileVerified] = useState(false);
+  const [registrationComplete, setRegistrationComplete] = useState(false);
+  const [registrationData, setRegistrationData] = useState<any>(null);
 
   const [formData, setFormData] = useState<RegistrationFormData>({
     contact_first_name: '',
@@ -116,6 +127,72 @@ export default function RegistrationPage() {
     });
   };
 
+  /*const sendOTP = async () => {
+    try {
+      setSendingOTP(true);
+      
+      // Call backend API to send OTP
+      const response = await axios.post('/api/business/send-verification-code', {
+        phone: formData.contact_mobile
+      });
+      
+      if (response.data.success) {
+        setShowMobileVerification(true);
+        setVerificationInput('');
+        alert(`Verification code sent to ${formData.contact_mobile}`);
+      } else {
+        alert(response.data.message || 'Failed to send verification code');
+      }
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      alert('Failed to send verification code. Please try again.');
+    } finally {
+      setSendingOTP(false);
+    }
+  };*/
+
+  const verifyOTP = async () => {
+    try {
+      setVerifyingOTP(true);
+      
+      // Call backend API to verify OTP
+      const response = await axios.post('/api/auth/verify-code', {
+        phone: formData.contact_mobile,
+        code: verificationInput
+      });
+      
+      if (response.data.status === 'success') {
+        setMobileVerified(true);
+        setShowMobileVerification(false);
+        setVerificationInput('');
+        toast.success('Mobile number verified successfully!', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+      } else {
+        toast.error(response.data.message || 'Invalid verification code. Please try again.', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+      }
+    } catch (error) {
+      console.error('Error verifying OTP:', error);
+      toast.error('Verification failed. Please try again.', {
+        position: 'bottom-center',
+        autoClose: 3000,
+      });
+    } finally {
+      setVerifyingOTP(false);
+    }
+  };
+
+  const resetMobileVerification = () => {
+    setMobileVerified(false);
+    setShowMobileVerification(false);
+    setVerificationInput('');
+    setVerificationCode('');
+  };
+
   const validateContactTab = (): boolean => {
     const errors: FieldErrors = {};
     let isValid = true;
@@ -142,9 +219,13 @@ export default function RegistrationPage() {
       errors.contact_company_name = 'Company name is required';
       isValid = false;
     }
-    if (formData.contact_mobile.trim()) {
-      const mobileRegex = /^[\+]?1?[\s\.]?\(?([0-9]{3})\)?[\s\.]?([0-9]{3})[\s\.]?([0-9]{4})$/;
-      if (!mobileRegex.test(formData.contact_mobile.replace(/\D/g, ''))) {
+    if (!formData.contact_mobile.trim()) {
+      errors.contact_mobile = 'Mobile number is required';
+      isValid = false;
+    } else {
+      const digitsOnly = formData.contact_mobile.replace(/\D/g, '');
+      const mobileRegex = /^1?([0-9]{3})([0-9]{3})([0-9]{4})$/;
+      if (!mobileRegex.test(digitsOnly)) {
         errors.contact_mobile = 'Please enter a valid USA mobile number (e.g., (123) 456-7890)';
         isValid = false;
       }
@@ -289,16 +370,53 @@ export default function RegistrationPage() {
       const response = await axios.post('/api/auth/register', payload);
 
       if (response.data.status === 'success') {
-        alert('✓ Registration successful! Redirecting to login...');
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 1500);
+        // Registration successful - auto-send OTP
+        setRegistrationData(response.data);
+        setRegistrationComplete(true);
+        setShowMobileVerification(true);
+        toast.success(`✓ Registration successful! OTP sent to ${formData.contact_mobile}`, {
+              position: 'bottom-center',
+              autoClose: 3000,
+            });
+        // Auto-send OTP to mobile
+        /*try {
+          const otpResponse = await axios.post('/api/business/send-verification-code', {
+            phone: formData.contact_mobile
+          });
+          
+          if (otpResponse.data.success) {
+            toast.success(`✓ Registration successful! OTP sent to ${formData.contact_mobile}`, {
+              position: 'top-right',
+              autoClose: 3000,
+            });
+          }
+        } catch (otpError) {
+          console.error('Error sending OTP:', otpError);
+          toast.success('Registration successful! Please try sending OTP again.', {
+            position: 'top-right',
+            autoClose: 3000,
+          });
+        }*/
       } else {
-        alert(`✗ Error: ${response.data.message || 'Registration failed'}`);
+        /*toast.error(`Error: ${response.data.error.message || 'Registration failed'}`, {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });*/
+		toast.error(
+  response?.data?.error?.message || 'Registration failed',
+  {
+    position: 'bottom-center',
+    autoClose: 3000,
+  }
+);
+
       }
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.message || 'Registration failed. Please try again.';
-      alert(`✗ Error: ${errorMessage}`);
+      toast.error(`Error: ${errorMessage}`, {
+        position: 'bottom-center',
+        autoClose: 3000,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -314,41 +432,45 @@ export default function RegistrationPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
       <div className="max-w-4xl mx-auto">
-        <div className="bg-white rounded-t-2xl shadow-lg p-8 border-b border-gray-200">
-          <h1 className="text-4xl font-bold text-teal-600 mb-2">Nature's High Registration</h1>
-          <p className="text-gray-600">Complete your business registration to get started</p>
-        </div>
-
-        <div className="bg-white shadow-lg px-8">
-          <div className="flex border-b border-gray-200 overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => {
-                  // Validate current tab before switching
-                  if (activeTab === 'contact' && tab.id !== 'contact') {
-                    if (!validateContactTab()) return;
-                  } else if (activeTab === 'business' && tab.id !== 'business') {
-                    if (!validateBusinessTab()) return;
-                  } else if (activeTab === 'license' && tab.id !== 'license') {
-                    if (!validateLicenseTab()) return;
-                  }
-                  setActiveTab(tab.id);
-                }}
-                className={`px-6 py-4 font-semibold text-sm whitespace-nowrap transition-colors border-b-2 ${
-                  activeTab === tab.id
-                    ? 'text-teal-600 border-teal-600'
-                    : 'text-gray-600 border-transparent hover:text-gray-900'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        {!registrationComplete && (
+          <div className="bg-white rounded-t-2xl shadow-lg p-8 border-b border-gray-200">
+            <h1 className="text-4xl font-bold text-teal-600 mb-2">Nature's High Registration</h1>
+            <p className="text-gray-600">Complete your business registration to get started</p>
           </div>
-        </div>
+        )}
 
-        <form onSubmit={handleSubmit} className="bg-white shadow-lg rounded-b-2xl p-8">
-          {activeTab === 'contact' && (
+        {!registrationComplete && (
+          <div className="bg-white shadow-lg px-8">
+            <div className="flex border-b border-gray-200 overflow-x-auto">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    // Validate current tab before switching
+                    if (activeTab === 'contact' && tab.id !== 'contact') {
+                      if (!validateContactTab()) return;
+                    } else if (activeTab === 'business' && tab.id !== 'business') {
+                      if (!validateBusinessTab()) return;
+                    } else if (activeTab === 'license' && tab.id !== 'license') {
+                      if (!validateLicenseTab()) return;
+                    }
+                    setActiveTab(tab.id);
+                  }}
+                  className={`px-6 py-4 font-semibold text-sm whitespace-nowrap transition-colors border-b-2 ${
+                    activeTab === tab.id
+                      ? 'text-teal-600 border-teal-600'
+                      : 'text-gray-600 border-transparent hover:text-gray-900'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className={`bg-white shadow-lg p-8 ${registrationComplete ? 'rounded-2xl' : 'rounded-b-2xl'}`}>
+          {activeTab === 'contact' && !registrationComplete && (
             <div className="space-y-6">
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <p className="text-blue-800 text-sm">
@@ -434,15 +556,20 @@ export default function RegistrationPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700">Mobile</label>
+                  <label className="block text-sm font-medium mb-2 text-gray-700">Mobile *</label>
                   <input
                     type="tel"
                     name="contact_mobile"
                     value={formData.contact_mobile}
                     onChange={handleInputChange}
                     placeholder="(xxx) xxx-xxxx"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                      fieldErrors.contact_mobile ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-teal-500'
+                    }`}
                   />
+                  {fieldErrors.contact_mobile && (
+                    <p className="text-red-600 text-sm mt-1">⚠ {fieldErrors.contact_mobile}</p>
+                  )}
                 </div>
               </div>
 
@@ -497,7 +624,7 @@ export default function RegistrationPage() {
             </div>
           )}
 
-          {activeTab === 'business' && (
+          {activeTab === 'business' && !registrationComplete && (
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700">Account Name *</label>
@@ -638,7 +765,7 @@ export default function RegistrationPage() {
             </div>
           )}
 
-          {activeTab === 'license' && (
+          {activeTab === 'license' && !registrationComplete && (
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700">License Type *</label>
@@ -716,7 +843,7 @@ export default function RegistrationPage() {
             </div>
           )}
 
-          {activeTab === 'authentication' && (
+          {activeTab === 'authentication' && !registrationComplete && (
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700">Email *</label>
@@ -800,6 +927,98 @@ export default function RegistrationPage() {
                   {submitting ? 'Creating...' : 'Complete Registration'}
                 </button>
               </div>
+            </div>
+          )}
+
+          {registrationComplete && (
+            <div className="space-y-6 py-8">
+              <div className="text-center mb-8">
+                <div className="flex justify-center mb-4">
+                  <Phone className="w-16 h-16 text-green-600" />
+                </div>
+                <h2 className="text-3xl font-bold text-gray-800 mb-2">Registration Successful!</h2>
+                <p className="text-gray-600">Verify your mobile number to activate your account</p>
+              </div>
+
+              <div className="bg-teal-50 border border-teal-200 rounded-lg p-6 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-5 h-5 text-teal-600" />
+                  <p className="text-sm font-medium text-teal-900">Enter Verification Code</p>
+                </div>
+                
+                <div className="bg-white p-4 rounded border border-teal-200">
+                  <p className="text-sm text-gray-700 mb-2">
+                    <span className="font-medium">Mobile Number:</span> {formData.contact_mobile}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    A 6-digit verification code has been sent to your mobile number
+                  </p>
+                </div>
+
+                {showMobileVerification && !mobileVerified && (
+                  <div className="space-y-3">
+                    <p className="text-sm text-teal-700 font-medium">
+                      Enter the 6-digit code sent to {formData.contact_mobile}
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={verificationInput}
+                        onChange={(e) => setVerificationInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="000000"
+                        maxLength={6}
+                        className="flex-1 px-4 py-3 border border-teal-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-center text-3xl font-mono tracking-widest font-bold"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={verifyOTP}
+                      disabled={verificationInput.length !== 6 || verifyingOTP}
+                      className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                        verifyingOTP || verificationInput.length !== 6
+                          ? 'bg-gray-400 text-white cursor-not-allowed'
+                          : 'bg-teal-600 text-white hover:bg-teal-700'
+                      }`}
+                    >
+                      {verifyingOTP ? 'Verifying Code...' : 'Verify'}
+                    </button>
+                  </div>
+                )}
+
+                {mobileVerified && (
+                  <div className="bg-green-50 border border-green-200 rounded p-4 text-center space-y-4">
+                    <div className="flex justify-center mb-2">
+                      <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center">
+                        <span className="text-white text-xl">✓</span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-green-700 font-bold text-lg">Verification Successful!</p>
+                      <p className="text-sm text-green-600 mt-1">Your mobile number has been verified</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {mobileVerified && (
+                <div className="flex gap-3 pt-6 border-t">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.success('Account verified! Redirecting to login...', {
+                        position: 'bottom-center',
+                        autoClose: 2000,
+                      });
+                      setTimeout(() => {
+                        router.push('/login');
+                      }, 500);
+                    }}
+                    className="flex-1 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium transition-colors"
+                  >
+                    Go to Login
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </form>
