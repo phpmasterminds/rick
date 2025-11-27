@@ -164,6 +164,9 @@ export default function TopBar({ isMobileOpen, setIsMobileOpen }: TopBarProps) {
     localStorage.removeItem("shopCart");
     Cookies.remove("access_token", { path: "/" });
     Cookies.remove("user_id", { path: "/" });
+    Cookies.remove("page_id", { path: "/" });
+    Cookies.remove("vanity_url", { path: "/" });
+    Cookies.remove("type_id", { path: "/" });
     router.push("/");
   };
 

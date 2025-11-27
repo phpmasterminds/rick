@@ -21,12 +21,15 @@ import {
   ChevronDown,
   ChevronRight,
   Menu,
+  FileCheck,
+  Receipt,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import axios from "axios";
 import { toast } from 'react-toastify';
+import { useBusinessData } from "../app/contexts/BusinessContext";
 
 // Sidebar Props
 interface SidebarProps {
@@ -54,6 +57,12 @@ interface BusinessData {
   [key: string]: any;
 }
 
+// User data type from localStorage
+interface UserData {
+  user_group_id: number;
+  [key: string]: any;
+}
+
 export default function Sidebar({
   isCollapsed,
   setIsCollapsed,
@@ -67,8 +76,13 @@ export default function Sidebar({
   const [businessData, setBusinessData] = useState<BusinessData | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentBusiness, setCurrentBusiness] = useState<string | null>(null);
+  const [typeId, setTypeId] = useState<string | null>(null);
+  const [userGroupId, setUserGroupId] = useState<number | null>(null);
   const router = useRouter();
   const pathname = usePathname();
+  
+  // Get context to share business data with other components
+  const { setBusinessData: setContextBusinessData } = useBusinessData();
 
   // Extract vanity URL from pathname
   const getVanityUrl = useCallback(() => {
@@ -103,6 +117,7 @@ export default function Sidebar({
       "register",
       "transactions",
       "vendors-po",
+      "invoice",
     ];
     const pathVanityUrl =
       pathSegments[0] && !knownRoutes.includes(pathSegments[0])
@@ -114,47 +129,161 @@ export default function Sidebar({
   // Memoize vanity URL
   const vanityUrl = useMemo(() => getVanityUrl(), [getVanityUrl]);
 
-  // Fetch business data only when business changes
+  // Get cookies helper
+  const getCookieValue = useCallback((cookieName: string) => {
+    const cookies = document.cookie.split(";");
+    for (const cookie of cookies) {
+      const [name, value] = cookie.trim().split("=");
+      if (name === cookieName && value) {
+        return decodeURIComponent(value);
+      }
+    }
+    return null;
+  }, []);
+
+  // Get page_id from cookie
+  const getPageIdFromCookie = useCallback(() => {
+    return getCookieValue("page_id");
+  }, [getCookieValue]);
+
+  // Get vanity_url from cookie
+  const getVanityUrlFromCookie = useCallback(() => {
+    return getCookieValue("vanity_url");
+  }, [getCookieValue]);
+
+  // Get type_id from cookie
+  const getTypeIdFromCookie = useCallback(() => {
+    return getCookieValue("type_id");
+  }, [getCookieValue]);
+
+  // Get user_group_id from localStorage
+  const getUserGroupIdFromLocalStorage = useCallback(() => {
+    try {
+      const userStr = localStorage.getItem("user");
+      if (userStr) {
+        const userData: UserData = JSON.parse(userStr);
+        return userData.data.user_group_id || null;
+      }
+    } catch (error) {
+      console.error("Error parsing user from localStorage:", error);
+    }
+    return null;
+  }, []);
+
+  // Initialize type_id, page_id, vanity_url and user_group_id on mount
+  useEffect(() => {
+    const cookiePageId = getPageIdFromCookie();
+    const cookieVanityUrl = getVanityUrlFromCookie();
+    const cookieTypeId = getTypeIdFromCookie();
+    const localStorageUserGroupId = getUserGroupIdFromLocalStorage();
+    
+    setTypeId(cookieTypeId);
+    setUserGroupId(localStorageUserGroupId);
+    setCurrentBusiness(cookieVanityUrl);  // Use vanity_url as business identifier
+    setIsHydrated(true);
+  }, [getPageIdFromCookie, getVanityUrlFromCookie, getTypeIdFromCookie, getUserGroupIdFromLocalStorage]);
+
+  // Fetch business data using vanity_url from cookie
   useEffect(() => {
     const fetchBusinessData = async () => {
-      // Only fetch if vanity URL exists and is different from current business
-      if (!vanityUrl || vanityUrl === currentBusiness) {
-		  console.log("businessData"+businessData);
-		  console.log("vanityUrl"+vanityUrl);
-        if (!businessData && vanityUrl) {
-          // If no data and vanity URL exists, still need to fetch
-          setLoading(true);
-        } else {
-          setIsHydrated(true);
-          return;
-        }
+      // Skip API call if type_id or user_group_id is 1
+      if (typeId === "1" || userGroupId === 1) {
+        setIsHydrated(true);
+        return;
       }
-console.log("came");
+
+      // Get vanity_url from cookie
+      const vanityUrl = getCookieValue("vanity_url");
+
+      // Only fetch if vanity_url exists
+      if (!vanityUrl) {
+        setIsHydrated(true);
+        return;
+      }
+
+      // Skip if already fetched for this vanity_url
+      if (businessData && currentBusiness === vanityUrl) {
+        setIsHydrated(true);
+        return;
+      }
+
       try {
         setLoading(true);
-        const response = await axios.get(`/api/business?business=${vanityUrl}`);
+        // Use vanity_url to fetch business data
+        const response = await axios.get(`/api/business/?business=${vanityUrl}`);
         
         if (response.data?.data) {
-          setBusinessData(response.data.data);
+          const data = response.data.data;
+          setBusinessData({
+            type_id: data.type_id || typeId || "",
+            vanity_url: data.vanity_url || vanityUrl || "",
+            title: data.title || "Nature's High",
+            image_path: data.image_path || "/images/natures-high-logo.png",
+            ...data,
+          });
           setCurrentBusiness(vanityUrl);
+          
+          // Share with Context for other components (PageHeading, etc.)
+          setContextBusinessData({
+            type_id: data.type_id || typeId || "",
+            vanity_url: data.vanity_url || vanityUrl || "",
+            title: data.title || "Nature's High",
+            image_path: data.image_path || "/images/natures-high-logo.png",
+            ...data,
+          });
+          
+          // Update type_id from API response if available
+          if (data.type_id) {
+            setTypeId(data.type_id);
+          }
+        } else {
+          // Set default businessData structure if API returns null
+          setBusinessData({
+            type_id: typeId || "",
+            vanity_url: vanityUrl || "",
+            title: "Nature's High",
+            image_path: "/images/natures-high-logo.png",
+          });
+          setCurrentBusiness(vanityUrl);
+          
+          // Share fallback data with Context
+          setContextBusinessData({
+            type_id: typeId || "",
+            vanity_url: vanityUrl || "",
+            title: "Nature's High",
+            image_path: "/images/natures-high-logo.png",
+          });
         }
       } catch (error) {
         console.error("Failed to fetch business data:", error);
+        // Set fallback businessData on error
+        setBusinessData({
+          type_id: typeId || "",
+          vanity_url: vanityUrl || "",
+          title: "Nature's High",
+          image_path: "/images/natures-high-logo.png",
+        });
+        setCurrentBusiness(vanityUrl);
+        
+        // Share fallback data with Context
+        setContextBusinessData({
+          type_id: typeId || "",
+          vanity_url: vanityUrl || "",
+          title: "Nature's High",
+          image_path: "/images/natures-high-logo.png",
+        });
+        
         toast.error("Failed to load business data");
-        // Fallback: set hydrated even on error to show UI
       } finally {
         setLoading(false);
         setIsHydrated(true);
       }
     };
 
-    fetchBusinessData();
-  }, [vanityUrl, currentBusiness, businessData]);
-
-  // Get type_id from API response, fallback to cookie if needed
-  const typeId = useMemo(() => {
-    return businessData?.type_id || null;
-  }, [businessData]);
+    if (isHydrated) {
+      fetchBusinessData();
+    }
+  }, [typeId, userGroupId, isHydrated, businessData, currentBusiness, getCookieValue]);
 
   // Build final path helper - only prepend vanityUrl if it exists
   const buildPath = useCallback(
@@ -164,88 +293,114 @@ console.log("came");
     [vanityUrl]
   );
 
-  // Load menu items based on type_id from API
+  // Load menu items based on type_id
   useEffect(() => {
     if (!isHydrated) return;
-console.log(businessData+'businessData');
-console.log(typeId+'typeId');
-    const items: MenuItem[] =
-      typeId === "36"
-        ? [
-            { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
-            { id: "inventory", icon: Package, label: "Products", path: "/inventory" },
-            {
-              id: "marketplace",
-              icon: Megaphone,
-              label: "Marketplace",
-              submenu: [
-                { id: "place_order", label: "Place Order", path: "/wholesaleorder" },
-                { id: "product_catalog", label: "Product Catalog", path: "/catalog" },
-                { id: "order_history", label: "Order History", path: "/order-list?wholesale=1" },
-              ],
-            },
-            { id: "open_orders", icon: ClipboardList, label: "Open Orders", path: "/order-list" },
-            { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
-            { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
-            { id: "samples", icon: ShoppingBag, label: "Samples", path: "/sample-orders" },
-            {
-              id: "metrc",
-              icon: Folder,
-              label: "Metrc",
-              submenu: [
-                { id: "interface", label: "Interface", path: "/projects" },
-                { id: "sync", label: "Sync", path: "/projects/archived" },
-              ],
-            },
-            { id: "customers", icon: Users, label: "Customers", path: "/customers" },
-            { id: "crm", icon: CreditCard, label: "CRM", path: "/crm" },
-            {
-              id: "settings",
-              icon: Settings,
-              label: "Settings",
-              submenu: [
-                { id: "profile", label: "Members", path: "/settings/profile" },
-                { id: "user_permission", label: "User Permission", path: "/settings/user-permission" },
-                { id: "notification", label: "Notification", path: "/settings/notification" },
-                { id: "settings_marketplace", label: "Marketplace", path: "/settings/marketplace" },
-                { id: "product_categories", label: "Product Categories", path: "/settings/product-categories" },
-              ],
-            },
-          ]
-        : typeId === "20"
-        ? [
-            { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
-            { id: "register", icon: FileSpreadsheet, label: "Register", path: "/register" },
-            { id: "dispensary-floor", icon: Store, label: "Dispensary Floor", path: "/dispensary-floor" },
-            { id: "transactions", icon: CreditCard, label: "Transactions", path: "/transactions" },
-            { id: "inventory", icon: Box, label: "Inventory", path: "/posinventory" },
-            { id: "deals", icon: Megaphone, label: "Deals", path: "/deals" },
-            { id: "customers", icon: Users, label: "Customers", path: "/customers" },
-            { id: "vendors", icon: Building, label: "Vendors", path: "/vendors" },
-            { id: "vendors-po", icon: Layers, label: "Vendor PO's", path: "/vendors-po" },
-            { id: "metrc", icon: Folder, label: "Metrc", path: "/metrc" },
-            { id: "metrc-audit", icon: ClipboardList, label: "Metrc Audit", path: "/metrc-audit" },
-            { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
-            { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
-          ]
-        : [
-            { id: "dashboard", icon: Home, label: "Dashboard", path: "/dashboard" },
-            { id: "buy", icon: ShoppingBag, label: "Buy", path: "/buy" },
-            { id: "orders", icon: ClipboardList, label: "Orders", path: "/orders" },
-            { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
-            {
-              id: "settings",
-              icon: Settings,
-              label: "Settings",
-              submenu: [
-                { id: "profile", label: "Profile", path: "/settings/profile" },
-                { id: "notification", label: "Notification", path: "/settings/notification" },
-              ],
-            },
-          ];
+
+    const items: MenuItem[] = [];
+    // If type_id is "1" or user_group_id is 1, show Register/Claim menu
+    if (typeId === "1" || userGroupId === 1) {
+      const registerClaimMenu: MenuItem[] = [
+        { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
+        { id: "register_claim", icon: FileCheck, label: "Register/Claim", path: "/admin/registrations" },
+        { id: "orders", icon: ClipboardList, label: "Orders", path: "/orders" },
+        {
+          id: "settings",
+          icon: Settings,
+          label: "Settings",
+          submenu: [
+            { id: "profile", label: "Profile", path: "/settings/profile" },
+            { id: "notification", label: "Notification", path: "/settings/notification" },
+          ],
+        },
+      ];
+      items.push(...registerClaimMenu);
+    } 
+    // Type 36 - Processor
+    else if (typeId === "36") {
+      const processorMenu: MenuItem[] = [
+        { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
+        { id: "inventory", icon: Package, label: "Products", path: "/inventory" },
+        {
+          id: "marketplace",
+          icon: Megaphone,
+          label: "Marketplace",
+          submenu: [
+            { id: "place_order", label: "Place Order", path: "/wholesaleorder" },
+            { id: "product_catalog", label: "Product Catalog", path: "/catalog" },
+            { id: "order_history", label: "Order History", path: "/order-list?wholesale=1" },
+          ],
+        },
+        { id: "open_orders", icon: ClipboardList, label: "Open Orders", path: "/order-list" },
+        { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
+        { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
+        { id: "samples", icon: ShoppingBag, label: "Samples", path: "/sample-orders" },
+        {
+          id: "metrc",
+          icon: Folder,
+          label: "Metrc",
+          submenu: [
+            { id: "interface", label: "Interface", path: "/projects" },
+            { id: "sync", label: "Sync", path: "/projects/archived" },
+          ],
+        },
+        { id: "customers", icon: Users, label: "Customers", path: "/customers" },
+        { id: "crm", icon: CreditCard, label: "CRM", path: "/crm" },
+        {
+          id: "settings",
+          icon: Settings,
+          label: "Settings",
+          submenu: [
+            { id: "profile", label: "Members", path: "/settings/profile" },
+            { id: "user_permission", label: "User Permission", path: "/settings/user-permission" },
+            { id: "notification", label: "Notification", path: "/settings/notification" },
+            { id: "settings_marketplace", label: "Marketplace", path: "/settings/marketplace" },
+            { id: "product_categories", label: "Product Categories", path: "/settings/product-categories" },
+          ],
+        },
+      ];
+      items.push(...processorMenu);
+    } 
+    // Type 20 - Dispensary
+    else if (typeId === "20") {
+      const dispensaryMenu: MenuItem[] = [
+        { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
+        { id: "register", icon: FileSpreadsheet, label: "Register", path: "/register" },
+        { id: "dispensary-floor", icon: Store, label: "Dispensary Floor", path: "/dispensary-floor" },
+        { id: "transactions", icon: CreditCard, label: "Transactions", path: "/transactions" },
+        { id: "inventory", icon: Box, label: "Inventory", path: "/posinventory" },
+        { id: "vendors", icon: Building, label: "Vendors", path: "/vendors" },
+        { id: "vendors-po", icon: Layers, label: "Vendor PO's", path: "/vendors-po" },
+        { id: "metrc", icon: Folder, label: "Metrc", path: "/metrc" },
+        { id: "metrc-audit", icon: ClipboardList, label: "Metrc Audit", path: "/metrc-audit" },
+        { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
+        { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
+      ];
+      items.push(...dispensaryMenu);
+    } 
+    // Default menu (Customer)
+    else {
+      const defaultMenu: MenuItem[] = [
+        { id: "dashboard", icon: Home, label: "Dashboard", path: "/dashboard" },
+        { id: "buy", icon: ShoppingBag, label: "Buy", path: "/buy" },
+        { id: "orders", icon: ClipboardList, label: "Orders", path: "/orders" },
+        { id: "invoice", icon: Receipt, label: "Invoices", path: "/invoice" },
+        { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
+        {
+          id: "settings",
+          icon: Settings,
+          label: "Settings",
+          submenu: [
+            { id: "profile", label: "Profile", path: "/settings/profile" },
+            { id: "notification", label: "Notification", path: "/settings/notification" },
+          ],
+        },
+      ];
+      items.push(...defaultMenu);
+    }
 
     setMenuItems(items);
-  }, [typeId, isHydrated]);
+  }, [typeId, userGroupId, isHydrated]);
 
   const toggleSubmenu = useCallback((id: string) => {
     if (!isCollapsed) {

@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Bell, Home, Megaphone, Package, CreditCard, Settings, HelpCircle, Plus, X, Upload, Target, DollarSign, MousePointer, Eye, CheckCircle, ChevronDown, ChevronRight, Menu, User, LogOut, Users, Folder } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import StatCard from "@/components/StatCard";
+import PageHeading from "@/components/PageHeading";
 import Link from "next/link";
 
 
@@ -19,14 +20,15 @@ export default function DashboardPage() {
 
   return (
     <div className="flex-1 p-4 md:p-6 overflow-auto">
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Red Dirt Budz Farms - Dashboard</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Track your advertising performance</p>
-        </div>
-        
+      {/* Dynamic Page Heading with Business Name */}
+      <div className="mb-6">
+        <PageHeading 
+          pageName="Dashboard" 
+          description="Track your advertising performance"
+        />
       </div>
 
+      {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
           title="Clicks"
@@ -58,6 +60,7 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* Campaign Insights Chart */}
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 md:p-6 transition-colors duration-300">
         <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Campaign Insights</h2>
