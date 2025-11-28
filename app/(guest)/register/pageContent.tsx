@@ -8,6 +8,27 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 
+// US Phone formatting utility
+const formatUSPhoneNumber = (value: string): string => {
+  // Remove all non-digits
+  const digits = value.replace(/\D/g, '');
+  
+  // Limit to 11 digits (1 + 10 digit number)
+  const limited = digits.slice(0, 11);
+  
+  // If less than 10 digits, just return the digits
+  if (limited.length < 10) {
+    return limited;
+  }
+  
+  // Format as (XXX) XXX-XXXX WITHOUT the +1 prefix
+  // The +1 is displayed as a static span, so we don't include it in the value
+  const hasCountryCode = limited.length === 11 && limited.startsWith('1');
+  const phoneDigits = hasCountryCode ? limited.slice(1) : limited.slice(0, 10);
+  
+  return `(${phoneDigits.slice(0, 3)}) ${phoneDigits.slice(3, 6)}-${phoneDigits.slice(6)}`;
+};
+
 interface RegistrationFormData {
   contact_first_name: string;
   contact_last_name: string;
@@ -107,10 +128,16 @@ export default function RegistrationPage() {
       return newErrors;
     });
     
+    // Format mobile phone number
+    let finalValue = value;
+    if (name === 'contact_mobile') {
+      finalValue = formatUSPhoneNumber(value);
+    }
+    
     setFormData(prev => {
       const newData = {
         ...prev,
-        [name]: value,
+        [name]: finalValue,
       };
       
       // Auto-populate account_name with company_name
@@ -155,9 +182,13 @@ export default function RegistrationPage() {
     try {
       setVerifyingOTP(true);
       
+      // Extract digits from contact_mobile and add +1 prefix for API
+      const mobileDigitsOnly = formData.contact_mobile.replace(/\D/g, '');
+      const mobileWithCountryCode = '+1' + mobileDigitsOnly;
+
       // Call backend API to verify OTP
       const response = await axios.post('/api/auth/verify-code', {
-        phone: formData.contact_mobile,
+        phone: mobileWithCountryCode,
         code: verificationInput
       });
       
@@ -342,12 +373,16 @@ export default function RegistrationPage() {
 
     setSubmitting(true);
     try {
+      // Extract digits from contact_mobile and add +1 prefix for API
+      const mobileDigitsOnly = formData.contact_mobile.replace(/\D/g, '');
+      const mobileWithCountryCode = '+1' + mobileDigitsOnly;
+
       const payload = {
         contact_first_name: formData.contact_first_name,
         contact_last_name: formData.contact_last_name,
         contact_email: formData.contact_email,
         contact_office_phone: formData.contact_office_phone,
-        contact_mobile: formData.contact_mobile,
+        contact_mobile: mobileWithCountryCode,  // Send as: +12025551234
         contact_job_title: formData.contact_job_title,
         contact_department: formData.contact_department,
         contact_fax: formData.contact_fax,
@@ -557,16 +592,19 @@ export default function RegistrationPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2 text-gray-700">Mobile *</label>
-                  <input
-                    type="tel"
-                    name="contact_mobile"
-                    value={formData.contact_mobile}
-                    onChange={handleInputChange}
-                    placeholder="(xxx) xxx-xxxx"
-                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                      fieldErrors.contact_mobile ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-teal-500'
-                    }`}
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-gray-600 font-medium pointer-events-none">+1</span>
+                    <input
+                      type="tel"
+                      name="contact_mobile"
+                      value={formData.contact_mobile}
+                      onChange={handleInputChange}
+                      placeholder="+1 (xxx) xxx-xxxx"
+                      className={`w-full pl-10 pr-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                        fieldErrors.contact_mobile ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-teal-500'
+                      }`}
+                    />
+                  </div>
                   {fieldErrors.contact_mobile && (
                     <p className="text-red-600 text-sm mt-1">⚠ {fieldErrors.contact_mobile}</p>
                   )}

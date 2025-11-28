@@ -77,7 +77,7 @@ export default function Sidebar({
   const [loading, setLoading] = useState(false);
   const [currentBusiness, setCurrentBusiness] = useState<string | null>(null);
   const [typeId, setTypeId] = useState<string | null>(null);
-  const [userGroupId, setUserGroupId] = useState<number | null>(null);
+  const [userGroupId, setUserGroupId] = useState<string | null>(null);
   const router = useRouter();
   const pathname = usePathname();
   
@@ -187,7 +187,7 @@ export default function Sidebar({
   useEffect(() => {
     const fetchBusinessData = async () => {
       // Skip API call if type_id or user_group_id is 1
-      if (typeId === "1" || userGroupId === 1) {
+      if (typeId === "1" || userGroupId === '1') {
         setIsHydrated(true);
         return;
       }
@@ -299,7 +299,7 @@ export default function Sidebar({
 
     const items: MenuItem[] = [];
     // If type_id is "1" or user_group_id is 1, show Register/Claim menu
-    if (typeId === "1" || userGroupId === 1) {
+    if (typeId === "1" || userGroupId === '1') {
       const registerClaimMenu: MenuItem[] = [
         { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
         { id: "register_claim", icon: FileCheck, label: "Register/Claim", path: "/admin/registrations" },

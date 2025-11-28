@@ -502,9 +502,7 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
           autoClose: 3000,
         });
 
-        setTimeout(() => {
-          router.push('/admin/registrations');
-        }, 1500);
+        router.push('/admin/registrations');
       } else {
         toast.error(response.data.error || 'Failed to approve registration', {
           position: 'bottom-center',

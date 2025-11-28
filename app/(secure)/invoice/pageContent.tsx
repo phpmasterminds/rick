@@ -441,7 +441,7 @@ export default function InvoiceListPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => router.push(`/invoices/${invoice.id}`)}
+                            onClick={() => router.push(`/invoice/${invoice.id}`)}
                             className="p-2 hover:bg-teal-50 rounded-lg transition-colors"
                             title="View invoice"
                           >
@@ -454,7 +454,7 @@ export default function InvoiceListPage() {
                             <Download className="w-4 h-4 text-teal-600" />
                           </button>
                           <button
-                            onClick={() => router.push(`/invoices/${invoice.id}`)}
+                            onClick={() => router.push(`/invoice/${invoice.id}`)}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                             title="More options"
                           >
