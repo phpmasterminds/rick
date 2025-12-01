@@ -23,6 +23,8 @@ import {
   Menu,
   FileCheck,
   Receipt,
+  ArrowLeft,
+  Shield,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -78,14 +80,15 @@ export default function Sidebar({
   const [currentBusiness, setCurrentBusiness] = useState<string | null>(null);
   const [typeId, setTypeId] = useState<string | null>(null);
   const [userGroupId, setUserGroupId] = useState<string | null>(null);
+  const [showAdminMenu, setShowAdminMenu] = useState(false); // Toggle for admin to switch between menus
   const router = useRouter();
   const pathname = usePathname();
   
   // Get context to share business data with other components
   const { setBusinessData: setContextBusinessData } = useBusinessData();
 
-  // Extract vanity URL from pathname
-  const getVanityUrl = useCallback(() => {
+  // Extract vanity URL from pathname (first segment)
+  const getVanityUrlFromPath = useCallback(() => {
     const pathSegments = pathname.split("/").filter(Boolean);
     // All possible app routes that are NOT business vanity URLs
     const knownRoutes = [
@@ -118,7 +121,10 @@ export default function Sidebar({
       "transactions",
       "vendors-po",
       "invoice",
+      "admin",
     ];
+    
+    // First segment that is not a known route is the vanity URL
     const pathVanityUrl =
       pathSegments[0] && !knownRoutes.includes(pathSegments[0])
         ? pathSegments[0]
@@ -126,35 +132,14 @@ export default function Sidebar({
     return pathVanityUrl || null;
   }, [pathname]);
 
-  // Memoize vanity URL
-  const vanityUrl = useMemo(() => getVanityUrl(), [getVanityUrl]);
+  // Memoize vanity URL from path
+  const vanityUrl = useMemo(() => getVanityUrlFromPath(), [getVanityUrlFromPath]);
 
-  // Get cookies helper
-  const getCookieValue = useCallback((cookieName: string) => {
-    const cookies = document.cookie.split(";");
-    for (const cookie of cookies) {
-      const [name, value] = cookie.trim().split("=");
-      if (name === cookieName && value) {
-        return decodeURIComponent(value);
-      }
-    }
-    return null;
-  }, []);
+  // Check if user is admin
+  const isAdmin = useMemo(() => userGroupId === '1', [userGroupId]);
 
-  // Get page_id from cookie
-  const getPageIdFromCookie = useCallback(() => {
-    return getCookieValue("page_id");
-  }, [getCookieValue]);
-
-  // Get vanity_url from cookie
-  const getVanityUrlFromCookie = useCallback(() => {
-    return getCookieValue("vanity_url");
-  }, [getCookieValue]);
-
-  // Get type_id from cookie
-  const getTypeIdFromCookie = useCallback(() => {
-    return getCookieValue("type_id");
-  }, [getCookieValue]);
+  // Check if we're on a business vanity URL
+  const isOnBusinessPage = useMemo(() => !!vanityUrl, [vanityUrl]);
 
   // Get user_group_id from localStorage
   const getUserGroupIdFromLocalStorage = useCallback(() => {
@@ -162,7 +147,7 @@ export default function Sidebar({
       const userStr = localStorage.getItem("user");
       if (userStr) {
         const userData: UserData = JSON.parse(userStr);
-        return userData.data.user_group_id || null;
+        return userData.data?.user_group_id?.toString() || null;
       }
     } catch (error) {
       console.error("Error parsing user from localStorage:", error);
@@ -170,38 +155,26 @@ export default function Sidebar({
     return null;
   }, []);
 
-  // Initialize type_id, page_id, vanity_url and user_group_id on mount
+  // Initialize user_group_id on mount
   useEffect(() => {
-    const cookiePageId = getPageIdFromCookie();
-    const cookieVanityUrl = getVanityUrlFromCookie();
-    const cookieTypeId = getTypeIdFromCookie();
     const localStorageUserGroupId = getUserGroupIdFromLocalStorage();
-    
-    setTypeId(cookieTypeId);
     setUserGroupId(localStorageUserGroupId);
-    setCurrentBusiness(cookieVanityUrl);  // Use vanity_url as business identifier
     setIsHydrated(true);
-  }, [getPageIdFromCookie, getVanityUrlFromCookie, getTypeIdFromCookie, getUserGroupIdFromLocalStorage]);
+  }, [getUserGroupIdFromLocalStorage]);
 
-  // Fetch business data using vanity_url from cookie
+  // Fetch business data using vanity URL from path
   useEffect(() => {
     const fetchBusinessData = async () => {
-      // Skip API call if type_id or user_group_id is 1
-      if (typeId === "1" || userGroupId === '1') {
-        setIsHydrated(true);
-        return;
-      }
-
-      // Get vanity_url from cookie
-      const vanityUrl = getCookieValue("vanity_url");
-
-      // Only fetch if vanity_url exists
+      // If no vanity URL in path, skip fetch
       if (!vanityUrl) {
+        setBusinessData(null);
+        setTypeId(null);
+        setCurrentBusiness(null);
         setIsHydrated(true);
         return;
       }
 
-      // Skip if already fetched for this vanity_url
+      // Skip if already fetched for this vanity URL
       if (businessData && currentBusiness === vanityUrl) {
         setIsHydrated(true);
         return;
@@ -209,70 +182,42 @@ export default function Sidebar({
 
       try {
         setLoading(true);
-        // Use vanity_url to fetch business data
+        // Use vanity_url from path to fetch business data
         const response = await axios.get(`/api/business/?business=${vanityUrl}`);
         
         if (response.data?.data) {
           const data = response.data.data;
+          const fetchedTypeId = data.type_id?.toString() || null;
+          
           setBusinessData({
-            type_id: data.type_id || typeId || "",
+            type_id: fetchedTypeId || "",
             vanity_url: data.vanity_url || vanityUrl || "",
             title: data.title || "Nature's High",
             image_path: data.image_path || "/images/natures-high-logo.png",
             ...data,
           });
           setCurrentBusiness(vanityUrl);
+          setTypeId(fetchedTypeId);
           
           // Share with Context for other components (PageHeading, etc.)
           setContextBusinessData({
-            type_id: data.type_id || typeId || "",
+            type_id: fetchedTypeId || "",
             vanity_url: data.vanity_url || vanityUrl || "",
             title: data.title || "Nature's High",
             image_path: data.image_path || "/images/natures-high-logo.png",
             ...data,
           });
-          
-          // Update type_id from API response if available
-          if (data.type_id) {
-            setTypeId(data.type_id);
-          }
         } else {
-          // Set default businessData structure if API returns null
-          setBusinessData({
-            type_id: typeId || "",
-            vanity_url: vanityUrl || "",
-            title: "Nature's High",
-            image_path: "/images/natures-high-logo.png",
-          });
+          // No business found for this vanity URL
+          setBusinessData(null);
+          setTypeId(null);
           setCurrentBusiness(vanityUrl);
-          
-          // Share fallback data with Context
-          setContextBusinessData({
-            type_id: typeId || "",
-            vanity_url: vanityUrl || "",
-            title: "Nature's High",
-            image_path: "/images/natures-high-logo.png",
-          });
         }
       } catch (error) {
         console.error("Failed to fetch business data:", error);
-        // Set fallback businessData on error
-        setBusinessData({
-          type_id: typeId || "",
-          vanity_url: vanityUrl || "",
-          title: "Nature's High",
-          image_path: "/images/natures-high-logo.png",
-        });
+        setBusinessData(null);
+        setTypeId(null);
         setCurrentBusiness(vanityUrl);
-        
-        // Share fallback data with Context
-        setContextBusinessData({
-          type_id: typeId || "",
-          vanity_url: vanityUrl || "",
-          title: "Nature's High",
-          image_path: "/images/natures-high-logo.png",
-        });
-        
         toast.error("Failed to load business data");
       } finally {
         setLoading(false);
@@ -283,124 +228,173 @@ export default function Sidebar({
     if (isHydrated) {
       fetchBusinessData();
     }
-  }, [typeId, userGroupId, isHydrated, businessData, currentBusiness, getCookieValue]);
+  }, [vanityUrl, isHydrated, businessData, currentBusiness, setContextBusinessData]);
 
-  // Build final path helper - only prepend vanityUrl if it exists
+  // Build final path helper - only prepend vanityUrl if it exists and not showing admin menu
   const buildPath = useCallback(
     (basePath: string) => {
+      // If showing admin menu, don't prepend vanity URL
+      if (showAdminMenu) {
+        return basePath;
+      }
       return vanityUrl ? `/${vanityUrl}${basePath}` : basePath;
     },
-    [vanityUrl]
+    [vanityUrl, showAdminMenu]
   );
 
-  // Load menu items based on type_id
+  // Get Admin Menu
+  const getAdminMenu = useCallback((): MenuItem[] => {
+    return [
+      { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
+      { id: "register_claim", icon: FileCheck, label: "Register/Claim", path: "/admin/registrations" },
+      { id: "orders", icon: ClipboardList, label: "Orders", path: "/orders" },
+      {
+        id: "settings",
+        icon: Settings,
+        label: "Settings",
+        submenu: [
+          { id: "profile", label: "Profile", path: "/settings/profile" },
+          { id: "notification", label: "Notification", path: "/settings/notification" },
+        ],
+      },
+    ];
+  }, []);
+
+  // Get Processor Menu (type_id: 36)
+  const getProcessorMenu = useCallback((): MenuItem[] => {
+    return [
+      { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
+      { id: "inventory", icon: Package, label: "Products", path: "/inventory" },
+      {
+        id: "marketplace",
+        icon: Megaphone,
+        label: "Marketplace",
+        submenu: [
+          { id: "place_order", label: "Place Order", path: "/wholesaleorder" },
+          { id: "product_catalog", label: "Product Catalog", path: "/catalog" },
+          { id: "order_history", label: "Order History", path: "/order-list?wholesale=1" },
+        ],
+      },
+      { id: "open_orders", icon: ClipboardList, label: "Open Orders", path: "/order-list" },
+      { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
+      { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
+      { id: "samples", icon: ShoppingBag, label: "Samples", path: "/sample-orders" },
+      {
+        id: "metrc",
+        icon: Folder,
+        label: "Metrc",
+        submenu: [
+          { id: "interface", label: "Interface", path: "/projects" },
+          { id: "sync", label: "Sync", path: "/projects/archived" },
+        ],
+      },
+      { id: "customers", icon: Users, label: "Customers", path: "/customers" },
+      { id: "crm", icon: CreditCard, label: "CRM", path: "/crm" },
+      {
+        id: "settings",
+        icon: Settings,
+        label: "Settings",
+        submenu: [
+          { id: "profile", label: "Members", path: "/settings/profile" },
+          { id: "user_permission", label: "User Permission", path: "/settings/user-permission" },
+          { id: "notification", label: "Notification", path: "/settings/notification" },
+          { id: "settings_marketplace", label: "Marketplace", path: "/settings/marketplace" },
+          { id: "product_categories", label: "Product Categories", path: "/settings/product-categories" },
+        ],
+      },
+    ];
+  }, []);
+
+  // Get Dispensary Menu (type_id: 20)
+  const getDispensaryMenu = useCallback((): MenuItem[] => {
+    return [
+      { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
+      { id: "register", icon: FileSpreadsheet, label: "Register", path: "/register" },
+      { id: "dispensary-floor", icon: Store, label: "Dispensary Floor", path: "/dispensary-floor" },
+      { id: "transactions", icon: CreditCard, label: "Transactions", path: "/transactions" },
+      { id: "inventory", icon: Box, label: "Inventory", path: "/posinventory" },
+      { id: "vendors", icon: Building, label: "Vendors", path: "/vendors" },
+      { id: "vendors-po", icon: Layers, label: "Vendor PO's", path: "/vendors-po" },
+      { id: "metrc", icon: Folder, label: "Metrc", path: "/metrc" },
+      { id: "metrc-audit", icon: ClipboardList, label: "Metrc Audit", path: "/metrc-audit" },
+      { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
+      { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
+    ];
+  }, []);
+
+  // Get Default/Customer Menu
+  const getDefaultMenu = useCallback((): MenuItem[] => {
+    return [
+      { id: "dashboard", icon: Home, label: "Dashboard", path: "/dashboard" },
+      { id: "buy", icon: ShoppingBag, label: "Buy", path: "/buy" },
+      { id: "orders", icon: ClipboardList, label: "Orders", path: "/orders" },
+      { id: "invoice", icon: Receipt, label: "Invoices", path: "/invoice" },
+      { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
+      {
+        id: "settings",
+        icon: Settings,
+        label: "Settings",
+        submenu: [
+          { id: "profile", label: "Profile", path: "/settings/profile" },
+          { id: "notification", label: "Notification", path: "/settings/notification" },
+        ],
+      },
+    ];
+  }, []);
+
+  // Load menu items based on typeId and admin menu toggle
   useEffect(() => {
     if (!isHydrated) return;
 
-    const items: MenuItem[] = [];
-    // If type_id is "1" or user_group_id is 1, show Register/Claim menu
-    if (typeId === "1" || userGroupId === '1') {
-      const registerClaimMenu: MenuItem[] = [
-        { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
-        { id: "register_claim", icon: FileCheck, label: "Register/Claim", path: "/admin/registrations" },
-        { id: "orders", icon: ClipboardList, label: "Orders", path: "/orders" },
-        {
-          id: "settings",
-          icon: Settings,
-          label: "Settings",
-          submenu: [
-            { id: "profile", label: "Profile", path: "/settings/profile" },
-            { id: "notification", label: "Notification", path: "/settings/notification" },
-          ],
-        },
-      ];
-      items.push(...registerClaimMenu);
-    } 
-    // Type 36 - Processor
-    else if (typeId === "36") {
-      const processorMenu: MenuItem[] = [
-        { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
-        { id: "inventory", icon: Package, label: "Products", path: "/inventory" },
-        {
-          id: "marketplace",
-          icon: Megaphone,
-          label: "Marketplace",
-          submenu: [
-            { id: "place_order", label: "Place Order", path: "/wholesaleorder" },
-            { id: "product_catalog", label: "Product Catalog", path: "/catalog" },
-            { id: "order_history", label: "Order History", path: "/order-list?wholesale=1" },
-          ],
-        },
-        { id: "open_orders", icon: ClipboardList, label: "Open Orders", path: "/order-list" },
-        { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
-        { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
-        { id: "samples", icon: ShoppingBag, label: "Samples", path: "/sample-orders" },
-        {
-          id: "metrc",
-          icon: Folder,
-          label: "Metrc",
-          submenu: [
-            { id: "interface", label: "Interface", path: "/projects" },
-            { id: "sync", label: "Sync", path: "/projects/archived" },
-          ],
-        },
-        { id: "customers", icon: Users, label: "Customers", path: "/customers" },
-        { id: "crm", icon: CreditCard, label: "CRM", path: "/crm" },
-        {
-          id: "settings",
-          icon: Settings,
-          label: "Settings",
-          submenu: [
-            { id: "profile", label: "Members", path: "/settings/profile" },
-            { id: "user_permission", label: "User Permission", path: "/settings/user-permission" },
-            { id: "notification", label: "Notification", path: "/settings/notification" },
-            { id: "settings_marketplace", label: "Marketplace", path: "/settings/marketplace" },
-            { id: "product_categories", label: "Product Categories", path: "/settings/product-categories" },
-          ],
-        },
-      ];
-      items.push(...processorMenu);
-    } 
-    // Type 20 - Dispensary
-    else if (typeId === "20") {
-      const dispensaryMenu: MenuItem[] = [
-        { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
-        { id: "register", icon: FileSpreadsheet, label: "Register", path: "/register" },
-        { id: "dispensary-floor", icon: Store, label: "Dispensary Floor", path: "/dispensary-floor" },
-        { id: "transactions", icon: CreditCard, label: "Transactions", path: "/transactions" },
-        { id: "inventory", icon: Box, label: "Inventory", path: "/posinventory" },
-        { id: "vendors", icon: Building, label: "Vendors", path: "/vendors" },
-        { id: "vendors-po", icon: Layers, label: "Vendor PO's", path: "/vendors-po" },
-        { id: "metrc", icon: Folder, label: "Metrc", path: "/metrc" },
-        { id: "metrc-audit", icon: ClipboardList, label: "Metrc Audit", path: "/metrc-audit" },
-        { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
-        { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
-      ];
-      items.push(...dispensaryMenu);
-    } 
-    // Default menu (Customer)
-    else {
-      const defaultMenu: MenuItem[] = [
-        { id: "dashboard", icon: Home, label: "Dashboard", path: "/dashboard" },
-        { id: "buy", icon: ShoppingBag, label: "Buy", path: "/buy" },
-        { id: "orders", icon: ClipboardList, label: "Orders", path: "/orders" },
-        { id: "invoice", icon: Receipt, label: "Invoices", path: "/invoice" },
-        { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
-        {
-          id: "settings",
-          icon: Settings,
-          label: "Settings",
-          submenu: [
-            { id: "profile", label: "Profile", path: "/settings/profile" },
-            { id: "notification", label: "Notification", path: "/settings/notification" },
-          ],
-        },
-      ];
-      items.push(...defaultMenu);
+    let items: MenuItem[] = [];
+
+    // If admin is viewing admin menu (toggled or no vanity URL)
+    if (showAdminMenu || (!isOnBusinessPage && isAdmin)) {
+      items = getAdminMenu();
+    }
+    // If on a business page with vanity URL, check typeId
+    else if (isOnBusinessPage && typeId) {
+      switch (typeId) {
+        case "36":
+          items = getProcessorMenu();
+          break;
+        case "20":
+          items = getDispensaryMenu();
+          break;
+        default:
+          // Fallback to default menu if typeId doesn't match known types
+          items = getDefaultMenu();
+          break;
+      }
+    }
+    // No vanity URL and not admin - show default menu
+    else if (!isOnBusinessPage && !isAdmin) {
+      items = getDefaultMenu();
+    }
+    // On business page but no typeId yet (still loading) - show empty or default
+    else if (isOnBusinessPage && !typeId && !loading) {
+      items = getDefaultMenu();
     }
 
     setMenuItems(items);
-  }, [typeId, userGroupId, isHydrated]);
+  }, [
+    typeId,
+    userGroupId,
+    isHydrated,
+    showAdminMenu,
+    isOnBusinessPage,
+    isAdmin,
+    loading,
+    getAdminMenu,
+    getProcessorMenu,
+    getDispensaryMenu,
+    getDefaultMenu,
+  ]);
+
+  // Handle "Go back to main menu" / "View Business Menu" - just toggle, no redirect
+  const handleMenuToggle = useCallback(() => {
+    setShowAdminMenu((prev) => !prev);
+  }, []);
 
   const toggleSubmenu = useCallback((id: string) => {
     if (!isCollapsed) {
@@ -468,8 +462,8 @@ export default function Sidebar({
   }
 
   // Get business title for logo label
-  const businessTitle = businessData?.title || "Nature's High";
-  const businessLogo = businessData?.image_path || "/images/natures-high-logo.png";
+  const businessTitle = showAdminMenu ? "Admin Panel" : (businessData?.title || "Nature's High");
+  const businessLogo = showAdminMenu ? "/images/admin-logo.png" : (businessData?.image_path || "/images/natures-high-logo.png");
 
   return (
     <div
@@ -519,6 +513,52 @@ export default function Sidebar({
         >
           <Menu size={18} className="text-gray-500" />
         </button>
+      )}
+
+      {/* Admin Menu Toggle Button - Only show for admin users when on a business page */}
+      {isAdmin && isOnBusinessPage && (
+        <div className="px-3 mb-3">
+          <button
+            type="button"
+            onClick={handleMenuToggle}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 
+              ${showAdminMenu 
+                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800" 
+                : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+              }
+              ${isCollapsed ? "justify-center" : "justify-start"}
+            `}
+            title={isCollapsed ? (showAdminMenu ? "Back to Business" : "Admin Menu") : ""}
+          >
+            <div className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 
+              ${showAdminMenu 
+                ? "bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-400" 
+                : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+              }`}
+            >
+              {showAdminMenu ? <ArrowLeft size={16} /> : <Shield size={16} />}
+            </div>
+            {!isCollapsed && (
+              <span className="font-medium text-sm whitespace-nowrap">
+                {showAdminMenu ? "Back to Business" : "Go to Admin Menu"}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {/* Current Business Indicator when in Admin Menu */}
+      {isAdmin && showAdminMenu && isOnBusinessPage && businessData && !isCollapsed && (
+        <div className="px-3 mb-3">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-2">
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              Viewing admin menu for:
+            </p>
+            <p className="text-sm font-medium text-amber-900 dark:text-amber-200 truncate">
+              {businessData.title}
+            </p>
+          </div>
+        </div>
       )}
 
       {/* Menu */}

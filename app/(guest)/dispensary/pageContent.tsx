@@ -1,14 +1,72 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Loader2, Search, MapPin, Star, Clock, Phone, Filter, ChevronDown,
-  Grid, List, Heart, Navigation, Verified, Leaf, X
+  Grid, List, Heart, Navigation, Verified, Leaf, X, Truck, Car, 
+  Accessibility, BadgePercent, CreditCard
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
-import Image from 'next/image';
+
+// API Response interface matching the backend
+interface APIDispensaryResponse {
+  page_id: string;
+  title: string;
+  vanity_url: string;
+  image_path?: string;
+  image_path_url?: string;
+  text?: string;
+  locs_lon?: string;
+  locs_lat?: string;
+  locs_id?: string;
+  locs_name?: string;
+  locs_city?: string;
+  locs_zip?: string;
+  locs_street?: string;
+  locs_phone?: string;
+  locs_provides?: string; // "Medical" | "Recreational" | "Both"
+  locs_accept_delivery?: string; // "0" | "1"
+  locs_accept_pickup?: string; // "0" | "1"
+  locs_accept_curbside?: string; // "0" | "1"
+  locs_veteran?: string; // "0" | "1"
+  locs_wheelchair?: string; // "0" | "1"
+  locs_is_atm?: string; // "0" | "1"
+  locs_hours_status?: string; // "0" | "1"
+  locs_hr_mon_op?: string;
+  locs_hr_mon_cl?: string;
+  locs_hr_tue_op?: string;
+  locs_hr_tue_cl?: string;
+  locs_hr_wed_op?: string;
+  locs_hr_wed_cl?: string;
+  locs_hr_thu_op?: string;
+  locs_hr_thu_cl?: string;
+  locs_hr_fri_op?: string;
+  locs_hr_fri_cl?: string;
+  locs_hr_sat_op?: string;
+  locs_hr_sat_cl?: string;
+  locs_hr_sun_op?: string;
+  locs_hr_sun_cl?: string;
+  locs_mon_status?: string;
+  locs_tue_status?: string;
+  locs_wed_status?: string;
+  locs_thu_status?: string;
+  locs_fri_status?: string;
+  locs_sat_status?: string;
+  locs_sun_status?: string;
+  store_hours?: string;
+  average_rating?: number;
+  rating_number?: number;
+  medicine_count?: string;
+  is_featured?: string;
+  is_claimed?: string;
+  feature_type?: string;
+  country_iso?: string;
+  user_group_id?: string;
+  full_name?: string;
+  link?: string;
+}
 
 interface Dispensary {
   id: string;
@@ -26,6 +84,7 @@ interface Dispensary {
   is_open: boolean;
   opening_time?: string;
   closing_time?: string;
+  store_hours?: string;
   license_number?: string;
   business_type: 'dispensary' | 'delivery' | 'both';
   amenities: string[];
@@ -34,16 +93,34 @@ interface Dispensary {
   is_recreational: boolean;
   distance?: number;
   featured?: boolean;
+  medicine_count?: number;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface FilterState {
-  type: string;
+  type: string; // 'all' | 'medical' | 'recreational'
   amenities: string[];
   open_now: boolean;
   rating: number;
+  // API filter fields
+  locs_provides: string; // 'all' | 'Medical' | 'Recreational'
+  locs_accept_delivery: boolean;
+  locs_accept_pickup: boolean;
+  locs_accept_curbside: boolean;
+  locs_veteran: boolean;
+  locs_wheelchair: boolean;
+  locs_is_atm: boolean;
 }
 
-// Sample Data
+interface PaginationState {
+  page: number;
+  limit: number;
+  total: number;
+  hasMore: boolean;
+}
+
+// Sample Data for fallback
 const sampleDispensaries: Dispensary[] = [
   {
     id: '1',
@@ -248,18 +325,172 @@ const sampleDispensaries: Dispensary[] = [
 ];
 
 const amenityOptions = [
-  { id: 'atm', label: 'ATM', icon: '🏧' },
-  { id: 'parking', label: 'Parking', icon: '🅿️' },
-  { id: 'wheelchair', label: 'ADA Accessible', icon: '♿' },
-  { id: 'veteran_discount', label: 'Veteran Discount', icon: '🎖️' },
-  { id: 'curbside', label: 'Curbside Pickup', icon: '🚗' },
-  { id: 'delivery', label: 'Delivery', icon: '🚚' },
+  { id: 'atm', label: 'ATM', icon: '🏧', apiField: 'locs_is_atm' },
+  { id: 'parking', label: 'Parking', icon: '🅿️', apiField: null },
+  { id: 'wheelchair', label: 'ADA Accessible', icon: '♿', apiField: 'locs_wheelchair' },
+  { id: 'veteran_discount', label: 'Veteran Discount', icon: '🎖️', apiField: 'locs_veteran' },
+  { id: 'curbside', label: 'Curbside Pickup', icon: '🚗', apiField: 'locs_accept_curbside' },
+  { id: 'delivery', label: 'Delivery', icon: '🚚', apiField: 'locs_accept_delivery' },
+  { id: 'pickup', label: 'In-Store Pickup', icon: '🏪', apiField: 'locs_accept_pickup' },
 ];
+
+// Helper function to format time from "800" to "8:00 AM"
+const formatTime = (time?: string): string => {
+  if (!time) return '';
+  const hours = parseInt(time.slice(0, -2) || '0');
+  const minutes = time.slice(-2);
+  const period = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+  return `${displayHours}:${minutes} ${period}`;
+};
+
+// Helper function to validate image URL
+const isValidImageUrl = (url?: string): boolean => {
+  if (!url || url.trim() === '') return false;
+  
+  // Check if it's a valid URL format
+  try {
+    new URL(url);
+  } catch {
+    return false;
+  }
+  
+  // Check for common image extensions or known image URL patterns
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp'];
+  const lowerUrl = url.toLowerCase();
+  
+  // Check if URL has image extension
+  const hasImageExtension = imageExtensions.some(ext => lowerUrl.includes(ext));
+  
+  // Check if URL contains common image path patterns
+  const hasImagePath = lowerUrl.includes('/pic/') || 
+                       lowerUrl.includes('/image/') || 
+                       lowerUrl.includes('/images/') || 
+                       lowerUrl.includes('/photo/') ||
+                       lowerUrl.includes('/file/');
+  
+  return hasImageExtension || hasImagePath;
+};
+
+// Helper function to get the best available image
+const getBestImageUrl = (imagePathUrl?: string, imagePath?: string): string | undefined => {
+  // First try image_path_url
+  if (isValidImageUrl(imagePathUrl)) {
+    return imagePathUrl;
+  }
+  
+  // Then try image_path
+  if (isValidImageUrl(imagePath)) {
+    return imagePath;
+  }
+  
+  // Return undefined if no valid image
+  return undefined;
+};
+
+// Helper function to check if store is currently open
+const isStoreOpen = (apiData: APIDispensaryResponse): boolean => {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const currentTime = now.getHours() * 100 + now.getMinutes();
+  
+  const dayMap: { [key: number]: { status: string; open: string; close: string } } = {
+    0: { status: apiData.locs_sun_status || '0', open: apiData.locs_hr_sun_op || '', close: apiData.locs_hr_sun_cl || '' },
+    1: { status: apiData.locs_mon_status || '0', open: apiData.locs_hr_mon_op || '', close: apiData.locs_hr_mon_cl || '' },
+    2: { status: apiData.locs_tue_status || '0', open: apiData.locs_hr_tue_op || '', close: apiData.locs_hr_tue_cl || '' },
+    3: { status: apiData.locs_wed_status || '0', open: apiData.locs_hr_wed_op || '', close: apiData.locs_hr_wed_cl || '' },
+    4: { status: apiData.locs_thu_status || '0', open: apiData.locs_hr_thu_op || '', close: apiData.locs_hr_thu_cl || '' },
+    5: { status: apiData.locs_fri_status || '0', open: apiData.locs_hr_fri_op || '', close: apiData.locs_hr_fri_cl || '' },
+    6: { status: apiData.locs_sat_status || '0', open: apiData.locs_hr_sat_op || '', close: apiData.locs_hr_sat_cl || '' },
+  };
+  
+  const todayHours = dayMap[dayOfWeek];
+  
+  // If the day is marked as closed
+  if (todayHours.status === '1') return false;
+  
+  const openTime = parseInt(todayHours.open) || 0;
+  const closeTime = parseInt(todayHours.close) || 0;
+  
+  return currentTime >= openTime && currentTime <= closeTime;
+};
+
+// Transform API response to Dispensary interface
+const transformAPIResponse = (apiData: APIDispensaryResponse): Dispensary => {
+  const amenities: string[] = [];
+  
+  if (apiData.locs_is_atm === '1') amenities.push('atm');
+  if (apiData.locs_wheelchair === '1') amenities.push('wheelchair');
+  if (apiData.locs_veteran === '1') amenities.push('veteran_discount');
+  if (apiData.locs_accept_curbside === '1') amenities.push('curbside');
+  if (apiData.locs_accept_delivery === '1') amenities.push('delivery');
+  if (apiData.locs_accept_pickup === '1') amenities.push('pickup');
+  
+  const provides = apiData.locs_provides?.toLowerCase() || '';
+  const isMedical = provides === 'medical' || provides === 'both';
+  const isRecreational = provides === 'recreational' || provides === 'both';
+  
+  let businessType: 'dispensary' | 'delivery' | 'both' = 'dispensary';
+  if (apiData.locs_accept_delivery === '1' && apiData.locs_accept_pickup !== '1') {
+    businessType = 'delivery';
+  } else if (apiData.locs_accept_delivery === '1' && apiData.locs_accept_pickup === '1') {
+    businessType = 'both';
+  }
+  
+  // Get today's hours
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const dayKeys: { [key: number]: { open: string; close: string } } = {
+    0: { open: apiData.locs_hr_sun_op || '', close: apiData.locs_hr_sun_cl || '' },
+    1: { open: apiData.locs_hr_mon_op || '', close: apiData.locs_hr_mon_cl || '' },
+    2: { open: apiData.locs_hr_tue_op || '', close: apiData.locs_hr_tue_cl || '' },
+    3: { open: apiData.locs_hr_wed_op || '', close: apiData.locs_hr_wed_cl || '' },
+    4: { open: apiData.locs_hr_thu_op || '', close: apiData.locs_hr_thu_cl || '' },
+    5: { open: apiData.locs_hr_fri_op || '', close: apiData.locs_hr_fri_cl || '' },
+    6: { open: apiData.locs_hr_sat_op || '', close: apiData.locs_hr_sat_cl || '' },
+  };
+  
+  const todayHours = dayKeys[dayOfWeek];
+  
+  // Get the best available image URL
+  const bestImage = getBestImageUrl(apiData.image_path_url, apiData.image_path);
+  
+  return {
+    id: apiData.page_id,
+    name: apiData.title,
+    slug: apiData.vanity_url,
+    logo: bestImage,
+    cover_image: bestImage,
+    address: apiData.locs_street || '',
+    city: apiData.locs_city || '',
+    state: apiData.country_iso || 'OK',
+    zip_code: apiData.locs_zip || '',
+    phone: apiData.locs_phone,
+    rating: apiData.average_rating || 0,
+    review_count: apiData.rating_number || 0,
+    is_open: isStoreOpen(apiData),
+    opening_time: formatTime(todayHours.open),
+    closing_time: formatTime(todayHours.close),
+    store_hours: apiData.store_hours,
+    business_type: businessType,
+    amenities,
+    is_verified: apiData.is_claimed === '1',
+    is_medical: isMedical,
+    is_recreational: isRecreational,
+    featured: apiData.is_featured === '1' || apiData.feature_type === '1',
+    medicine_count: parseInt(apiData.medicine_count || '0'),
+    latitude: parseFloat(apiData.locs_lat || '0'),
+    longitude: parseFloat(apiData.locs_lon || '0'),
+  };
+};
 
 export default function DispensaryListingPage() {
   const router = useRouter();
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [dispensaries, setDispensaries] = useState<Dispensary[]>([]);
   const [filteredDispensaries, setFilteredDispensaries] = useState<Dispensary[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -267,45 +498,191 @@ export default function DispensaryListingPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('distance');
   const [favorites, setFavorites] = useState<string[]>([]);
+  const [useSampleData, setUseSampleData] = useState(false);
+
+  const [pagination, setPagination] = useState<PaginationState>({
+    page: 1,
+    limit: 12,
+    total: 0,
+    hasMore: true,
+  });
 
   const [filters, setFilters] = useState<FilterState>({
     type: 'all',
     amenities: [],
     open_now: false,
     rating: 0,
+    locs_provides: 'all',
+    locs_accept_delivery: false,
+    locs_accept_pickup: false,
+    locs_accept_curbside: false,
+    locs_veteran: false,
+    locs_wheelchair: false,
+    locs_is_atm: false,
   });
 
-  // Fetch dispensaries
-  const fetchDispensaries = useCallback(async () => {
-    try {
-      setLoading(true);
-      /*const response = await axios.get('/api/dispensaries');
+  // Build API filter params
+  const buildFilterParams = useCallback(() => {
+    const params: Record<string, string | number> = {
+      page: pagination.page,
+      limit: pagination.limit,
+    };
 
-      if (response.data.status === 'success' && response.data.data?.length > 0) {
-        setDispensaries(response.data.data);
-        setFilteredDispensaries(response.data.data);
+    // Type filter (Medical/Recreational)
+    if (filters.locs_provides !== 'all') {
+      params.locs_provides = filters.locs_provides;
+    }
+
+    // Amenity filters
+    if (filters.locs_accept_delivery) params.locs_accept_delivery = '1';
+    if (filters.locs_accept_pickup) params.locs_accept_pickup = '1';
+    if (filters.locs_accept_curbside) params.locs_accept_curbside = '1';
+    if (filters.locs_veteran) params.locs_veteran = '1';
+    if (filters.locs_wheelchair) params.locs_wheelchair = '1';
+    if (filters.locs_is_atm) params.locs_is_atm = '1';
+
+    // Search query
+    if (searchQuery) {
+      params.search = searchQuery;
+    }
+
+    // Sort
+    if (sortBy) {
+      params.sort = sortBy;
+    }
+
+    return params;
+  }, [filters, pagination.page, pagination.limit, searchQuery, sortBy]);
+
+  // Fetch dispensaries with pagination
+  const fetchDispensaries = useCallback(async (page: number = 1, append: boolean = false) => {
+    try {
+      if (page === 1) {
+        setLoading(true);
       } else {
-        // Use sample data
+        setLoadingMore(true);
+      }
+
+      const params = buildFilterParams();
+      params.page = page;
+
+      const response = await axios.get('/api/business/dispensaries', { params });
+      
+      if (response.data.status === 'success' && response.data.data) {
+        const apiData = Array.isArray(response.data.data) 
+          ? response.data.data 
+          : response.data.data.business || [];
+        
+        if (apiData.length > 0) {
+          const transformedData = apiData.map(transformAPIResponse);
+          
+          if (append) {
+            setDispensaries(prev => [...prev, ...transformedData]);
+          } else {
+            setDispensaries(transformedData);
+          }
+          
+          // Update pagination state
+          const total = response.data.data.total || response.data.total || apiData.length;
+          const hasMore = page * pagination.limit < total;
+          
+          setPagination(prev => ({
+            ...prev,
+            page,
+            total,
+            hasMore,
+          }));
+          
+          setUseSampleData(false);
+        } else if (page === 1) {
+          // No data from API, use sample data
+          setDispensaries(sampleDispensaries);
+          setPagination(prev => ({
+            ...prev,
+            page: 1,
+            total: sampleDispensaries.length,
+            hasMore: false,
+          }));
+          setUseSampleData(true);
+        } else {
+          // No more data to load
+          setPagination(prev => ({ ...prev, hasMore: false }));
+        }
+      } else if (page === 1) {
+        // Use sample data on initial load failure
         setDispensaries(sampleDispensaries);
-        setFilteredDispensaries(sampleDispensaries);
-      }*/
-	  setDispensaries(sampleDispensaries);
-      setFilteredDispensaries(sampleDispensaries);
+        setPagination(prev => ({
+          ...prev,
+          page: 1,
+          total: sampleDispensaries.length,
+          hasMore: false,
+        }));
+        setUseSampleData(true);
+      }
     } catch (error) {
       console.error('Error fetching dispensaries:', error);
-      // Use sample data on error
-      setDispensaries(sampleDispensaries);
-      setFilteredDispensaries(sampleDispensaries);
+      if (page === 1) {
+        // Use sample data on error
+        setDispensaries(sampleDispensaries);
+        setPagination(prev => ({
+          ...prev,
+          page: 1,
+          total: sampleDispensaries.length,
+          hasMore: false,
+        }));
+        setUseSampleData(true);
+      } else {
+        toast.error('Failed to load more dispensaries');
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, []);
+  }, [buildFilterParams, pagination.limit]);
 
-  // Apply filters and search
+  // Load more dispensaries
+  const loadMore = useCallback(() => {
+    if (!loadingMore && pagination.hasMore && !useSampleData) {
+      fetchDispensaries(pagination.page + 1, true);
+    }
+  }, [loadingMore, pagination.hasMore, pagination.page, fetchDispensaries, useSampleData]);
+
+  // Set up intersection observer for infinite scroll
+  useEffect(() => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && pagination.hasMore && !loadingMore && !loading) {
+          loadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '100px',
+        threshold: 0.1,
+      }
+    );
+
+    if (loadMoreRef.current) {
+      observerRef.current.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [loadMore, pagination.hasMore, loadingMore, loading]);
+
+  // Apply client-side filters and search (for sample data or additional filtering)
   useEffect(() => {
     let result = [...dispensaries];
 
-    // Search filter
+    // Client-side search filter (always apply for immediate feedback)
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
@@ -316,8 +693,8 @@ export default function DispensaryListingPage() {
       );
     }
 
-    // Type filter
-    if (filters.type !== 'all') {
+    // Type filter (client-side for sample data)
+    if (useSampleData && filters.type !== 'all') {
       if (filters.type === 'medical') {
         result = result.filter((d) => d.is_medical);
       } else if (filters.type === 'recreational') {
@@ -337,8 +714,8 @@ export default function DispensaryListingPage() {
       result = result.filter((d) => d.rating >= filters.rating);
     }
 
-    // Amenities filter
-    if (filters.amenities.length > 0) {
+    // Amenities filter (client-side for sample data)
+    if (useSampleData && filters.amenities.length > 0) {
       result = result.filter((d) =>
         filters.amenities.every((amenity) => d.amenities.includes(amenity))
       );
@@ -361,17 +738,31 @@ export default function DispensaryListingPage() {
     }
 
     setFilteredDispensaries(result);
-  }, [dispensaries, searchQuery, filters, sortBy]);
+  }, [dispensaries, searchQuery, filters, sortBy, useSampleData]);
+
+  // Re-fetch when filters change (for API data)
+  useEffect(() => {
+    if (!useSampleData) {
+      // Debounce the API call
+      const timeoutId = setTimeout(() => {
+        fetchDispensaries(1, false);
+      }, 300);
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [filters.locs_provides, filters.locs_accept_delivery, filters.locs_accept_pickup, 
+      filters.locs_accept_curbside, filters.locs_veteran, filters.locs_wheelchair, 
+      filters.locs_is_atm, sortBy]);
 
   // Initialize
   useEffect(() => {
-    fetchDispensaries();
+    fetchDispensaries(1, false);
     // Load favorites from localStorage
     const savedFavorites = localStorage.getItem('dispensary_favorites');
     if (savedFavorites) {
       setFavorites(JSON.parse(savedFavorites));
     }
-  }, [fetchDispensaries]);
+  }, []);
 
   // Toggle favorite
   const toggleFavorite = (id: string) => {
@@ -382,8 +773,17 @@ export default function DispensaryListingPage() {
     localStorage.setItem('dispensary_favorites', JSON.stringify(newFavorites));
   };
 
-  // Toggle amenity filter
-  const toggleAmenity = (amenityId: string) => {
+  // Toggle amenity filter (API-based)
+  const toggleAmenityFilter = (amenityId: string, apiField: string | null) => {
+    if (apiField) {
+      const filterKey = apiField as keyof FilterState;
+      setFilters((prev) => ({
+        ...prev,
+        [filterKey]: !prev[filterKey],
+      }));
+    }
+    
+    // Also update the amenities array for UI state
     setFilters((prev) => ({
       ...prev,
       amenities: prev.amenities.includes(amenityId)
@@ -399,9 +799,27 @@ export default function DispensaryListingPage() {
       amenities: [],
       open_now: false,
       rating: 0,
+      locs_provides: 'all',
+      locs_accept_delivery: false,
+      locs_accept_pickup: false,
+      locs_accept_curbside: false,
+      locs_veteran: false,
+      locs_wheelchair: false,
+      locs_is_atm: false,
     });
     setSearchQuery('');
+    setPagination(prev => ({ ...prev, page: 1 }));
+    fetchDispensaries(1, false);
   };
+
+  // Handle search with debounce
+  const handleSearch = useCallback((value: string) => {
+    setSearchQuery(value);
+    if (!useSampleData) {
+      // Reset pagination and fetch with new search
+      setPagination(prev => ({ ...prev, page: 1 }));
+    }
+  }, [useSampleData]);
 
   const renderStars = (rating: number) => {
     return (
@@ -417,6 +835,21 @@ export default function DispensaryListingPage() {
       </div>
     );
   };
+
+  // Check if any filters are active
+  const hasActiveFilters = 
+    filters.type !== 'all' || 
+    filters.amenities.length > 0 || 
+    filters.open_now || 
+    filters.rating > 0 || 
+    filters.locs_provides !== 'all' ||
+    filters.locs_accept_delivery ||
+    filters.locs_accept_pickup ||
+    filters.locs_accept_curbside ||
+    filters.locs_veteran ||
+    filters.locs_wheelchair ||
+    filters.locs_is_atm ||
+    searchQuery;
 
   if (loading) {
     return (
@@ -447,7 +880,7 @@ export default function DispensaryListingPage() {
                 type="text"
                 placeholder="Search by name, city, or address..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearch(e.target.value)}
                 className="w-full pl-12 pr-4 py-4 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-300"
               />
             </div>
@@ -468,17 +901,42 @@ export default function DispensaryListingPage() {
         <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
-              {/* Type Filter */}
+              {/* Type Filter - Medical/Recreational */}
               <select
-                value={filters.type}
-                onChange={(e) => setFilters((prev) => ({ ...prev, type: e.target.value }))}
+                value={filters.locs_provides}
+                onChange={(e) => setFilters((prev) => ({ ...prev, locs_provides: e.target.value, type: e.target.value === 'Medical' ? 'medical' : e.target.value === 'Recreational' ? 'recreational' : 'all' }))}
                 className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
               >
                 <option value="all">All Types</option>
-                <option value="medical">Medical</option>
-                <option value="recreational">Recreational</option>
-                <option value="delivery">Delivery</option>
+                <option value="Medical">Medical</option>
+                <option value="Recreational">Recreational</option>
               </select>
+
+              {/* Delivery Filter */}
+              <button
+                onClick={() => setFilters((prev) => ({ ...prev, locs_accept_delivery: !prev.locs_accept_delivery }))}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                  filters.locs_accept_delivery
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Truck className="w-4 h-4" />
+                Delivery
+              </button>
+
+              {/* Pickup Filter */}
+              <button
+                onClick={() => setFilters((prev) => ({ ...prev, locs_accept_pickup: !prev.locs_accept_pickup }))}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
+                  filters.locs_accept_pickup
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <Car className="w-4 h-4" />
+                Pickup
+              </button>
 
               {/* Open Now Toggle */}
               <button
@@ -515,7 +973,7 @@ export default function DispensaryListingPage() {
               </button>
 
               {/* Clear Filters */}
-              {(filters.type !== 'all' || filters.amenities.length > 0 || filters.open_now || filters.rating > 0 || searchQuery) && (
+              {hasActiveFilters && (
                 <button
                   onClick={clearFilters}
                   className="px-4 py-2 text-red-600 hover:text-red-700 font-medium flex items-center gap-1"
@@ -560,32 +1018,109 @@ export default function DispensaryListingPage() {
           {/* Expanded Filters */}
           {showFilters && (
             <div className="mt-4 pt-4 border-t border-gray-200">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Amenities</p>
-              <div className="flex flex-wrap gap-2">
-                {amenityOptions.map((amenity) => (
-                  <button
-                    key={amenity.id}
-                    onClick={() => toggleAmenity(amenity.id)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
-                      filters.amenities.includes(amenity.id)
-                        ? 'bg-teal-600 text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                  >
-                    <span>{amenity.icon}</span>
-                    {amenity.label}
-                  </button>
-                ))}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Amenities */}
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Amenities</p>
+                  <div className="flex flex-wrap gap-2">
+                    {amenityOptions.map((amenity) => {
+                      const isActive = amenity.apiField 
+                        ? filters[amenity.apiField as keyof FilterState] === true
+                        : filters.amenities.includes(amenity.id);
+                      
+                      return (
+                        <button
+                          key={amenity.id}
+                          onClick={() => toggleAmenityFilter(amenity.id, amenity.apiField)}
+                          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
+                            isActive
+                              ? 'bg-teal-600 text-white'
+                              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          }`}
+                        >
+                          <span>{amenity.icon}</span>
+                          {amenity.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Additional Quick Filters */}
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Quick Filters</p>
+                  <div className="flex flex-wrap gap-2">
+                    {/* Veteran Discount */}
+                    <button
+                      onClick={() => setFilters((prev) => ({ ...prev, locs_veteran: !prev.locs_veteran }))}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
+                        filters.locs_veteran
+                          ? 'bg-teal-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <BadgePercent className="w-4 h-4" />
+                      Veteran Discount
+                    </button>
+
+                    {/* Wheelchair Accessible */}
+                    <button
+                      onClick={() => setFilters((prev) => ({ ...prev, locs_wheelchair: !prev.locs_wheelchair }))}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
+                        filters.locs_wheelchair
+                          ? 'bg-teal-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Accessibility className="w-4 h-4" />
+                      ADA Accessible
+                    </button>
+
+                    {/* ATM Available */}
+                    <button
+                      onClick={() => setFilters((prev) => ({ ...prev, locs_is_atm: !prev.locs_is_atm }))}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
+                        filters.locs_is_atm
+                          ? 'bg-teal-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      ATM Available
+                    </button>
+
+                    {/* Curbside */}
+                    <button
+                      onClick={() => setFilters((prev) => ({ ...prev, locs_accept_curbside: !prev.locs_accept_curbside }))}
+                      className={`px-4 py-2 rounded-full text-sm font-medium transition-colors flex items-center gap-2 ${
+                        filters.locs_accept_curbside
+                          ? 'bg-teal-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      <Car className="w-4 h-4" />
+                      Curbside Pickup
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
         </div>
 
         {/* Results Count */}
-        <div className="mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <p className="text-gray-600">
-            Showing <span className="font-semibold text-gray-900">{filteredDispensaries.length}</span> dispensaries
+            Showing <span className="font-semibold text-gray-900">{filteredDispensaries.length}</span> 
+            {pagination.total > 0 && !useSampleData && (
+              <span> of <span className="font-semibold text-gray-900">{pagination.total}</span></span>
+            )} dispensaries
           </p>
+          {useSampleData && (
+            <span className="text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
+              Showing sample data
+            </span>
+          )}
         </div>
 
         {/* Dispensary Grid/List */}
@@ -607,16 +1142,15 @@ export default function DispensaryListingPage() {
               <div
                 key={dispensary.id}
                 className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
-                onClick={() => router.push(`/dispensary/${dispensary.slug}`)}
+                onClick={() => router.push(`/${dispensary.slug}`)}
               >
                 {/* Cover Image */}
                 <div className="relative h-48 bg-gray-200">
                   {dispensary.cover_image ? (
-                    <Image
+                    <img
                       src={dispensary.cover_image}
                       alt={dispensary.name}
-                      fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-teal-500 to-teal-600">
@@ -650,7 +1184,7 @@ export default function DispensaryListingPage() {
                   <div className={`absolute bottom-3 left-3 px-3 py-1 rounded-full text-xs font-semibold ${
                     dispensary.is_open ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
                   }`}>
-                    {dispensary.is_open ? 'Open Now' : 'Closed'}
+                    {dispensary.is_open ? 'Open Now' : dispensary.store_hours || 'Closed'}
                   </div>
                 </div>
 
@@ -669,7 +1203,7 @@ export default function DispensaryListingPage() {
 
                   <div className="flex items-center gap-2 mb-3">
                     {renderStars(dispensary.rating)}
-                    <span className="text-sm font-semibold text-gray-900">{dispensary.rating}</span>
+                    <span className="text-sm font-semibold text-gray-900">{dispensary.rating.toFixed(1)}</span>
                     <span className="text-sm text-gray-500">({dispensary.review_count} reviews)</span>
                   </div>
 
@@ -685,6 +1219,14 @@ export default function DispensaryListingPage() {
                     </div>
                   )}
 
+                  {/* Medicine Count */}
+                  {dispensary.medicine_count && dispensary.medicine_count > 0 && (
+                    <div className="flex items-center gap-2 text-gray-600 text-sm mb-3">
+                      <Leaf className="w-4 h-4 flex-shrink-0" />
+                      <span>{dispensary.medicine_count} products available</span>
+                    </div>
+                  )}
+
                   {/* Tags */}
                   <div className="flex flex-wrap gap-2">
                     {dispensary.is_medical && (
@@ -695,6 +1237,9 @@ export default function DispensaryListingPage() {
                     )}
                     {dispensary.business_type === 'delivery' && (
                       <span className="px-2 py-1 bg-purple-100 text-purple-700 text-xs font-medium rounded">Delivery</span>
+                    )}
+                    {dispensary.amenities.includes('curbside') && (
+                      <span className="px-2 py-1 bg-orange-100 text-orange-700 text-xs font-medium rounded">Curbside</span>
                     )}
                   </div>
                 </div>
@@ -707,17 +1252,16 @@ export default function DispensaryListingPage() {
               <div
                 key={dispensary.id}
                 className="bg-white rounded-lg shadow-sm overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => router.push(`/dispensary/${dispensary.slug}`)}
+                onClick={() => router.push(`/${dispensary.slug}`)}
               >
                 <div className="flex flex-col md:flex-row">
                   {/* Image */}
                   <div className="relative w-full md:w-64 h-48 md:h-auto bg-gray-200 flex-shrink-0">
                     {dispensary.cover_image ? (
-                      <Image
+                      <img
                         src={dispensary.cover_image}
                         alt={dispensary.name}
-                        fill
-                        className="object-cover"
+                        className="absolute inset-0 w-full h-full object-cover"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-teal-500 to-teal-600">
@@ -750,7 +1294,7 @@ export default function DispensaryListingPage() {
                         </div>
                         <div className="flex items-center gap-2">
                           {renderStars(dispensary.rating)}
-                          <span className="text-sm font-semibold text-gray-900">{dispensary.rating}</span>
+                          <span className="text-sm font-semibold text-gray-900">{dispensary.rating.toFixed(1)}</span>
                           <span className="text-sm text-gray-500">({dispensary.review_count} reviews)</span>
                         </div>
                       </div>
@@ -788,8 +1332,14 @@ export default function DispensaryListingPage() {
                       )}
                       <div className="flex items-center gap-2 text-gray-600 text-sm">
                         <Clock className="w-4 h-4 flex-shrink-0" />
-                        <span>{dispensary.opening_time} - {dispensary.closing_time}</span>
+                        <span>{dispensary.store_hours || `${dispensary.opening_time} - ${dispensary.closing_time}`}</span>
                       </div>
+                      {dispensary.medicine_count && dispensary.medicine_count > 0 && (
+                        <div className="flex items-center gap-2 text-gray-600 text-sm">
+                          <Leaf className="w-4 h-4 flex-shrink-0" />
+                          <span>{dispensary.medicine_count} products</span>
+                        </div>
+                      )}
                     </div>
 
                     {/* Tags */}
@@ -800,7 +1350,7 @@ export default function DispensaryListingPage() {
                       {dispensary.is_recreational && (
                         <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">Recreational</span>
                       )}
-                      {dispensary.amenities.slice(0, 3).map((amenity) => {
+                      {dispensary.amenities.slice(0, 4).map((amenity) => {
                         const amenityInfo = amenityOptions.find((a) => a.id === amenity);
                         return amenityInfo ? (
                           <span key={amenity} className="px-3 py-1 bg-gray-100 text-gray-700 text-xs font-medium rounded-full">
@@ -815,6 +1365,34 @@ export default function DispensaryListingPage() {
             ))}
           </div>
         )}
+
+        {/* Infinite Scroll Loader */}
+        <div 
+          ref={loadMoreRef}
+          className="mt-8 flex justify-center"
+        >
+          {loadingMore && (
+            <div className="flex items-center gap-3 py-4">
+              <Loader2 className="w-6 h-6 text-teal-600 animate-spin" />
+              <span className="text-gray-600">Loading more dispensaries...</span>
+            </div>
+          )}
+          
+          {!loadingMore && pagination.hasMore && !useSampleData && filteredDispensaries.length > 0 && (
+            <button
+              onClick={loadMore}
+              className="px-6 py-3 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 transition-colors"
+            >
+              Load More
+            </button>
+          )}
+          
+          {!pagination.hasMore && filteredDispensaries.length > 0 && (
+            <p className="text-gray-500 py-4">
+              You&apos;ve reached the end of the list
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -4,10 +4,10 @@ import PageContent from "./pageContent";
 export async function generateMetadata({ 
   params 
 }: { 
-  params: Promise<{ business: string; order_id: string }> 
+  params: Promise<{ slug: string; order_id: string }> 
 }): Promise<Metadata> {
-  const { business, order_id } = await params;
-  const readableName = business.replace(/-/g, " ");
+  const { slug, order_id } = await params;
+  const readableName = slug.replace(/-/g, " ");
   
   return {
     title: `${readableName} | Order #${order_id} | Find Oklahoma Marijuana Dispensaries`,
@@ -18,9 +18,9 @@ export async function generateMetadata({
 export default async function Page({ 
   params 
 }: { 
-  params: Promise<{ business: string; order_id: string }> 
+  params: Promise<{ slug: string; order_id: string }> 
 }) {
-  const { business, order_id } = await params;
+  const { slug, order_id } = await params;
   
-  return <PageContent business={business} orderId={order_id} />;
+  return <PageContent business={slug} orderId={order_id} />;
 }

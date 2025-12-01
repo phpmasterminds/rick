@@ -6,17 +6,14 @@ export async function GET(request: NextRequest) {
   try {
     // ✅ Extract query parameters
     const { searchParams } = new URL(request.url);
-    const page_id = searchParams.get("page_id");
     const page = searchParams.get("page");
     const limit = searchParams.get("limit");
-    const product_id = searchParams.get("product_id");
 
-   
     const axios = await createServerAxios();
 
     // ✅ Pass query params correctly
-    const response = await axios.get("/business/get-business-products", {
-      params: { page_id, product_id },
+    const response = await axios.get("/business/get-business", {
+      params: { page, limit },
     });
 
     return NextResponse.json(response.data);
