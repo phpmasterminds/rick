@@ -1,17 +1,18 @@
 // pageContent.tsx
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Loader2, AlertCircle, ArrowLeft, MapPin, Star, Clock, Phone, Globe, Mail,
   Heart, Share2, Navigation, Verified, Leaf, ChevronRight, ShoppingBag,
   DollarSign, Tag, Filter, Grid, List, ChevronDown, X, Info, MessageSquare,
   Calendar, CreditCard, Car, Accessibility, Shield, Percent, Users, ThumbsUp,
-  ChevronLeft
+  ChevronLeft, Moon, Sun
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 import axios from 'axios';
+import ProductModal from '@/components/ProductModal'; 
 
 // Props interface
 interface DispensaryDetailPageProps {
@@ -57,7 +58,8 @@ interface MedicineProduct {
   category?: string;
   value1: string; // unit (e.g., "Each")
   value2: string; // price (e.g., "0.25")
-  med_image?: string | null;
+  image?: string | null;
+  med_image_url?: string | null;
   med_img?: string | null;
   med_type: string;
   med_value: string;
@@ -267,6 +269,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
   const [medicineProducts, setMedicineProducts] = useState<MedicineProduct[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<MedicineProduct | null>(null);
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // --- Helper: gracefully replace hyphens if slug maybe undefined somewhere else ---
   const readableName = (slug || '').replace(/-/g, ' ');
@@ -278,27 +281,26 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
       // Prefer pages_image_path if it's a relative path with %s placeholder
       // pages_image_path example: "2021/07/ae7e70ee9ec61e5ff82c4de20776d35f%s.png"
       try {
-        if (api.pages_image_path) {
+        /*if (api.pages_image_path) {
           // If contains %s, remove it to get base image (no size suffix)
           const relative = api.pages_image_path.replace('%s', '');
           return `https://www.okcannashop.com/PF.Base/file/pic/pages/${relative}`;
-        }
+        }*/
 
         // If image_path is already a full URL, use it
-        if (api.image_path && typeof api.image_path === 'string' && api.image_path.startsWith('http')) {
+        /*if (api.image_path && typeof api.image_path === 'string' && api.image_path.startsWith('http')) {
           return api.image_path;
-        }
+        }*/
 
         // If an image server pattern exists (fallback)
-        if (api.image_path && api.image_path.indexOf('/file/pic/pages/') > -1) {
+        /*if (api.image_path && api.image_path.indexOf('/file/pic/pages/') > -1) {
           // If it's a relative path, try to prefix
           return api.image_path.startsWith('http') ? api.image_path : `https://www.okcannashop.com/${api.image_path}`;
-        }
-
+        }*/
         // If cover_photo_id given, attempt to construct (best-effort)
-        if (api.cover_photo_id) {
+        if (api.cover_photo_url) {
           // This is a best-effort guess; you said you'll update actual cover photo API later
-          return `https://www.okcannashop.com/PF.Base/file/pic/pages/${api.cover_photo_id}.png`;
+          return api.cover_photo_url;
         }
       } catch (e) {
         // ignore and fallback to null
@@ -407,7 +409,6 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 		
 		try {
 		  const productApi = await axios.get(`/api/business/get-business-page-products/?page_id=${api.page_id}&page=1&limit=30`);
-		  console.log('Product API Response:', productApi.data);
 		  
 		  if (productApi.data?.status === 'success' && productApi.data.data?.products) {
 			// Map categories - FILTER OUT CATEGORIES WITH medicinecount = 0
@@ -431,7 +432,6 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 			const allProducts: MedicineProduct[] = [];
 			categories.forEach((cat) => {
 			  // medicinearray is a 2D array, flatten it to get all medicines
-			  console.log(cat);
 			  if (Array.isArray(cat.medicinearray) && cat.medicinearray.length > 0) {
 				const medicinesInCategory = cat.medicinearray.flat(); // Flatten the nested array
 				
@@ -443,7 +443,8 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 					  cat_name: cat.cat_name,
 					  value1: String(med.value1 ?? med.org_value1 ?? 'Each'),
 					  value2: String(med.value2 ?? med.org_value2 ?? '0'),
-					  med_image: med.med_image ?? null,
+					  image: med.med_img_url ?? null,
+					  med_image_url: med.med_img_url ?? null,
 					  med_img: med.med_img ?? null,
 					  med_type: med.med_type ?? '0',
 					  med_value: med.med_value ?? '',
@@ -462,6 +463,8 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 				});
 			  }
 			});
+			
+			
 
 			// Store medicine products separately for modal display
 			setMedicineProducts(allProducts);
@@ -475,13 +478,12 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 			  strain_type: prod.strain_type ?? undefined,
 			  thc_percentage: prod.thc ? parseFloat(String(prod.thc)) : undefined,
 			  cbd_percentage: prod.cbd ? parseFloat(String(prod.cbd)) : undefined,
-			  image: prod.med_image ?? prod.med_img ?? null,
+			  image: prod.med_image_url ?? prod.med_img ?? null,
 			  unit: prod.value1 ?? 'Each',
 			  in_stock: true,
 			  is_deal: false,
 			  brand: prod.brand_name ?? undefined,
 			}));
-			
 			// Set categories state
 			setCategories(categories);
 		  }
@@ -667,10 +669,18 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
   };
 
   // Filter products by selected category
-  const filteredMedicineProducts = medicineProducts.filter((product) => {
-    if (selectedCategory === 'all') return true;
-    return product.cat_name === selectedCategory;
-  });
+  const filteredMedicineProducts = useMemo(() => {
+    return medicineProducts.filter((product) => {
+      if (selectedCategory === 'all') return true;
+      // Find the category that matches selectedCategory (cat_id)
+      const selectedCat = categories.find(c => c.cat_id === selectedCategory);
+      if (!selectedCat) return false;
+	  console.log(product);
+      // Match products by the category's name (cat_name)
+      return product.cat_name === selectedCat.cat_name;
+    });
+  }, [selectedCategory, categories, medicineProducts]);
+			
 
   const getTodayHours = () => {
     if (!dispensary) return null;
@@ -723,7 +733,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
   const todayHours = getTodayHours();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'} transition-colors duration-200`}>
       {/* Cover Image */}
       <div className="relative h-64 md:h-80 bg-gray-200">
         {dispensary.cover_image ? (
@@ -748,6 +758,13 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
         {/* Action Buttons */}
         <div className="absolute top-4 right-4 flex items-center gap-2">
           <button
+            onClick={() => setIsDarkMode(!isDarkMode)}
+            className="p-2 bg-white/90 rounded-lg hover:bg-white transition-colors"
+            title={isDarkMode ? 'Light mode' : 'Dark mode'}
+          >
+            {isDarkMode ? <Sun className="w-5 h-5 text-gray-700" /> : <Moon className="w-5 h-5 text-gray-700" />}
+          </button>
+          <button
             onClick={handleShare}
             className="p-2 bg-white/90 rounded-lg hover:bg-white transition-colors"
           >
@@ -764,7 +781,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 
       {/* Dispensary Header */}
       <div className="max-w-7xl mx-auto px-4 -mt-16 relative z-10">
-        <div className="bg-white rounded-lg shadow-lg p-6">
+        <div className={`${isDarkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-900'} rounded-lg shadow-lg p-6 transition-colors duration-200`}>
           <div className="flex flex-col md:flex-row md:items-start gap-6">
             {/* Logo */}
             <div className="w-24 h-24 md:w-32 md:h-32 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden border-4 border-white shadow-md">
@@ -860,8 +877,8 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 
       {/* Tabs */}
       <div className="max-w-7xl mx-auto px-4 mt-6">
-        <div className="bg-white rounded-lg shadow-sm">
-          <div className="flex border-b border-gray-200">
+        <div className={`${isDarkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-sm transition-colors duration-200`}>
+          <div className={`flex ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
             {[
               { id: 'menu', label: 'Menu', icon: ShoppingBag, count: products.length },
               { id: 'reviews', label: 'Reviews', icon: MessageSquare, count: dispensary.review_count },
@@ -873,7 +890,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                 className={`flex-1 md:flex-none px-6 py-4 font-medium text-sm flex items-center justify-center gap-2 border-b-2 transition-colors ${
                   activeTab === tab.id
                     ? 'border-teal-600 text-teal-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                    : `${isDarkMode ? 'border-transparent text-gray-400 hover:text-gray-300' : 'border-transparent text-gray-500 hover:text-gray-700'}`
                 }`}
               >
                 <tab.icon className="w-4 h-4" />
@@ -892,10 +909,25 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
             <div className="p-6">
               {/* Category Pills */}
               <div className="flex overflow-x-auto gap-2 pb-4 mb-6 -mx-6 px-6 scrollbar-hide">
+                {/* All Products button - always shown first */}
+                <button
+                  key="all-products"
+                  onClick={() => setSelectedCategory('all')}
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${
+                    selectedCategory === 'all'
+                      ? 'bg-teal-600 text-white'
+                      : `${isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`
+                  }`}
+                >
+                  All Products
+                  <span className={`text-xs ${selectedCategory === 'all' ? 'text-teal-200' : `${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}`}>
+                    ({medicineProducts.length})
+                  </span>
+                </button>
+                
+                {/* Render all categories from API */}
                 {categories.map((category) => {
-                  const count = category.cat_id === 'all'
-                    ? products.length
-                    : products.filter(p => p.category === category.cat_id).length;
+                  const count = medicineProducts.filter(p => p.cat_name === category.cat_name).length;
                   return (
                     <button
                       key={category.cat_id}
@@ -903,12 +935,12 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                       className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${
                         selectedCategory === category.cat_id
                           ? 'bg-teal-600 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          : `${isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`
                       }`}
                     >
                       {category.cat_name}
-                      <span className={`text-xs ${selectedCategory === category.cat_id ? 'text-teal-200' : 'text-gray-500'}`}>
-                        ({category.medicinecount})
+                      <span className={`text-xs ${selectedCategory === category.cat_id ? 'text-teal-200' : `${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}`}>
+                        ({count})
                       </span>
                     </button>
                   );
@@ -917,30 +949,34 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 
               {/* Filters Bar */}
               <div className="flex items-center justify-between mb-6">
-                <p className="text-gray-600">
-                  <span className="font-semibold text-gray-900">{filteredMedicineProducts.length}</span> products
+                <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                  <span className={`font-semibold ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>{filteredMedicineProducts.length}</span> products
                 </p>
                 <div className="flex items-center gap-3">
                   <select
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                    className={`px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors ${
+                      isDarkMode 
+                        ? 'bg-gray-700 border border-gray-600 text-white' 
+                        : 'border border-gray-300 bg-white text-gray-900'
+                    }`}
                   >
                     <option value="popular">Most Popular</option>
                     <option value="price_low">Price: Low to High</option>
                     <option value="price_high">Price: High to Low</option>
                     <option value="thc">Highest THC</option>
                   </select>
-                  <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden">
+                  <div className={`flex items-center rounded-lg overflow-hidden ${isDarkMode ? 'border border-gray-600' : 'border border-gray-300'} transition-colors`}>
                     <button
                       onClick={() => setViewMode('grid')}
-                      className={`p-2 ${viewMode === 'grid' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600'}`}
+                      className={`p-2 transition-colors ${viewMode === 'grid' ? 'bg-teal-600 text-white' : `${isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-white text-gray-600'}`}`}
                     >
                       <Grid className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => setViewMode('list')}
-                      className={`p-2 ${viewMode === 'list' ? 'bg-teal-600 text-white' : 'bg-white text-gray-600'}`}
+                      className={`p-2 transition-colors ${viewMode === 'list' ? 'bg-teal-600 text-white' : `${isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-white text-gray-600'}`}`}
                     >
                       <List className="w-4 h-4" />
                     </button>
@@ -960,7 +996,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                     <div
                       key={product.med_id}
                       onClick={() => openProductModal(product, idx)}
-                      className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer group"
+                      className={`${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border rounded-lg overflow-hidden hover:shadow-md transition-shadow cursor-pointer group`}
                     >
                       <div className="relative aspect-square bg-gray-100">
                         {product.image ? (
@@ -985,25 +1021,25 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                             {product.strain_type.charAt(0).toUpperCase() + product.strain_type.slice(1)}
                           </span>
                         )}
-                        <h3 className="font-semibold text-gray-900 text-sm group-hover:text-teal-600 transition-colors line-clamp-2">
+                        <h3 className={`font-semibold ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} text-sm group-hover:text-teal-600 transition-colors line-clamp-2`}>
                           {product.name}
                         </h3>
                         {product.brand && (
-                          <p className="text-xs text-gray-500 mt-1">{product.brand}</p>
+                          <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'} mt-1`}>{product.brand}</p>
                         )}
-                        <div className="flex items-center gap-2 mt-2">
+                        <div className={`flex items-center gap-2 mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                           {product.thc && (
-                            <span className="text-xs text-gray-600">THC: {product.thc}%</span>
+                            <span className="text-xs">THC: {product.thc}%</span>
                           )}
                           {product.cbd && (
-                            <span className="text-xs text-gray-600">CBD: {product.cbd}%</span>
+                            <span className="text-xs">CBD: {product.cbd}%</span>
                           )}
                         </div>
-                        <div className="flex items-center justify-between mt-2">
+                        <div className={`flex items-center justify-between mt-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>
                           <div>
-                            <span className="font-bold text-gray-900">${product.value2}</span>
+                            <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>${product.value2}</span>
                           </div>
-                          <span className="text-xs text-gray-500">{product.value1}</span>
+                          <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{product.value1}</span>
                         </div>
                       </div>
                     </div>
@@ -1072,11 +1108,11 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
           {activeTab === 'reviews' && (
             <div className="p-6">
               {/* Rating Summary */}
-              <div className="flex flex-col md:flex-row gap-8 mb-8 pb-8 border-b border-gray-200">
+              <div className={`flex flex-col md:flex-row gap-8 mb-8 pb-8 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
                 <div className="text-center md:text-left">
-                  <div className="text-5xl font-bold text-gray-900 mb-2">{dispensary.rating}</div>
+                  <div className={`text-5xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'} mb-2`}>{dispensary.rating}</div>
                   {renderStars(dispensary.rating, 'md')}
-                  <p className="text-gray-500 mt-2">{dispensary.review_count.toLocaleString()} reviews</p>
+                  <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-500'} mt-2`}>{dispensary.review_count.toLocaleString()} reviews</p>
                 </div>
                 <div className="flex-1">
                   {[5, 4, 3, 2, 1].map((stars) => {
@@ -1084,11 +1120,11 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                     const percentage = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
                     return (
                       <div key={stars} className="flex items-center gap-3 mb-2">
-                        <span className="text-sm text-gray-600 w-8">{stars} ★</span>
-                        <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                        <span className={`text-sm w-8 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>{stars} ★</span>
+                        <div className={`flex-1 h-2 rounded-full overflow-hidden ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>
                           <div className="h-full bg-yellow-400 rounded-full" style={{ width: `${percentage}%` }} />
                         </div>
-                        <span className="text-sm text-gray-500 w-12">{count}</span>
+                        <span className={`text-sm w-12 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{count}</span>
                       </div>
                     );
                   })}
@@ -1098,9 +1134,9 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
               {/* Reviews List */}
               <div className="space-y-6">
                 {reviews.map((review) => (
-                  <div key={review.id} className="pb-6 border-b border-gray-200 last:border-0">
+                  <div key={review.id} className={`pb-6 last:border-0 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} border-b`}>
                     <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                      <div className={`w-12 h-12 rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'} flex items-center justify-center flex-shrink-0 overflow-hidden`}>
                         {review.user_avatar ? (
                           <img src={review.user_avatar} alt={review.user_name} className="w-12 h-12 rounded-full object-cover" />
                         ) : (
@@ -1109,12 +1145,12 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-semibold text-gray-900">{review.user_name}</span>
-                          <span className="text-sm text-gray-500">{review.created_at}</span>
+                          <span className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{review.user_name}</span>
+                          <span className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{review.created_at}</span>
                         </div>
                         {renderStars(review.rating)}
-                        <p className="text-gray-700 mt-3 leading-relaxed">{review.comment}</p>
-                        <button className="flex items-center gap-2 text-sm text-gray-500 hover:text-teal-600 mt-3 transition-colors">
+                        <p className={`${isDarkMode ? 'text-gray-300' : 'text-gray-700'} mt-3 leading-relaxed`}>{review.comment}</p>
+                        <button className={`flex items-center gap-2 text-sm mt-3 transition-colors ${isDarkMode ? 'text-gray-500 hover:text-teal-400' : 'text-gray-500 hover:text-teal-600'}`}>
                           <ThumbsUp className="w-4 h-4" />
                           Helpful ({review.helpful_count})
                         </button>
@@ -1124,7 +1160,11 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                 ))}
               </div>
 
-              <button className="w-full mt-6 py-3 border border-teal-600 text-teal-600 rounded-lg font-medium hover:bg-teal-50 transition-colors">
+              <button className={`w-full mt-6 py-3 rounded-lg font-medium transition-colors ${
+                isDarkMode 
+                  ? 'border border-teal-500 text-teal-400 hover:bg-teal-500/10' 
+                  : 'border border-teal-600 text-teal-600 hover:bg-teal-50'
+              }`}>
                 Write a Review
               </button>
             </div>
@@ -1232,133 +1272,25 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
       {/* Disclaimer */}
       {/* Product Detail Modal */}
       {selectedProduct && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto relative">
-            {/* Close Button */}
-            <button
-              onClick={closeProductModal}
-              className="absolute top-4 right-4 p-2 hover:bg-gray-100 rounded-full z-10"
-            >
-              <X className="w-6 h-6 text-gray-600" />
-            </button>
+  <ProductModal
+    selectedProduct={selectedProduct}
+    dispensary={{
+      id: dispensary.id,
+      name: dispensary.name,
+      address: dispensary.address || '',
+    }}
+    medicineProducts={medicineProducts}
+    selectedProductIndex={selectedProductIndex}
+    onClose={closeProductModal}
+    onNext={goToNextProduct}
+    onPrevious={goToPreviousProduct}
+  />
+)}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
-              {/* Product Image */}
-              <div className="flex flex-col gap-4">
-                <div className="relative w-full aspect-square bg-gray-100 rounded-lg overflow-hidden flex items-center justify-center">
-                  {selectedProduct.med_image || selectedProduct.med_img ? (
-                    <img
-                      src={(selectedProduct.med_image || selectedProduct.med_img) as string}
-                      alt={selectedProduct.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Leaf className="w-24 h-24 text-gray-300" />
-                  )}
-                </div>
-              </div>
-
-              {/* Product Details */}
-              <div className="flex flex-col">
-                <div className="mb-6">
-                  <p className="text-sm text-gray-500 mb-2">{selectedProduct.cat_name}</p>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">{selectedProduct.name}</h2>
-                  
-                  {/* Price and Unit */}
-                  <div className="flex items-baseline gap-2 mb-4">
-                    <span className="text-3xl font-bold text-teal-600">${selectedProduct.value2}</span>
-                    <span className="text-lg text-gray-600">/ {selectedProduct.value1}</span>
-                  </div>
-
-                  {/* Brand */}
-                  {selectedProduct.brand_name && (
-                    <p className="text-sm text-gray-600 mb-3">
-                      <strong>Brand:</strong> {selectedProduct.brand_name}
-                    </p>
-                  )}
-                </div>
-
-                {/* Cannabinoid Info */}
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  {selectedProduct.thc && (
-                    <div className="bg-green-50 p-4 rounded-lg">
-                      <p className="text-xs text-gray-600 mb-1">THC</p>
-                      <p className="text-xl font-bold text-green-700">{selectedProduct.thc}%</p>
-                    </div>
-                  )}
-                  {selectedProduct.cbd && (
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <p className="text-xs text-gray-600 mb-1">CBD</p>
-                      <p className="text-xl font-bold text-blue-700">{selectedProduct.cbd}%</p>
-                    </div>
-                  )}
-                  {selectedProduct.terepenes && (
-                    <div className="bg-purple-50 p-4 rounded-lg col-span-2">
-                      <p className="text-xs text-gray-600 mb-1">Terpenes</p>
-                      <p className="text-sm text-purple-700">{selectedProduct.terepenes}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Strain Info */}
-                {selectedProduct.strain && (
-                  <div className="mb-6">
-                    <p className="text-sm text-gray-600">
-                      <strong>Strain:</strong> {selectedProduct.strain}
-                    </p>
-                  </div>
-                )}
-
-                {/* Business Info */}
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-semibold text-gray-900 mb-2">Sold By</h3>
-                  <p className="text-sm text-gray-700">{dispensary?.name || selectedProduct.business_name}</p>
-                  {dispensary?.address && (
-                    <p className="text-xs text-gray-600 mt-1 flex items-start gap-2">
-                      <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      {dispensary.address}
-                    </p>
-                  )}
-                </div>
-
-                {/* Add to Cart */}
-                <button className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-4 rounded-lg mb-4 transition-colors">
-                  Add to Cart
-                </button>
-              </div>
-            </div>
-
-            {/* Navigation Buttons */}
-            <div className="flex items-center justify-between gap-4 px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <button
-                onClick={goToPreviousProduct}
-                disabled={selectedProductIndex === 0}
-                className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5" />
-                <span className="text-sm font-medium">Previous</span>
-              </button>
-
-              <span className="text-sm text-gray-600">
-                {selectedProductIndex + 1} of {medicineProducts.length}
-              </span>
-
-              <button
-                onClick={goToNextProduct}
-                disabled={selectedProductIndex >= medicineProducts.length - 1}
-                className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <span className="text-sm font-medium">Next</span>
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-          <p className="text-xs text-amber-800 text-center">
+        <div className={`${isDarkMode ? 'bg-amber-900/20 border-amber-800' : 'bg-amber-50 border-amber-200'} border rounded-lg p-4 transition-colors duration-200`}>
+          <p className={`text-xs ${isDarkMode ? 'text-amber-200' : 'text-amber-800'} text-center`}>
             <strong>Disclaimer:</strong> Marijuana is for use by qualified patients only. Keep out of reach of children. 
             Marijuana use during pregnancy or breastfeeding poses potential harms. Marijuana is not approved by the FDA 
             to treat, cure, or prevent any disease. Do not operate a vehicle or machinery under the influence of marijuana.

@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import GuestTopBar from "@/components/GuestTopBar";
+import TopBar from "@/components/TopBar";
+import { ShopCartProvider } from "../contexts/ShopCartContext";
 
 export default function GuestLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
-      <GuestTopBar/>
+    <ShopCartProvider>
+		
+      <TopBar/>
       {children}
-    </>
+    </ShopCartProvider>
   );
 }
