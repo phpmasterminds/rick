@@ -122,6 +122,54 @@ interface Dispensary {
   locs_provides?: string | null;
 }
 
+interface Order {
+  id: string;
+  order_number: string;
+  customer_id: string;
+  customer_name: string;
+  customer_email?: string;
+  customer_phone?: string;
+  total_amount: number;
+  status: 'pending' | 'processing' | 'completed' | 'cancelled';
+  items_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface OrderItem {
+  id: string;
+  product_name: string;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+}
+
+interface OrderDetail {
+  id: string;
+  order_number: string;
+  customer_id: string;
+  customer_name: string;
+  customer_email: string;
+  customer_phone: string;
+  items: OrderItem[];
+  total_amount: number;
+  status: 'pending' | 'processing' | 'completed' | 'cancelled';
+  created_at: string;
+  updated_at: string;
+  shipping_address?: string;
+  notes?: string;
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  total_orders: number;
+  total_spent: number;
+  last_order_date?: string;
+}
+
 // --- sample fallback data (kept small) ---
 const sampleDispensary: Dispensary = {
   id: '1',
@@ -261,7 +309,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
   const [products, setProducts] = useState<Product[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [isFavorite, setIsFavorite] = useState(false);
-  const [activeTab, setActiveTab] = useState<'menu' | 'reviews' | 'about'>('menu');
+  const [activeTab, setActiveTab] = useState<'menu' | 'reviews' | 'about' | 'dispensary-orders'>('menu');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('popular');
@@ -270,6 +318,21 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
   const [selectedProduct, setSelectedProduct] = useState<MedicineProduct | null>(null);
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Order management state
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isDispensaryOwner, setIsDispensaryOwner] = useState(false);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<OrderDetail | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [ordersDashboardMetrics, setOrdersDashboardMetrics] = useState({
+    total_orders: 0,
+    total_revenue: 0,
+    pending_orders: 0,
+    completed_orders: 0,
+  });
+  const [ordersLoading, setOrdersLoading] = useState(false);
+  const [ordersView, setOrdersView] = useState<'dashboard' | 'orders' | 'order-detail' | 'customers'>('dashboard');
 
   // --- Helper: gracefully replace hyphens if slug maybe undefined somewhere else ---
   const readableName = (slug || '').replace(/-/g, ' ');
@@ -569,6 +632,48 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
   useEffect(() => {
     if (slug) fetchDispensary();
   }, [slug, fetchDispensary]);
+
+  // Check admin and owner access
+  useEffect(() => {
+    const checkAccess = async () => {
+      try {
+        // Check if admin from localStorage
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          try {
+            const user = JSON.parse(userData);
+			if(user.data.user_group_id === '1'){
+				setIsAdmin(true);
+			}
+          } catch (e) {
+            setIsAdmin(false);
+          }
+        }
+
+        // Check if dispensary owner
+        try {
+          const response = await axios.get(`/api/business/?business=${encodeURIComponent(slug)}`);
+          if (response.data?.data?.user_id) {
+            const userCookie = document.cookie
+              .split('; ')
+              .find((row) => row.startsWith('user_id='))
+              ?.split('=')[1];
+            const userId = localStorage.getItem('user_id');
+            const dispensaryOwnerId = String(response.data.data.user_id);
+            setIsDispensaryOwner(
+              (userCookie === dispensaryOwnerId || userId === dispensaryOwnerId) && !!userCookie || !!userId
+            );
+          }
+        } catch (e) {
+          setIsDispensaryOwner(false);
+        }
+      } catch (error) {
+        console.error('Error checking access:', error);
+      }
+    };
+
+    checkAccess();
+  }, [slug]);
 
   useEffect(() => {
     // Check if favorited (store as array of ids)
@@ -883,6 +988,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
               { id: 'menu', label: 'Menu', icon: ShoppingBag, count: products.length },
               { id: 'reviews', label: 'Reviews', icon: MessageSquare, count: dispensary.review_count },
               { id: 'about', label: 'About', icon: Info },
+              //...(isAdmin || isDispensaryOwner ? [{ id: 'dispensary-orders', label: 'Dispensary Orders', icon: ShoppingBag, count: undefined }] : []),
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1266,10 +1372,287 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
               </div>
             </div>
           )}
+
+          {/* Dispensary Orders Tab - Only visible to Admin and Owner */}
+          {activeTab === 'dispensary-orders' && (isAdmin || isDispensaryOwner) && (
+            <div className="p-6">
+              {/* Orders View Navigation */}
+              <div className={`flex gap-2 mb-6 ${isDarkMode ? 'border-gray-700' : 'border-gray-200'} pb-4`}>
+                {[
+                  { id: 'dashboard', label: 'Dashboard', icon: ShoppingBag },
+                  { id: 'orders', label: 'Orders', icon: ShoppingBag },
+                  { id: 'customers', label: 'Customers', icon: Users },
+                ].map((view) => (
+                  <button
+                    key={view.id}
+                    onClick={() => setOrdersView(view.id as any)}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors ${
+                      ordersView === view.id
+                        ? 'bg-teal-600 text-white'
+                        : `${isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`
+                    }`}
+                  >
+                    <view.icon className="w-4 h-4" />
+                    {view.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Dashboard View */}
+              {ordersView === 'dashboard' && (
+                <div className="space-y-6">
+                  <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Orders Dashboard
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className={`p-6 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Orders</p>
+                      <p className="text-3xl font-bold text-teal-600 mt-2">{ordersDashboardMetrics.total_orders}</p>
+                    </div>
+                    <div className={`p-6 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Total Revenue</p>
+                      <p className="text-3xl font-bold text-green-600 mt-2">${ordersDashboardMetrics.total_revenue.toFixed(2)}</p>
+                    </div>
+                    <div className={`p-6 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Pending Orders</p>
+                      <p className="text-3xl font-bold text-yellow-600 mt-2">{ordersDashboardMetrics.pending_orders}</p>
+                    </div>
+                    <div className={`p-6 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white'} border ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <p className={`text-sm font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Completed Orders</p>
+                      <p className="text-3xl font-bold text-blue-600 mt-2">{ordersDashboardMetrics.completed_orders}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Orders List View */}
+              {ordersView === 'orders' && (
+                <div className="space-y-6">
+                  <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Orders
+                  </h3>
+                  {ordersLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 text-teal-600 animate-spin" />
+                    </div>
+                  ) : orders.length === 0 ? (
+                    <div className="text-center py-12">
+                      <ShoppingBag className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>No orders found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {orders.map((order) => (
+                        <div
+                          key={order.id}
+                          onClick={() => {
+                            setSelectedOrder({
+                              ...order,
+                              items: [],
+                              customer_email: order.customer_email || '',
+                              customer_phone: order.customer_phone || '',
+                            } as any);
+                            setOrdersView('order-detail');
+                          }}
+                          className={`p-4 rounded-lg border cursor-pointer transition-colors hover:shadow-md ${
+                            isDarkMode
+                              ? 'bg-gray-800 border-gray-700 hover:bg-gray-700'
+                              : 'bg-white border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                Order #{order.order_number}
+                              </p>
+                              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {order.customer_name}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-teal-600">${order.total_amount.toFixed(2)}</p>
+                              <span
+                                className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                                  order.status === 'completed'
+                                    ? 'bg-green-100 text-green-800'
+                                    : order.status === 'pending'
+                                    ? 'bg-yellow-100 text-yellow-800'
+                                    : order.status === 'processing'
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-red-100 text-red-800'
+                                }`}
+                              >
+                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Order Detail View */}
+              {ordersView === 'order-detail' && selectedOrder && (
+                <div className="space-y-6">
+                  <button
+                    onClick={() => setOrdersView('orders')}
+                    className="flex items-center gap-2 text-teal-600 hover:text-teal-700 font-medium"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Orders
+                  </button>
+
+                  <div className={`p-6 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                    <div className="flex items-center justify-between mb-6">
+                      <div>
+                        <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          Order #{selectedOrder.order_number}
+                        </h3>
+                        <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {new Date(selectedOrder.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <select
+                        defaultValue={selectedOrder.status}
+                        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          isDarkMode
+                            ? 'bg-gray-700 border border-gray-600 text-white'
+                            : 'border border-gray-300 bg-white text-gray-900'
+                        }`}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
+
+                    {/* Customer Info */}
+                    <div className="mb-6 pb-6 border-b border-gray-700">
+                      <h4 className={`font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Customer Info</h4>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Name</p>
+                          <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{selectedOrder.customer_name}</p>
+                        </div>
+                        <div>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Email</p>
+                          <a
+                            href={`mailto:${selectedOrder.customer_email}`}
+                            className="text-teal-600 hover:text-teal-700"
+                          >
+                            {selectedOrder.customer_email}
+                          </a>
+                        </div>
+                        <div>
+                          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>Phone</p>
+                          <a href={`tel:${selectedOrder.customer_phone}`} className="text-teal-600 hover:text-teal-700">
+                            {selectedOrder.customer_phone}
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Order Items */}
+                    <div className="mb-6">
+                      <h4 className={`font-semibold mb-3 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Items</h4>
+                      <div className="space-y-3">
+                        {selectedOrder.items && selectedOrder.items.length > 0 ? (
+                          selectedOrder.items.map((item) => (
+                            <div
+                              key={item.id}
+                              className={`flex justify-between p-3 rounded-lg ${
+                                isDarkMode ? 'bg-gray-700' : 'bg-gray-50'
+                              }`}
+                            >
+                              <div>
+                                <p className={isDarkMode ? 'text-white' : 'text-gray-900'}>{item.product_name}</p>
+                                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                  Qty: {item.quantity} x ${item.unit_price.toFixed(2)}
+                                </p>
+                              </div>
+                              <p className="font-semibold text-teal-600">${item.total_price.toFixed(2)}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>No items in order</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Order Total */}
+                    <div className={`text-right pt-4 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                      <p className="text-lg font-bold text-teal-600">
+                        Total: ${selectedOrder.total_amount.toFixed(2)}
+                      </p>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 mt-6">
+                      <button className="flex-1 px-4 py-2 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 transition-colors">
+                        Mark as Shipped
+                      </button>
+                      <button className="flex-1 px-4 py-2 border border-red-600 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors">
+                        Cancel Order
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Customers View */}
+              {ordersView === 'customers' && (
+                <div className="space-y-6">
+                  <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                    Customers
+                  </h3>
+                  {customers.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                      <p className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>No customers found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {customers.map((customer) => (
+                        <div
+                          key={customer.id}
+                          className={`p-4 rounded-lg border transition-colors ${
+                            isDarkMode
+                              ? 'bg-gray-800 border-gray-700 hover:bg-gray-700'
+                              : 'bg-white border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className={`font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                                {customer.name}
+                              </p>
+                              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {customer.email}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {customer.total_orders} orders
+                              </p>
+                              <p className="font-semibold text-teal-600">
+                                ${customer.total_spent.toFixed(2)}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Disclaimer */}
       {/* Product Detail Modal */}
       {selectedProduct && (
   <ProductModal
@@ -1286,7 +1669,6 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
     onPrevious={goToPreviousProduct}
   />
 )}
-
 
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className={`${isDarkMode ? 'bg-amber-900/20 border-amber-800' : 'bg-amber-50 border-amber-200'} border rounded-lg p-4 transition-colors duration-200`}>

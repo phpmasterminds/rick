@@ -120,7 +120,7 @@ export default function OrderConfirmationPage() {
             We couldn't find your order information. Please try placing a new order.
           </p>
           <Link
-            href="/"
+            href="/dispensary"
             className="inline-block bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
           >
             Continue Shopping
@@ -406,7 +406,7 @@ export default function OrderConfirmationPage() {
           </Link>
 
           <Link
-            href="/"
+            href="/dispensary"
             className="flex-1 bg-white hover:bg-gray-50 border-2 border-teal-600 text-teal-600 font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
           >
             <ShoppingBag className="w-5 h-5" />

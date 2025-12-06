@@ -389,7 +389,23 @@ export default function CheckoutPage() {
 
       if (response.status === 200 || response.status === 201) {
         const responseData = response.data;
-        const orderId = responseData.order_id || responseData.orderId || `ORD-${Date.now()}`;
+        // Extract array from response.data.data (which is a nested array)
+		let orderIds = [];
+		if (Array.isArray(responseData.data) && Array.isArray(responseData.data[0])) {
+			orderIds = responseData.data[0];
+		}
+
+		// Convert list of IDs to string:
+		// Single → "460"
+		// Multiple → "460-461"
+		const orderId =
+		orderIds.length > 1
+		  ? orderIds.join("-")
+		  : orderIds.length === 1
+		  ? String(orderIds[0])
+		  : `ORD-${Date.now()}`;
+
+		console.log("Order ID:", orderId);
 
         // ✅ Create order object for local storage
         const orderData: OrderData = {

@@ -1,5 +1,13 @@
-// cartUtils.ts
+// ============================================================================
+// FINAL COMPLETE CODE - cartUtils.ts
+// ============================================================================
+// File: /utils/cartUtils.ts (or /lib/cartUtils.ts)
+// Purpose: User-specific cart management with dispensary isolation
+// ============================================================================
+
 'use client';
+
+import Cookies from 'js-cookie';
 
 export interface CartItem {
   id: string;
@@ -12,23 +20,45 @@ export interface CartItem {
   dispensary_name: string;
 }
 
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
 /**
- * Get cart from localStorage
+ * Get user-specific storage key based on user_id cookie
+ * Format: cart_[user_id] to isolate carts per user
+ */
+const getUserCartKey = (): string => {
+  const userId = Cookies.get('user_id');
+  if (!userId) {
+    return 'cart_temp_session'; // Guest cart
+  }
+  return `cart_${userId}`; // User-specific cart
+};
+
+// ============================================================================
+// CORE CART FUNCTIONS
+// ============================================================================
+
+/**
+ * Get cart from localStorage (user-specific)
  */
 export const getCart = (): CartItem[] => {
   if (typeof window === 'undefined') return [];
   
-  const cart = localStorage.getItem('cart');
+  const key = getUserCartKey();
+  const cart = localStorage.getItem(key);
   return cart ? JSON.parse(cart) : [];
 };
 
 /**
- * Save cart to localStorage
+ * Save cart to localStorage (user-specific)
  */
 export const saveCart = (items: CartItem[]): void => {
   if (typeof window === 'undefined') return;
   
-  localStorage.setItem('cart', JSON.stringify(items));
+  const key = getUserCartKey();
+  localStorage.setItem(key, JSON.stringify(items));
   // Dispatch event for other components to listen
   window.dispatchEvent(new CustomEvent('cartUpdated', { detail: items }));
 };
@@ -117,8 +147,74 @@ export const clearCart = (): void => {
   saveCart([]);
 };
 
+// ============================================================================
+// DISPENSARY MANAGEMENT
+// ============================================================================
+
 /**
- * Get cart totals
+ * Get the current cart's dispensary ID (if any)
+ * Returns null if cart is empty
+ */
+export const getCurrentCartDispensaryId = (): string | null => {
+  const cart = getCart();
+  if (cart.length === 0) return null;
+  return cart[0]?.dispensary_id || null;
+};
+
+/**
+ * Check if user can add product from different dispensary
+ * Returns { canAdd: boolean, currentDispensaryId: string | null }
+ */
+export const checkDispensaryConflict = (newDispensaryId: string): { canAdd: boolean; currentDispensaryId: string | null } => {
+  const currentDispensaryId = getCurrentCartDispensaryId();
+  
+  // If cart is empty, can add
+  if (!currentDispensaryId) {
+    return { canAdd: true, currentDispensaryId: null };
+  }
+  
+  // If same dispensary, can add
+  if (currentDispensaryId === newDispensaryId) {
+    return { canAdd: true, currentDispensaryId };
+  }
+  
+  // Different dispensary - cannot add without confirmation
+  return { canAdd: false, currentDispensaryId };
+};
+
+/**
+ * Clear cart and add item from new dispensary
+ * Used when user confirms they want to switch dispensaries
+ */
+export const replaceCartWithNewDispensary = (
+  product: {
+    med_id: string;
+    name: string;
+    value2: string;
+    value1?: string;
+    med_image_url?: string | null;
+    med_image?: string | null;
+    med_img?: string | null;
+  },
+  dispensary: {
+    id: string;
+    name: string;
+  },
+  quantity: number = 1
+): CartItem => {
+  // Clear existing cart
+  clearCart();
+  
+  // Add new item
+  return addToCart(product, dispensary, quantity);
+};
+
+// ============================================================================
+// CART CALCULATIONS
+// ============================================================================
+
+/**
+ * Get cart totals (items, subtotal, tax, total)
  */
 export const getCartTotals = () => {
   const cart = getCart();
@@ -177,6 +273,10 @@ export const validateCart = (): { valid: boolean; errors: string[] } => {
   return { valid: errors.length === 0, errors };
 };
 
+// ============================================================================
+// EVENT LISTENERS
+// ============================================================================
+
 /**
  * Listen for cart updates
  */
@@ -192,3 +292,48 @@ export const onCartUpdate = (callback: (items: CartItem[]) => void): (() => void
   // Return unsubscribe function
   return () => window.removeEventListener('cartUpdated', handler);
 };
+
+// ============================================================================
+// LOGIN / LOGOUT MIGRATIONS
+// ============================================================================
+
+/**
+ * Migrate old cart to user-specific cart when user logs in
+ * Call this after user authentication is successful
+ */
+export const migrateOldCartOnLogin = (): void => {
+  if (typeof window === 'undefined') return;
+  
+  // Check if there's a session cart
+  const oldCart = localStorage.getItem('cart_temp_session');
+  if (oldCart) {
+    try {
+      const items = JSON.parse(oldCart);
+      // Save to new user-specific key
+      const newKey = getUserCartKey();
+      localStorage.setItem(newKey, oldCart);
+      // Remove old session cart
+      localStorage.removeItem('cart_temp_session');
+      // Dispatch event
+      window.dispatchEvent(new CustomEvent('cartUpdated', { detail: items }));
+    } catch (error) {
+      console.error('Error migrating cart on login:', error);
+    }
+  }
+};
+
+/**
+ * Clear user-specific cart when user logs out
+ * Call this before clearing the user session
+ */
+export const clearUserCartOnLogout = (): void => {
+  if (typeof window === 'undefined') return;
+  
+  const key = getUserCartKey();
+  localStorage.removeItem(key);
+  window.dispatchEvent(new CustomEvent('cartUpdated', { detail: [] }));
+};
+
+// ============================================================================
+// END OF cartUtils.ts
+// ============================================================================

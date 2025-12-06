@@ -55,6 +55,7 @@ export default function LoginPage() {
 			  Cookies.set("page_id", business.page_id, { expires: 1 });
 			  Cookies.set("vanity_url", business.vanity_url, { expires: 1 });
 			  Cookies.set("type_id", business.type_id, { expires: 1 });
+			  Cookies.set("business_title", business.title, { expires: 1 });
 			}
 		  } else {
 			console.error("User ID not found in user details response");

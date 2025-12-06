@@ -25,6 +25,10 @@ import {
   Receipt,
   ArrowLeft,
   Shield,
+  ShoppingCart,
+  Briefcase,
+  LogOut,
+  Eye,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -32,6 +36,7 @@ import Link from "next/link";
 import axios from "axios";
 import { toast } from 'react-toastify';
 import { useBusinessData } from "../app/contexts/BusinessContext";
+import Cookies from "js-cookie";
 
 // Sidebar Props
 interface SidebarProps {
@@ -81,6 +86,10 @@ export default function Sidebar({
   const [typeId, setTypeId] = useState<string | null>(null);
   const [userGroupId, setUserGroupId] = useState<string | null>(null);
   const [showAdminMenu, setShowAdminMenu] = useState(false); // Toggle for admin to switch between menus
+  const [selectedSection, setSelectedSection] = useState<"business" | "pos">("business"); // Track selected section
+  const [showSectionDropdown, setShowSectionDropdown] = useState(false); // Toggle section dropdown
+  const [currentMode, setCurrentMode] = useState<"admin" | "business" | "pos" | "select">("select"); // Current mode selector
+  const [showModeDropdown, setShowModeDropdown] = useState(false); // Toggle mode dropdown
   const router = useRouter();
   const pathname = usePathname();
   
@@ -122,6 +131,7 @@ export default function Sidebar({
       "vendors-po",
       "invoice",
       "admin",
+      "pos",
     ];
     
     // First segment that is not a known route is the vanity URL
@@ -168,7 +178,7 @@ export default function Sidebar({
       // If no vanity URL in path, skip fetch
       if (!vanityUrl) {
         setBusinessData(null);
-        setTypeId(null);
+        setTypeId(Cookies.get("type_id") || null);
         setCurrentBusiness(null);
         setIsHydrated(true);
         return;
@@ -231,7 +241,7 @@ export default function Sidebar({
   }, [vanityUrl, isHydrated, businessData, currentBusiness, setContextBusinessData]);
 
   // Build final path helper - only prepend vanityUrl if it exists and not showing admin menu
-  const buildPath = useCallback(
+  /*const buildPath = useCallback(
     (basePath: string) => {
       // If showing admin menu, don't prepend vanity URL
       if (showAdminMenu) {
@@ -240,7 +250,29 @@ export default function Sidebar({
       return vanityUrl ? `/${vanityUrl}${basePath}` : basePath;
     },
     [vanityUrl, showAdminMenu]
-  );
+  );*/
+  const buildPath = useCallback(
+ 
+	  (basePath: string) => {
+		// If showing admin menu, skip vanity URL prefix
+		if (showAdminMenu) {
+		  return basePath;
+		}
+		if(basePath === '/buy'){
+			return basePath;
+		}
+
+		// If basePath already contains vanity URL, avoid double prefix
+		if (vanityUrl && basePath.startsWith(`/${vanityUrl}/`)) {
+		  return basePath;
+		}
+
+		// Prepend vanity URL
+		return vanityUrl ? `/${vanityUrl}${basePath}` : basePath;
+	  },
+	  [vanityUrl, showAdminMenu]
+	);
+
 
   // Get Admin Menu
   const getAdminMenu = useCallback((): MenuItem[] => {
@@ -260,67 +292,282 @@ export default function Sidebar({
     ];
   }, []);
 
-  // Get Processor Menu (type_id: 36)
-  const getProcessorMenu = useCallback((): MenuItem[] => {
+  // ============ PROCESSOR MENUS ============
+  // Get Processor POS Menu (when on /pos/dashboard)
+  const getProcessorPosMenu = useCallback((): MenuItem[] => {
     return [
-      { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
-      { id: "inventory", icon: Package, label: "Products", path: "/inventory" },
+      // Go back to main menu at TOP
       {
-        id: "marketplace",
+        id: "go-back",
+        icon: LogOut,
+        label: "Go back to main menu",
+        path: "/dashboard",
+      },
+      // POS-specific menus
+      { id: "pos-dashboard", icon: Home, label: "Overview", path: "/pos/dashboard" },
+      { id: "pos-inventory", icon: Package, label: "Products", path: "/pos/inventory" },
+      {
+        id: "pos-marketplace",
         icon: Megaphone,
         label: "Marketplace",
         submenu: [
-          { id: "place_order", label: "Place Order", path: "/wholesaleorder" },
-          { id: "product_catalog", label: "Product Catalog", path: "/catalog" },
-          { id: "order_history", label: "Order History", path: "/order-list?wholesale=1" },
+          { id: "pos-place_order", label: "Place Order", path: "/pos/wholesaleorder" },
+          { id: "pos-product_catalog", label: "Product Catalog", path: "/pos/catalog" },
+          { id: "pos-order_history", label: "Order History", path: "/pos/order-list?wholesale=1" },
         ],
       },
-      { id: "open_orders", icon: ClipboardList, label: "Open Orders", path: "/order-list" },
-      { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
-      { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
-      { id: "samples", icon: ShoppingBag, label: "Samples", path: "/sample-orders" },
+      { id: "pos-open_orders", icon: ClipboardList, label: "Open Orders", path: "/pos/order-list" },
+      { id: "pos-reports", icon: BarChart, label: "Reports", path: "/pos/reports" },
+      { id: "pos-documents", icon: FileText, label: "Documents", path: "/pos/documents" },
+      { id: "pos-samples", icon: ShoppingBag, label: "Samples", path: "/pos/sample-orders" },
       {
-        id: "metrc",
+        id: "pos-metrc",
         icon: Folder,
         label: "Metrc",
         submenu: [
-          { id: "interface", label: "Interface", path: "/projects" },
-          { id: "sync", label: "Sync", path: "/projects/archived" },
+          { id: "pos-interface", label: "Interface", path: "/pos/projects" },
+          { id: "pos-sync", label: "Sync", path: "/pos/projects/archived" },
         ],
       },
-      { id: "customers", icon: Users, label: "Customers", path: "/customers" },
-      { id: "crm", icon: CreditCard, label: "CRM", path: "/crm" },
+      { id: "pos-customers", icon: Users, label: "Customers", path: "/pos/customers" },
+      { id: "pos-crm", icon: CreditCard, label: "CRM", path: "/pos/crm" },
       {
-        id: "settings",
+        id: "pos-settings",
         icon: Settings,
         label: "Settings",
         submenu: [
-          { id: "profile", label: "Members", path: "/settings/profile" },
-          { id: "user_permission", label: "User Permission", path: "/settings/user-permission" },
-          { id: "notification", label: "Notification", path: "/settings/notification" },
-          { id: "settings_marketplace", label: "Marketplace", path: "/settings/marketplace" },
-          { id: "product_categories", label: "Product Categories", path: "/settings/product-categories" },
+          { id: "pos-profile", label: "Members", path: "/pos/settings/profile" },
+          { id: "pos-user_permission", label: "User Permission", path: "/pos/settings/user-permission" },
+          { id: "pos-notification", label: "Notification", path: "/pos/settings/notification" },
+          { id: "pos-settings_marketplace", label: "Marketplace", path: "/pos/settings/marketplace" },
+          { id: "pos-product_categories", label: "Product Categories", path: "/pos/settings/product-categories" },
         ],
       },
     ];
   }, []);
 
-  // Get Dispensary Menu (type_id: 20)
-  const getDispensaryMenu = useCallback((): MenuItem[] => {
+  // Get Processor Business Menu (main business page)
+  const getProcessorBusinessMenu = useCallback((): MenuItem[] => {
+	const vanityUrlFromCookie = Cookies.get("vanity_url");
+
+	const finalVanityUrl = vanityUrl
+	? vanityUrl        // use cookie if available
+	: vanityUrlFromCookie;                 // else use state
+
     return [
-      { id: "dashboard", icon: Home, label: "Overview", path: "/dashboard" },
-      { id: "register", icon: FileSpreadsheet, label: "Register", path: "/register" },
-      { id: "dispensary-floor", icon: Store, label: "Dispensary Floor", path: "/dispensary-floor" },
-      { id: "transactions", icon: CreditCard, label: "Transactions", path: "/transactions" },
-      { id: "inventory", icon: Box, label: "Inventory", path: "/posinventory" },
-      { id: "vendors", icon: Building, label: "Vendors", path: "/vendors" },
-      { id: "vendors-po", icon: Layers, label: "Vendor PO's", path: "/vendors-po" },
-      { id: "metrc", icon: Folder, label: "Metrc", path: "/metrc" },
-      { id: "metrc-audit", icon: ClipboardList, label: "Metrc Audit", path: "/metrc-audit" },
-      { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
-      { id: "documents", icon: FileText, label: "Documents", path: "/documents" },
+      // Business menus - Based on UI Design
+      { id: "dashboard", icon: Home, label: "Dashboard", path: `/${finalVanityUrl}/dashboard` },
+      { id: "messages", icon: Megaphone, label: "Messages", path: `/${finalVanityUrl}/messages` },
+      { id: "inventory", icon: Package, label: "Inventory", path: `/${finalVanityUrl}/inventory` },
+      { id: "orders-received", icon: ClipboardList, label: "Orders Received", path: `/${finalVanityUrl}/orders-received` },
+      { id: "metrc", icon: FileSpreadsheet, label: "Metrc", path: `/${finalVanityUrl}/metrc` },
+      { id: "reports", icon: BarChart, label: "Reports", path: `/${finalVanityUrl}/reports` },
+      { id: "preview", icon: Eye, label: "Preview", path: `/${finalVanityUrl}/preview` },
+      {
+        id: "settings",
+        icon: Settings,
+        label: "Settings",
+        submenu: [
+          { id: "company_information", label: "Company Information", path: `/${finalVanityUrl}/settings/company-information` },
+          { id: "page_info", label: "Page Info", path: `/${finalVanityUrl}/settings/page-info` },
+          { id: "metrc_api_setup", label: "Metrc API setup", path: `/${finalVanityUrl}/settings/metrc-api-setup` },
+          { id: "users_permissions", label: "Users& Permissions", path: `/${finalVanityUrl}/settings/users-permissions` },
+          { id: "notifications", label: "Notifications", path: `/${finalVanityUrl}/settings/notifications` },
+          { id: "licenses", label: "Licenses", path: `/${finalVanityUrl}/settings/licenses` }
+        ],
+      },
     ];
   }, []);
+
+  // Get Processor General Menu (for general sellers - no business context)
+  const getProcessorGeneralMenu = useCallback((): MenuItem[] => {
+    return [
+      // General seller menus
+      { id: "dashboard", icon: Home, label: "Dashboard", path: "/dashboard" },
+      { id: "messages", icon: Megaphone, label: "Messages", path: "/messages" },
+      { id: "inventory", icon: Package, label: "Inventory", path: "/inventory" },
+      { id: "preview-catalog", icon: Box, label: "Preview Catalog", path: "/preview-catalog" },
+      { id: "new-received", icon: ClipboardList, label: "New Orders", path: "/orders" },
+      { id: "order-history", icon: FileText, label: "Order History", path: "/order-history" },      
+      { id: "pricing", icon: CreditCard, label: "Pricing & Discounts", path: "/pricing" },
+	  { id: "customers", icon: Users, label: "My Customers", path: "/customers" },
+      { id: "metrc", icon: Folder, label: "Metrc", path: "/metrc" },
+      { id: "reports", icon: BarChart, label: "Reports & Analytics", path: "/reports" },
+      {
+        id: "settings",
+        icon: Settings,
+        label: "Settings",
+        submenu: [
+          { id: "company_profile", label: "Company Profile", path: "/settings/company-profile" },
+          { id: "business_info", label: "Business Info", path: "/settings/business-info" },
+          { id: "payment-methods", label: "Payment Methods", path: "/settings/payment-methods" },
+          { id: "notification", label: "Notifications", path: "/settings/notifications" },
+          { id: "preferences", label: "Preferences", path: "/settings/preferences" }
+        ],
+      },
+    ];
+  }, []);
+
+  // Get Processor Menu (type_id: 36) - Router function
+  const getProcessorMenu = useCallback((): MenuItem[] => {
+    const isOnPOS = pathname.includes("/pos/");
+    const hasVanityUrl = vanityUrl || Cookies.get("vanity_url");
+    
+    // Three scenarios:
+    if (isOnPOS) {
+      return getProcessorPosMenu(); // /pos/* path
+    } else if (hasVanityUrl) {
+      return getProcessorBusinessMenu(); // /{vanity_url}/* path
+    } else {
+      return getProcessorGeneralMenu(); // General seller menu (no business context)
+    }
+  }, [pathname, vanityUrl, getProcessorPosMenu, getProcessorBusinessMenu, getProcessorGeneralMenu]);
+
+  // ============ DISPENSARY MENUS ============
+  // Get Dispensary POS Menu (when on /pos/dashboard)
+  const getDispensaryPosMenu = useCallback((): MenuItem[] => {
+    return [
+      // Go back to main menu at TOP
+      {
+        id: "go-back",
+        icon: LogOut,
+        label: "Go back to main menu",
+        path: "/dashboard",
+      },
+      // POS-specific menus
+	  { id: "pos-dashboard", icon: Home, label: "Overview", path: "/pos/dashboard" },
+      { id: "pos-register", icon: FileSpreadsheet, label: "Register", path: "/pos/register" },
+      { id: "pos-dispensary-floor", icon: Store, label: "Dispensary Floor", path: "/pos/dispensary-floor" },
+      { id: "pos-transactions", icon: CreditCard, label: "Transactions", path: "/pos/transactions" },
+      { id: "pos-inventory", icon: Box, label: "Inventory", path: "/pos/posinventory" },
+      { id: "pos-vendors", icon: Building, label: "Vendors", path: "/pos/vendors" },
+      { id: "pos-vendors-po", icon: Layers, label: "Vendor PO's", path: "/pos/vendors-po" },
+      { id: "pos-metrc", icon: Folder, label: "Metrc", path: "/pos/metrc" },
+      { id: "pos-metrc-audit", icon: ClipboardList, label: "Metrc Audit", path: "/pos/metrc-audit" },
+      { id: "pos-reports", icon: BarChart, label: "Reports", path: "/pos/reports" },
+      { id: "pos-documents", icon: FileText, label: "Documents", path: "/pos/documents" },
+    ];
+  }, []);
+
+  // Get Dispensary Business Menu (main business page)
+  const getDispensaryBusinessMenu = useCallback((): MenuItem[] => {
+	const vanityUrlFromCookie = Cookies.get("vanity_url");
+
+	const finalVanityUrl = vanityUrl
+	? vanityUrl        // use cookie if available
+	: vanityUrlFromCookie;                 // else use state
+	return [
+      // Business menus - Based on UI Design
+      { id: "dashboard", icon: Home, label: "Dashboard", path: `/${finalVanityUrl}/dashboard` },
+      { id: "messages", icon: Megaphone, label: "Messages", path: `/${finalVanityUrl}/messages` },
+      { id: "inventory", icon: Package, label: "Inventory", path: `/${finalVanityUrl}/inventory` },
+      { id: "orders-received", icon: ClipboardList, label: "Orders Received", path: `/${finalVanityUrl}/orders-received` },
+      { id: "metrc", icon: FileSpreadsheet, label: "Metrc", path: `/${finalVanityUrl}/metrc` },
+      { id: "reports", icon: BarChart, label: "Reports", path: `/${finalVanityUrl}/reports` },
+      { id: "preview", icon: Eye, label: "Preview", path: `/${finalVanityUrl}/preview` },
+      {
+        id: "settings",
+        icon: Settings,
+        label: "Settings",
+        submenu: [
+          { id: "company_information", label: "Company Information", path: `/${finalVanityUrl}/settings/company-information` },
+          { id: "page_info", label: "Page Info", path: `/${finalVanityUrl}/settings/page-info` },
+          { id: "metrc_api_setup", label: "Metrc API setup", path: `/${finalVanityUrl}/settings/metrc-api-setup` },
+          { id: "users_permissions", label: "Users& Permissions", path: `/${finalVanityUrl}/settings/users-permissions` },
+          { id: "notifications", label: "Notifications", path: `/${finalVanityUrl}/settings/notifications` },
+          { id: "licenses", label: "Licenses", path: `/${finalVanityUrl}/settings/licenses` }
+        ],
+      },
+    ];
+    /*return [
+      // Business menus
+      { id: "dashboard", icon: Home, label: "Overview", path: `/${finalVanityUrl}/dashboard` },
+      { id: "messages", icon: Megaphone, label: "Messages", path: `/${finalVanityUrl}/message` },
+      { id: "go-shopping", icon: Store, label: "Go Shopping", path: `/buy` },
+      { id: "buy-again", icon: Store, label: "Buy Again", path: `/${finalVanityUrl}/buy-again` },
+      { id: "open_orders", icon: ClipboardList, label: "Open Orders", path: `/${finalVanityUrl}/order-list` },
+      { id: "order_history", icon: FileText, label: "Order History", path: `/${finalVanityUrl}/order-history` },
+      { id: "vendors", icon: Building, label: "My Vendors", path: `/${finalVanityUrl}/vendors` },
+      { id: "reports", icon: BarChart, label: "Reports", path: `/${finalVanityUrl}/reports` },
+      {
+        id: "settings",
+        icon: Settings,
+        label: "Settings",
+        submenu: [
+          { id: "company_profile", label: "Company Profile", path: `/${finalVanityUrl}/settings/company-profile` },
+          { id: "metrc-api-setup", label: "Metrc Api Setup", path: `/${finalVanityUrl}/settings/metrc-api-setup` },
+          { id: "user-permission", label: "User & Permission", path: `/${finalVanityUrl}/settings/user-permission` },
+          { id: "notification", label: "Notification", path: `/${finalVanityUrl}/settings/notification` },
+          { id: "licenses", label: "Licenses", path: `/${finalVanityUrl}/settings/licenses` }
+        ],
+      },
+    ];*/
+  }, []);
+
+  // Get Dispensary General Menu (for general buyers - no business context)
+  const getDispensaryGeneralMenu = useCallback((): MenuItem[] => {
+	  return [
+		  // Business menus
+		  { id: "dashboard", icon: Home, label: "Overview", path: `/dashboard` },
+		  { id: "messages", icon: Megaphone, label: "Messages", path: `/message` },
+		  { id: "go-shopping", icon: Store, label: "Go Shopping", path: `/buy` },
+		  { id: "buy-again", icon: Store, label: "Buy Again", path: `/buy-again` },
+		  { id: "open_orders", icon: ClipboardList, label: "Open Orders", path: `/order-list` },
+		  { id: "order_history", icon: FileText, label: "Order History", path: `/order-history` },
+		  { id: "vendors", icon: Building, label: "My Vendors", path: `/vendors` },
+		  { id: "reports", icon: BarChart, label: "Reports", path: `/reports` },
+		  {
+			id: "settings",
+			icon: Settings,
+			label: "Settings",
+			submenu: [
+			  { id: "company_profile", label: "Company Profile", path: `/settings/company-profile` },
+			  { id: "metrc-api-setup", label: "Metrc Api Setup", path: `/settings/metrc-api-setup` },
+			  { id: "user-permission", label: "User & Permission", path: `/settings/user-permission` },
+			  { id: "notification", label: "Notification", path: `/settings/notification` },
+			  { id: "licenses", label: "Licenses", path: `/settings/licenses` }
+			],
+		  },
+		];
+    /*return [
+      // General buyer menus
+      { id: "dashboard", icon: Home, label: "Dashboard", path: "/dashboard" },
+      { id: "marketplace", icon: Store, label: "Marketplace", path: "/buy" },
+      { id: "my-orders", icon: ClipboardList, label: "My Orders", path: "/orders" },
+      { id: "order-history", icon: FileText, label: "Order History", path: "/order-history" },
+      { id: "my-invoices", icon: Receipt, label: "My Invoices", path: "/invoices" },
+      { id: "favorites", icon: ShoppingBag, label: "Favorites", path: "/favorites" },
+      { id: "cart", icon: ShoppingCart, label: "Shopping Cart", path: "/cart" },
+      { id: "reports", icon: BarChart, label: "Reports", path: "/reports" },
+      {
+        id: "settings",
+        icon: Settings,
+        label: "Settings",
+        submenu: [
+          { id: "profile", label: "My Profile", path: "/settings/profile" },
+          { id: "address", label: "Addresses", path: "/settings/addresses" },
+          { id: "payment-methods", label: "Payment Methods", path: "/settings/payment-methods" },
+          { id: "notification", label: "Notifications", path: "/settings/notifications" },
+          { id: "preferences", label: "Preferences", path: "/settings/preferences" }
+        ],
+      },
+    ];*/
+  }, []);
+
+  // Get Dispensary Menu (type_id: 20) - Router function
+  const getDispensaryMenu = useCallback((): MenuItem[] => {
+    const isOnPOS = pathname.includes("/pos/");
+    const hasVanityUrl = vanityUrl || Cookies.get("vanity_url");
+    
+    // Three scenarios:
+    if (isOnPOS) {
+      return getDispensaryPosMenu(); // /pos/* path
+    } else if (hasVanityUrl) {
+      return getDispensaryBusinessMenu(); // /{vanity_url}/* path
+    } else {
+      return getDispensaryGeneralMenu(); // General buyer menu (no business context)
+    }
+  }, [pathname, vanityUrl, getDispensaryPosMenu, getDispensaryBusinessMenu, getDispensaryGeneralMenu]);
 
   // Get Default/Customer Menu
   const getDefaultMenu = useCallback((): MenuItem[] => {
@@ -342,52 +589,74 @@ export default function Sidebar({
     ];
   }, []);
 
-  // Load menu items based on typeId and admin menu toggle
+  // Auto-detect current mode based on pathname
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    if (pathname.includes("/pos/")) {
+      setCurrentMode("pos");
+    } else if (isOnBusinessPage && vanityUrl) {
+      setCurrentMode("business");
+    } else {
+      setCurrentMode("select");
+    }
+  }, [pathname, isOnBusinessPage, vanityUrl, isHydrated]);
+
+  // Load menu items based on currentMode and typeId
   useEffect(() => {
     if (!isHydrated) return;
 
     let items: MenuItem[] = [];
 
-    // If admin is viewing admin menu (toggled or no vanity URL)
-    if (showAdminMenu || (!isOnBusinessPage && isAdmin)) {
+    // Admin mode - show admin menu
+    if (isAdmin && currentMode === "admin") {
       items = getAdminMenu();
     }
-    // If on a business page with vanity URL, check typeId
-    else if (isOnBusinessPage && typeId) {
-      switch (typeId) {
-        case "36":
-          items = getProcessorMenu();
-          break;
-        case "20":
-          items = getDispensaryMenu();
-          break;
-        default:
-          // Fallback to default menu if typeId doesn't match known types
-          items = getDefaultMenu();
-          break;
+    // Processor (type 36)
+    else if (typeId === "36") {
+      if (currentMode === "pos") {
+        items = getProcessorPosMenu();
+      } else if (currentMode === "business") {
+        items = getProcessorBusinessMenu();
+      } else if (currentMode === "select") {
+        items = getProcessorGeneralMenu();
+      } else {
+        items = getProcessorMenu(); // Fallback to routing function
       }
     }
-    // No vanity URL and not admin - show default menu
-    else if (!isOnBusinessPage && !isAdmin) {
-      items = getDefaultMenu();
+    // Dispensary (type 20)
+    else if (typeId === "20") {
+      if (currentMode === "pos") {
+        items = getDispensaryPosMenu();
+      } else if (currentMode === "business") {
+        items = getDispensaryBusinessMenu();
+      } else if (currentMode === "select") {
+        items = getDispensaryGeneralMenu();
+      } else {
+        items = getDispensaryMenu(); // Fallback to routing function
+      }
     }
-    // On business page but no typeId yet (still loading) - show empty or default
-    else if (isOnBusinessPage && !typeId && !loading) {
+    // Fallback to default
+    else {
       items = getDefaultMenu();
     }
 
     setMenuItems(items);
   }, [
+    currentMode,
     typeId,
-    userGroupId,
     isHydrated,
-    showAdminMenu,
-    isOnBusinessPage,
     isAdmin,
     loading,
     getAdminMenu,
     getProcessorMenu,
+    getProcessorPosMenu,
+    getProcessorBusinessMenu,
+    getProcessorGeneralMenu,
     getDispensaryMenu,
+    getDispensaryPosMenu,
+    getDispensaryBusinessMenu,
+    getDispensaryGeneralMenu,
     getDefaultMenu,
   ]);
 
@@ -395,6 +664,29 @@ export default function Sidebar({
   const handleMenuToggle = useCallback(() => {
     setShowAdminMenu((prev) => !prev);
   }, []);
+
+  // Handle mode change (Admin/Business/POS)
+  const handleModeChange = useCallback(
+    (mode: "admin" | "business" | "pos") => {
+      setCurrentMode(mode);
+      setShowModeDropdown(false);
+      
+      const vanityUrlFromCookie = Cookies.get("vanity_url");
+      const finalVanityUrl = vanityUrl || vanityUrlFromCookie;
+      
+      if (mode === "admin") {
+        router.push("/dashboard");
+      } else if (mode === "business") {
+        router.push(finalVanityUrl ? `/${finalVanityUrl}/dashboard` : "/dashboard");
+      } else if (mode === "pos") {
+        // Include vanity URL in POS path if available
+        router.push(finalVanityUrl ? `/${finalVanityUrl}/pos/dashboard` : "/pos/dashboard");
+      }
+      
+      if (window.innerWidth < 768) setIsMobileOpen(false);
+    },
+    [vanityUrl, router, setIsMobileOpen]
+  );
 
   const toggleSubmenu = useCallback((id: string) => {
     if (!isCollapsed) {
@@ -405,7 +697,8 @@ export default function Sidebar({
   // Check if a path is currently active
   const isActive = useCallback(
     (path: string) => {
-      return pathname === buildPath(path);
+      const pathnameWithoutQuery = pathname.split('?')[0];
+      return pathnameWithoutQuery === buildPath(path);
     },
     [pathname, buildPath]
   );
@@ -440,6 +733,41 @@ export default function Sidebar({
       if (window.innerWidth < 768) setIsMobileOpen(false);
     },
     [buildPath, router, setIsMobileOpen]
+  );
+
+  // Get section routes based on business type
+  const getSectionRoutes = useCallback(() => {
+    const vanityUrlFromCookie = Cookies.get("vanity_url");
+    const finalVanityUrl = vanityUrl || vanityUrlFromCookie;
+
+    if (typeId === "36") {
+      // Processor
+      return {
+        business: finalVanityUrl ? `/${finalVanityUrl}` : "/",
+        pos: finalVanityUrl ? `/${finalVanityUrl}/pos/dashboard` : "/pos/dashboard",
+      };
+    } else {
+      // Dispensary
+      return {
+        business: finalVanityUrl ? `/${finalVanityUrl}` : "/",
+        pos: finalVanityUrl ? `/${finalVanityUrl}/pos/dashboard` : "/pos/dashboard",
+      };
+    }
+  }, [typeId, vanityUrl]);
+
+  // Handle section selection
+  const handleSectionChange = useCallback(
+    (section: "business" | "pos") => {
+      setSelectedSection(section);
+      setShowSectionDropdown(false);
+      
+      const routes = getSectionRoutes();
+      const targetPath = section === "business" ? routes.business : routes.pos;
+      router.push(targetPath);
+      
+      if (window.innerWidth < 768) setIsMobileOpen(false);
+    },
+    [getSectionRoutes, router, setIsMobileOpen]
   );
 
   // Don't render until hydrated to prevent mismatch
@@ -558,6 +886,99 @@ export default function Sidebar({
               {businessData.title}
             </p>
           </div>
+        </div>
+      )}
+
+      {/* MODE SELECTOR DROPDOWN - Show for Processor (36) and Dispensary (20) users on any page */}
+      {(typeId === "36" || typeId === "20") && (
+        <div className="px-3 mb-3 relative">
+          <button
+            type="button"
+            onClick={() => setShowModeDropdown(!showModeDropdown)}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 border
+              ${currentMode === "business"
+                ? "accent-bg text-white border-accent"
+                : currentMode === "pos"
+                ? "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                : "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800"
+              }
+            `}
+            title={isCollapsed ? `Mode: ${currentMode.toUpperCase()}` : ""}
+          >
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-semibold">
+                {currentMode === "admin" ? "🔐 Admin" : currentMode === "business" ? "🏢 Business" : currentMode === "pos" ? "🛍️ POS" : "📋 Select"}
+              </span>
+            </div>
+            {!isCollapsed && (
+              <ChevronDown
+                size={16}
+                className={`transition-transform duration-200 ${
+                  showModeDropdown ? "rotate-180" : ""
+                }`}
+              />
+            )}
+          </button>
+
+          {/* Dropdown Menu */}
+          {showModeDropdown && !isCollapsed && (
+            <div className="absolute top-full left-3 right-3 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
+              <button
+                type="button"
+                onClick={() => setShowModeDropdown(false)}
+                className={`w-full text-left px-4 py-3 text-sm rounded-t-lg transition-all duration-200 flex items-center space-x-2
+                  ${currentMode === "select"
+                    ? "accent-bg text-white"
+                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }
+                `}
+              >
+                <span>📋</span>
+                <span>Select Mode</span>
+              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("admin")}
+                  className={`w-full text-left px-4 py-3 text-sm transition-all duration-200 flex items-center space-x-2
+                    ${currentMode === "admin"
+                      ? "accent-bg text-white"
+                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }
+                  `}
+                >
+                  <span>🔐</span>
+                  <span>Admin Panel</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => handleModeChange("business")}
+                className={`w-full text-left px-4 py-3 text-sm transition-all duration-200 flex items-center space-x-2
+                  ${currentMode === "business"
+                    ? "accent-bg text-white"
+                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }
+                `}
+              >
+                <span>🏢</span>
+                <span>Business</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeChange("pos")}
+                className={`w-full text-left px-4 py-3 text-sm rounded-b-lg transition-all duration-200 flex items-center space-x-2
+                  ${currentMode === "pos"
+                    ? "accent-bg text-white"
+                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  }
+                `}
+              >
+                <span>🛍️</span>
+                <span>POS System</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 

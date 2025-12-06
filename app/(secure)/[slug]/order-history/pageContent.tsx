@@ -417,7 +417,6 @@ export default function PageContent({ business }: { business: string }) {
   const fetchOrders = async () => {
     try {
       setLoading(true);
-	  console.log(business+'business');
       if (!business || business === 'default') {
         // Fallback sample data for development
         setOrders(SAMPLE_ORDERS);
@@ -427,16 +426,14 @@ export default function PageContent({ business }: { business: string }) {
       const response = await axios.get(`/api/business/order-list`, {
         params: {
           business,
+		  status: 'completed'
         },
       });
       // API response structure: { status, data: { orders: [...], total, page, limit } }
       const apiOrders = response.data?.data?.orders || [];
-      console.log('API Response:', response.data);
-      console.log('Raw API orders:', apiOrders);
       
       // Map API orders to component Order interface
       const mappedOrders = apiOrders.map(mapApiOrderToOrder);
-      console.log('Mapped orders:', mappedOrders);
       
       setOrders(mappedOrders);
       setError(null);
@@ -718,7 +715,7 @@ export default function PageContent({ business }: { business: string }) {
             </div>
           </div>
 
-          {/* Order Status */}
+          {/* Order Status 
           <div>
             <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
               Order Status
@@ -736,9 +733,11 @@ export default function PageContent({ business }: { business: string }) {
               <option value="4">Pending</option>
               <option value="5">Processing</option>
               <option value="6">Shipped</option>
+              <option value="7">Canceled</option>
+              <option value="8">Completed</option>
               <option value="9">POD</option>
             </select>
-          </div>
+          </div>*/}
         </div>
 
         {/* Submit Button */}
@@ -826,7 +825,7 @@ export default function PageContent({ business }: { business: string }) {
                     <td className="px-6 py-4">
                       <div>
                         <Link 
-                          href={`/${business}/order-list/${order.order_id}`}
+                          href={`/${business}/order-history/${order.order_id}`}
                           className="font-bold text-green-600 dark:text-green-400 hover:underline"
                         >
                           Order #: {order.order_id}

@@ -166,9 +166,16 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     fetchBusinessData();
   }, [vanityUrl, currentBusiness, businessData]);
 
+  // ===== GET USER ID FROM COOKIES FOR DYNAMIC CART KEY =====
+  const getCartStorageKey = useCallback(() => {
+    const userId = Cookies.get("user_id");
+    return userId ? `cart_${userId}` : "cart";
+  }, []);
+
   // ===== LOAD SHOP CART FROM LOCALSTORAGE =====
   useEffect(() => {
-    const savedCart = localStorage.getItem("cart");
+    const cartKey = getCartStorageKey();
+    const savedCart = localStorage.getItem(cartKey);
     if (savedCart) {
       try {
         setShopCartItems(JSON.parse(savedCart));
@@ -183,7 +190,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     };
 
     const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === "cart" && event.newValue) {
+      if (event.key === cartKey && event.newValue) {
         try {
           setShopCartItems(JSON.parse(event.newValue));
         } catch {}
@@ -197,11 +204,12 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
       window.removeEventListener("cartUpdated", handleCartUpdate);
       window.removeEventListener("storage", handleStorageChange);
     };
-  }, []);
+  }, [getCartStorageKey]);
 
   useEffect(() => {
-    localStorage.setItem("cart", JSON.stringify(shopCartItems));
-  }, [shopCartItems]);
+    const cartKey = getCartStorageKey();
+    localStorage.setItem(cartKey, JSON.stringify(shopCartItems));
+  }, [shopCartItems, getCartStorageKey]);
 
   // ===== LOAD USER DATA =====
   useEffect(() => {
@@ -236,7 +244,8 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("shopCart");
-    localStorage.removeItem("cart");
+    const cartKey = getCartStorageKey();
+    //localStorage.removeItem(cartKey);
     Cookies.remove("access_token", { path: "/" });
     Cookies.remove("user_id", { path: "/" });
     Cookies.remove("page_id", { path: "/" });

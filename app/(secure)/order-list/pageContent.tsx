@@ -10,6 +10,7 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import Cookies from 'js-cookie';
 
 // Order Status Mapping
 const ORDER_STEPS: { [key: number]: string } = {
@@ -389,8 +390,8 @@ const SalesPersonDropdown: React.FC<SalesPersonDropdownProps> = ({
 
 // Main Page Component
 
-export default function PageContent({ business }: { business: string }) {
- // const business = params?.business || 'default';
+export default function PageContent() {
+  const business = 'default';
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -403,6 +404,14 @@ export default function PageContent({ business }: { business: string }) {
   const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
   const [paymentModal, setPaymentModal] = useState({ isOpen: false, order: null as Order | null });
   const itemsPerPage = 10;
+  
+	const [userId, setUserId] = useState<string | null>(null);
+
+	useEffect(() => {
+		
+		const id = Cookies.get('user_id');   // reads cookie value
+		setUserId(id || null);
+	}, []);
 
   const [sortConfig, setSortConfig] = useState<{ key: string; ascending: boolean }>({
     key: 'order_id',
@@ -412,21 +421,18 @@ export default function PageContent({ business }: { business: string }) {
   useEffect(() => {
     fetchOrders();
     //fetchSalesReps();
-  }, []);
+  }, [userId]);
 
   const fetchOrders = async () => {
     try {
       setLoading(true);
-	  console.log(business+'business');
-      if (!business || business === 'default') {
-        // Fallback sample data for development
-        setOrders(SAMPLE_ORDERS);
-        setError(null);
-        return;
-      }
+	 console.log("userId"+userId);
+	 if(userId === null)
+		return;
+		
       const response = await axios.get(`/api/business/order-list`, {
         params: {
-          business,
+      user_id: String(userId)    // force send
         },
       });
       // API response structure: { status, data: { orders: [...], total, page, limit } }
