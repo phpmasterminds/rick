@@ -108,6 +108,7 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
   const [hasAutoSelected, setHasAutoSelected] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [approvalSubmitted, setApprovalSubmitted] = useState(false);
   
   const [modules] = useState<Module[]>([
     { 
@@ -461,12 +462,13 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
   const handleApprove = async () => {
     try {
       setSubmitting(true);
-
+console.log(registrationData);
       if (!registrationData?.id) {
         toast.error('Registration data not loaded', {
           position: 'bottom-center',
           autoClose: 3000,
         });
+        setSubmitting(false);
         return;
       }
 
@@ -475,6 +477,7 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
           position: 'bottom-center',
           autoClose: 3000,
         });
+        setSubmitting(false);
         return;
       }
 
@@ -492,22 +495,37 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
         admin_notes: adminApprovalNotes,
         trial_days: parseInt(trialDays),
         status: 'approved',
+        id: registrationData.id,
+        user_id: registrationData.user_id,
       });
 
       console.log('✅ Approval response:', response.data);
 
       if (response.data.status === 'success') {
+        // Mark approval as submitted to prevent double-click and hide buttons
+        setApprovalSubmitted(true);
+        
         toast.success('Registration approved successfully!', {
           position: 'bottom-center',
           autoClose: 3000,
         });
 
-        router.push('/admin/registrations');
+        // Update registration data to reflect approved status
+        setRegistrationData({
+          ...registrationData,
+          status: 'approved',
+        });
+
+        // Redirect after a brief delay to show the success toast
+        setTimeout(() => {
+          router.push('/admin/registrations');
+        }, 1500);
       } else {
         toast.error(response.data.error || 'Failed to approve registration', {
           position: 'bottom-center',
           autoClose: 3000,
         });
+        setSubmitting(false);
       }
     } catch (error: any) {
       console.error('❌ Approval error:', error);
@@ -516,7 +534,6 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
         position: 'bottom-center',
         autoClose: 3000,
       });
-    } finally {
       setSubmitting(false);
     }
   };
@@ -932,8 +949,8 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
                         {moduleAmounts.length === 0 ? (
                           <p className="text-sm text-gray-500 italic">Select variants to add amounts</p>
                         ) : (
-                          moduleAmounts.map((ma) => (
-                            <div key={ma.moduleId} className="pb-4 border-b border-gray-200">
+                          moduleAmounts.map((ma, index) => (
+                            <div key={`${ma.moduleId}-${index}`} className="pb-4 border-b border-gray-200">
                               <p className="text-xs text-gray-600 mb-2 font-semibold line-clamp-2">
                                 {ma.moduleName}
                               </p>
@@ -976,23 +993,35 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
                   </div>
                 </div>
 
-                {/* Save/Approve Button */}
-                <div className="flex gap-4 justify-end">
-                  <button
-                    onClick={handleReject}
-                    disabled={submitting || registrationData?.status !== 'pending'}
-                    className="px-8 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
-                  >
-                    {submitting ? 'Processing...' : 'Reject'}
-                  </button>
-                  <button
-                    onClick={handleSaveAdminApproval}
-                    disabled={submitting || selectedVariants.length === 0 || registrationData?.status !== 'pending'}
-                    className="px-8 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
-                  >
-                    {submitting ? 'Approving...' : 'Approve'}
-                  </button>
-                </div>
+                {/* Save/Approve Button - Hidden after approval */}
+                {!approvalSubmitted && (
+                  <div className="flex gap-4 justify-end">
+                    <button
+                      onClick={handleReject}
+                      disabled={submitting || registrationData?.status !== 'pending'}
+                      className="px-8 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                    >
+                      {submitting ? 'Processing...' : 'Reject'}
+                    </button>
+                    <button
+                      onClick={handleApprove}
+                      disabled={submitting || selectedVariants.length === 0 || registrationData?.status !== 'pending'}
+                      className="px-8 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                    >
+                      {submitting ? 'Approving...' : 'Approve'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Approval Success Message */}
+                {approvalSubmitted && (
+                  <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <CheckCircle className="w-5 h-5 text-green-600" />
+                    <p className="text-sm font-medium text-green-700">
+                      Registration approved successfully. Redirecting...
+                    </p>
+                  </div>
+                )}
               </div>
             )}
           </div>

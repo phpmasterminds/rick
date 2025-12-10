@@ -26,7 +26,10 @@ export default function SecureLayout({ children }: SecureLayoutProps) {
             setIsMobileOpen={setIsMobileOpen}
           />
           <div className="flex-1 flex flex-col overflow-hidden">
-            <TopBar isMobileOpen={false} setIsMobileOpen={() => {}} />
+            <TopBar 
+              isMobileOpen={isMobileOpen} 
+              setIsMobileOpen={setIsMobileOpen} 
+            />
             <main className="flex-1 overflow-auto">
               {children}
             </main>

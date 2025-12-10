@@ -248,6 +248,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     //localStorage.removeItem(cartKey);
     Cookies.remove("access_token", { path: "/" });
     Cookies.remove("user_id", { path: "/" });
+    Cookies.remove("user_group_id", { path: "/" });
     Cookies.remove("page_id", { path: "/" });
     Cookies.remove("vanity_url", { path: "/" });
     Cookies.remove("type_id", { path: "/" });
@@ -403,29 +404,31 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
             </Link>
           </div>
 
-          {/* Center Section - Navigation (Desktop) hidden md:flex items-center gap-3 text-xs sm:text-sm text-gray-700 dark:text-gray-300 flex-1 justify-center px-2*/}
-          <nav className="hidden items-center gap-6 text-sm text-slate-700 md:flex ml-auto">
-            {[
-              { name: "Shop", href: "/shop" },
-              { name: "Deals", href: "/deals" },
-              { name: "Featured", href: "/featured" },
-              { name: "Strains", href: "/strains" },
-              { name: "Learn", href: "/learn" },
-              { name: "Dispensary", href: "/dispensary" },
-            ].map((item) => (
-              <Link
-                key={item.href}
-                className={`hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap px-1 ${
-                  pathname === item.href
-                    ? "font-semibold text-gray-900 dark:text-white"
-                    : ""
-                }`}
-                href={item.href}
-              >
-                {item.name}
-              </Link>
-            ))}
-          </nav>
+          {/* Center Section - Navigation (Desktop) - Only show when NOT logged in */}
+          {!loggedIn && (
+            <nav className="hidden items-center gap-6 text-sm text-slate-700 md:flex ml-auto">
+              {[
+                { name: "Shop", href: "/shop" },
+                { name: "Deals", href: "/deals" },
+                { name: "Featured", href: "/featured" },
+                { name: "Strains", href: "/strains" },
+                { name: "Learn", href: "/learn" },
+                { name: "Dispensary", href: "/dispensary" },
+              ].map((item) => (
+                <Link
+                  key={item.href}
+                  className={`hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap px-1 ${
+                    pathname === item.href
+                      ? "font-semibold text-gray-900 dark:text-white"
+                      : ""
+                  }`}
+                  href={item.href}
+                >
+                  {item.name}
+                </Link>
+              ))}
+            </nav>
+          )}
 
           {/* Right Section - Notifications & Cart & User (Logged In) / Login & Signup (Not Logged In) */}
           <div className="flex items-center gap-1.5">
@@ -567,8 +570,8 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
         </div>
       </header>
 
-      {/* ===== MOBILE MENU DROPDOWN ===== */}
-      {isMobileOpen && (
+      {/* ===== MOBILE MENU DROPDOWN - Only show when NOT logged in ===== */}
+      {isMobileOpen && !loggedIn && (
         <div className="md:hidden bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-md z-50">
           <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700">
             <span className="text-sm font-semibold text-gray-900 dark:text-white">Menu</span>

@@ -593,7 +593,9 @@ export default function Sidebar({
   useEffect(() => {
     if (!isHydrated) return;
 
-    if (pathname.includes("/pos/")) {
+    if(isAdmin){
+		setCurrentMode("admin");
+	}else if (pathname.includes("/pos/")) {
       setCurrentMode("pos");
     } else if (isOnBusinessPage && vanityUrl) {
       setCurrentMode("business");
@@ -607,7 +609,7 @@ export default function Sidebar({
     if (!isHydrated) return;
 
     let items: MenuItem[] = [];
-
+	
     // Admin mode - show admin menu
     if (isAdmin && currentMode === "admin") {
       items = getAdminMenu();
@@ -794,13 +796,24 @@ export default function Sidebar({
   const businessLogo = showAdminMenu ? "/images/admin-logo.png" : (businessData?.image_path || "/images/natures-high-logo.png");
 
   return (
-    <div
-      className={`${
-        isCollapsed ? "w-24" : "w-64"
-      } bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col py-4 transition-all duration-300 ease-in-out fixed md:relative h-full z-50 ${
-        isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-      }`}
-    >
+    <>
+      {/* Mobile Overlay - appears when sidebar is open */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 md:hidden z-30"
+          onClick={() => setIsMobileOpen(false)}
+          aria-label="Close sidebar"
+        />
+      )}
+
+      {/* Sidebar */}
+      <div
+        className={`${
+          isCollapsed ? "w-24" : "w-64"
+        } bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col py-4 transition-all duration-300 ease-in-out fixed md:relative h-full z-40 ${
+          isMobileOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0`}
+      >
       {/* Header */}
       <div className="px-4 mb-4 flex items-center justify-between">
         <div className={`flex items-center space-x-3 ${isCollapsed ? "justify-center w-full" : ""}`}>
@@ -822,11 +835,19 @@ export default function Sidebar({
             </span>
           )}
         </div>
+        {/* Close button for mobile, collapse button for desktop */}
         {!isCollapsed && (
           <button
             type="button"
-            onClick={() => setIsCollapsed(true)}
-            className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors md:block hidden"
+            onClick={() => {
+              if (window.innerWidth < 768) {
+                setIsMobileOpen(false);
+              } else {
+                setIsCollapsed(true);
+              }
+            }}
+            className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors"
+            title={window.innerWidth < 768 ? "Close menu" : "Collapse sidebar"}
           >
             <ChevronRight size={18} className="text-gray-500" />
           </button>
@@ -889,8 +910,8 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* MODE SELECTOR DROPDOWN - Show for Processor (36) and Dispensary (20) users on any page */}
-      {(typeId === "36" || typeId === "20") && (
+      {/* MODE SELECTOR DROPDOWN - Show ONLY for Processor (36) and Dispensary (20) users, NOT for admin */}
+      {(typeId === "36" || typeId === "20") && !isAdmin && (
         <div className="px-3 mb-3 relative">
           <button
             type="button"
@@ -1056,5 +1077,6 @@ export default function Sidebar({
         })}
       </nav>
     </div>
+    </>
   );
 }
