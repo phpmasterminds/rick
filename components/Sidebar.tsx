@@ -296,13 +296,6 @@ export default function Sidebar({
   // Get Processor POS Menu (when on /pos/dashboard)
   const getProcessorPosMenu = useCallback((): MenuItem[] => {
     return [
-      // Go back to main menu at TOP
-      {
-        id: "go-back",
-        icon: LogOut,
-        label: "Go back to main menu",
-        path: "/dashboard",
-      },
       // POS-specific menus
       { id: "pos-dashboard", icon: Home, label: "Overview", path: "/pos/dashboard" },
       { id: "pos-inventory", icon: Package, label: "Products", path: "/pos/inventory" },
@@ -427,13 +420,6 @@ export default function Sidebar({
   // Get Dispensary POS Menu (when on /pos/dashboard)
   const getDispensaryPosMenu = useCallback((): MenuItem[] => {
     return [
-      // Go back to main menu at TOP
-      {
-        id: "go-back",
-        icon: LogOut,
-        label: "Go back to main menu",
-        path: "/dashboard",
-      },
       // POS-specific menus
 	  { id: "pos-dashboard", icon: Home, label: "Overview", path: "/pos/dashboard" },
       { id: "pos-register", icon: FileSpreadsheet, label: "Register", path: "/pos/register" },
@@ -946,16 +932,17 @@ export default function Sidebar({
             <div className="absolute top-full left-3 right-3 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
               <button
                 type="button"
-                onClick={() => setShowModeDropdown(false)}
+                onClick={() => {
+                  router.push("/dashboard");
+                  setShowModeDropdown(false);
+                  if (window.innerWidth < 768) setIsMobileOpen(false);
+                }}
                 className={`w-full text-left px-4 py-3 text-sm rounded-t-lg transition-all duration-200 flex items-center space-x-2
-                  ${currentMode === "select"
-                    ? "accent-bg text-white"
-                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }
+                  bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30
                 `}
               >
-                <span>📋</span>
-                <span>Select Mode</span>
+                <span>🏠</span>
+                <span>Dashboard</span>
               </button>
               {isAdmin && (
                 <button

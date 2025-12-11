@@ -7,6 +7,7 @@ import {
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
+import InvoicesTab from '@/components/InvoicesTab';
 
 interface RegistrationPageProps {
   registrationId?: string;
@@ -159,9 +160,10 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
   // Auto-select variants and amounts when registration data changes
   useEffect(() => {
     if (registrationData?.modules && registrationData.modules.length > 0 && !hasAutoSelected) {
-      console.log('📦 Processing modules from API:', registrationData.modules);
-      console.log('📦 Processing variants from API:', registrationData.variants);
       
+      if(registrationData.status === 'approved'){
+		setApprovalSubmitted(true);
+	  }
       const newSelectedVariants: SelectedVariant[] = [];
       const newModuleAmounts: ModuleAmount[] = [];
 
@@ -174,15 +176,22 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
         return acc;
       }, {});
 
-      console.log('📦 Variants grouped by module:', variantsByModule);
+      //console.log('📦 Variants grouped by module:', variantsByModule);
 
-      // Process each module
-      registrationData.modules.forEach((module: any) => {
+      // Deduplicate modules by module_id (keep the first occurrence)
+      const uniqueModules = Array.from(
+        new Map(
+          registrationData.modules.map((module: any) => [module.module_id, module])
+        ).values()
+      );
+
+      // Process each unique module
+      uniqueModules.forEach((module: any) => {
         const moduleId = module.module_id;
         const moduleName = module.module_name;
         const amount = module.amount;
 
-        console.log(`Processing module: ${moduleId} (${moduleName}) - Amount: ${amount}`);
+        //console.log(`Processing module: ${moduleId} (${moduleName}) - Amount: ${amount}`);
 
         // Add module amount
         newModuleAmounts.push({
@@ -198,7 +207,7 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
           // Auto-select all variants for this module
           moduleVariants.forEach((variant: any) => {
             const variantIndex = parseInt(variant.variant_index);
-            console.log(`  ✓ Adding variant: ${variant.variant_name} (index: ${variantIndex})`);
+            //console.log(`  ✓ Adding variant: ${variant.variant_name} (index: ${variantIndex})`);
             newSelectedVariants.push({
               moduleId,
               variantIndex,
@@ -207,7 +216,7 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
           });
         } else {
           // If no variants, just select the module
-          console.log(`  ✓ No variants - adding module as primary selection`);
+          //console.log(`  ✓ No variants - adding module as primary selection`);
           newSelectedVariants.push({
             moduleId,
             variantIndex: 0,
@@ -216,8 +225,8 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
         }
       });
 
-      console.log('✅ Auto-selected variants:', newSelectedVariants);
-      console.log('✅ Module amounts:', newModuleAmounts);
+      //console.log('✅ Auto-selected variants:', newSelectedVariants);
+      //console.log('✅ Module amounts:', newModuleAmounts);
 
       setSelectedVariants(newSelectedVariants);
       setModuleAmounts(newModuleAmounts);
@@ -233,7 +242,7 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
 
         // Check admin authorization
         const userGroupId = getUserGroupIdFromLocalStorage();
-        console.log('👤 User group ID:', userGroupId);
+        //console.log('👤 User group ID:', userGroupId);
 
         if (!userGroupId || !ADMIN_GROUP_IDS.includes(userGroupId)) {
           console.warn('❌ Unauthorized: User is not admin');
@@ -246,11 +255,9 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
         }
 
         setIsAuthorized(true);
-        console.log('✅ Admin authorization passed');
 
         // If we have registration ID, fetch data
         if (registrationId) {
-          console.log('✅ Registration ID received:', registrationId);
           await fetchRegistrationData(registrationId);
         } else {
           console.error('❌ No registration ID provided');
@@ -276,7 +283,6 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
   // Fetch registration data
   const fetchRegistrationData = async (id: string) => {
     try {
-      console.log('🔄 Fetching registration data for ID:', id);
 
       const response = await axios.get(`/api/admin/register-id/?id=${id}`, {
         headers: {
@@ -284,23 +290,23 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
         },
       });
 
-      console.log('📊 API Response:', response.data);
+      //console.log('📊 API Response:', response.data);
 
       if (response.data.status === 'success' && response.data.data) {
-        console.log('✅ Registration data fetched successfully');
+        //console.log('✅ Registration data fetched successfully');
         const data = response.data.data;
         setRegistrationData(data);
         
         // Check if this is a reload of previously approved data
         if (data.admin_approval_data?.selected_variants) {
-          console.log('⏭️ Using previously saved variants from admin_approval_data');
+         // console.log('⏭️ Using previously saved variants from admin_approval_data');
           setSelectedVariants(data.admin_approval_data.selected_variants);
           setHasAutoSelected(true);
         }
 
         // Initialize module amounts from existing data or auto-select
         if (data.admin_approval_data?.module_amounts) {
-          console.log('⏭️ Using previously saved module amounts');
+          //console.log('⏭️ Using previously saved module amounts');
           setModuleAmounts(data.admin_approval_data.module_amounts);
         }
 
@@ -333,21 +339,40 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
         (sv) => sv.moduleId === moduleId && sv.variantIndex === variantIndex
       );
 
+      let updatedVariants;
       if (existingIndex > -1) {
         // Remove if unchecked
-        return prev.filter((_, idx) => idx !== existingIndex);
+        updatedVariants = prev.filter((_, idx) => idx !== existingIndex);
       } else {
         // Add if checked
-        return [...prev, { moduleId, variantIndex, variant }];
+        updatedVariants = [...prev, { moduleId, variantIndex, variant }];
       }
-    });
 
-    // Auto-add module amount if not already present
-    const moduleExists = moduleAmounts.some((ma) => ma.moduleId === moduleId);
-    if (!moduleExists) {
-      const moduleName = modules.find((m) => m.id === moduleId)?.name || moduleId;
-      setModuleAmounts((prev) => [...prev, { moduleId, moduleName, amount: '' }]);
-    }
+      // Check if any variants remain for this module
+      const hasVariantsForModule = updatedVariants.some((sv) => sv.moduleId === moduleId);
+      
+      // If no variants for this module, remove the module amount
+      if (!hasVariantsForModule) {
+        setModuleAmounts((prevAmounts) =>
+          prevAmounts.filter((ma) => ma.moduleId !== moduleId)
+        );
+      } else {
+        // Auto-add module amount if not already present and we're adding a variant
+        const moduleExists = moduleAmounts.some((ma) => ma.moduleId === moduleId);
+        if (!moduleExists && existingIndex === -1) {
+          const moduleName = modules.find((m) => m.id === moduleId)?.name || moduleId;
+          setModuleAmounts((prevAmounts) => {
+            // Double-check no duplicate exists before adding
+            if (!prevAmounts.some((ma) => ma.moduleId === moduleId)) {
+              return [...prevAmounts, { moduleId, moduleName, amount: '' }];
+            }
+            return prevAmounts;
+          });
+        }
+      }
+
+      return updatedVariants;
+    });
   };
 
   // Handle module amount change
@@ -389,7 +414,6 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
   const handleSaveAdminApproval = async () => {
     try {
       setSubmitting(true);
-      console.log(registrationData);
       if (!registrationData?.user_id) {
         toast.error('Registration data not loaded', {
           position: 'bottom-center',
@@ -406,13 +430,13 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
         return;
       }
 
-      console.log('🔄 Saving admin approval:', {
+      /*console.log('🔄 Saving admin approval:', {
         registrationId: registrationData.user_id,
         variants: selectedVariants,
         moduleAmounts: moduleAmounts,
         notes: adminApprovalNotes,
         trialDays: trialDays,
-      });
+      });*/
 
       const response = await axios.post(`/api/admin/register-id/?id=${registrationData.user_id}`, {
         selected_variants: selectedVariants,
@@ -423,7 +447,6 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
         status: 'approved',
       });
 
-      console.log('✅ Admin approval save response:', response.data);
 
       if (response.data.status === 'success') {
         toast.success('Admin approval settings saved successfully!', {
@@ -462,7 +485,6 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
   const handleApprove = async () => {
     try {
       setSubmitting(true);
-console.log(registrationData);
       if (!registrationData?.id) {
         toast.error('Registration data not loaded', {
           position: 'bottom-center',
@@ -481,13 +503,6 @@ console.log(registrationData);
         return;
       }
 
-      console.log('🔄 Approving registration:', {
-        registrationId: registrationData.id,
-        variants: selectedVariants,
-        moduleAmounts: moduleAmounts,
-        notes: adminApprovalNotes,
-        trialDays: trialDays,
-      });
 
       const response = await axios.post(`/api/admin/register-id/?id=${registrationData.id}`, {
         selected_variants: selectedVariants,
@@ -499,7 +514,6 @@ console.log(registrationData);
         user_id: registrationData.user_id,
       });
 
-      console.log('✅ Approval response:', response.data);
 
       if (response.data.status === 'success') {
         // Mark approval as submitted to prevent double-click and hide buttons
@@ -564,10 +578,7 @@ console.log(registrationData);
         return;
       }
 
-      console.log('🔄 Rejecting registration:', {
-        registrationId: registrationData.user_id,
-        reason: rejectReason,
-      });
+      
 
       const response = await axios.post(`/api/admin/register-id/?id=${registrationData.user_id}`, {
         status: 'rejected',
@@ -575,7 +586,6 @@ console.log(registrationData);
         registrationId: registrationData.user_id,
       });
 
-      console.log('✅ Rejection response:', response.data);
 
       if (response.data.status === 'success') {
         toast.success('Registration rejected successfully!', {
@@ -680,6 +690,7 @@ console.log(registrationData);
               { id: 'business', label: 'Business Information' },
               { id: 'license', label: 'License Information' },
               { id: 'adminApprove', label: 'Admin Approve' },
+              ...(approvalSubmitted ? [{ id: 'invoices', label: '💰 Invoices' }] : []),
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -1022,6 +1033,19 @@ console.log(registrationData);
                     </p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Invoices Tab - Only show after approval */}
+            {activeTab === 'invoices' && approvalSubmitted && registrationData && (
+              <div>
+                <InvoicesTab 
+                  registrationData={{
+                    user_id: registrationData.user_id,
+                    account_name: registrationData.account_name,
+                    contact_email: registrationData.contact_email,
+                  }} 
+                />
               </div>
             )}
           </div>
