@@ -132,6 +132,7 @@ export default function Sidebar({
       "invoice",
       "admin",
       "pos",
+	  "preview-catalog"
     ];
     
     // First segment that is not a known route is the vanity URL

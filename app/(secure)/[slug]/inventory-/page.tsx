@@ -6,7 +6,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const readableName = slug.replace(/-/g, " ");
 
   return {
-    title: `${readableName} | POS Inventory | Find Oklahoma Marijuana Dispensaries`,
+    title: `${readableName} | Inventory | Find Oklahoma Marijuana Dispensaries`,
   };
 }
 

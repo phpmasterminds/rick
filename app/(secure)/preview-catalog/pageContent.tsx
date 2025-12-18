@@ -131,13 +131,43 @@ export default function PageContent() {
 
       setLoading(true);
       setError(null);
+
+      // Get user_id from localStorage
+      let userId = '';
+      try {
+        const userDataStr = localStorage.getItem('user');
+        if (userDataStr) {
+          const userData = JSON.parse(userDataStr);
+          userId = userData.data?.user_id || '';
+        }
+      } catch (err) {
+        console.log('Could not parse user data from localStorage');
+      }
+
+      // Get vanity_url from cookies
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop()?.split(';').shift();
+        return '';
+      };
+      const vanityUrl = getCookie('vanity_url');
+
+      // Build query params
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '30',
+      });
+      if (userId) params.append('user_id', userId);
+      if (vanityUrl) params.append('vanity_url', vanityUrl);
+
       // Try multiple possible endpoints
       let response;
       const endpoints = [
-        `/api/business/business-products?page=${page}&limit=30`,
-        `/api/business/products?page=${page}&limit=30`,
-        `/api/products?page=${page}&limit=30`,
-        `/api/shop/products?page=${page}&limit=30`,
+        `/api/business/business-products?${params.toString()}`,
+        `/api/business/products?${params.toString()}`,
+        `/api/products?${params.toString()}`,
+        `/api/shop/products?${params.toString()}`,
       ];
 
       let lastError: any = null;
@@ -350,8 +380,7 @@ export default function PageContent() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2 dark:text-white">Shop Products</h1>
-          <p className="text-gray-600 dark:text-gray-400">Browse and add products</p>
+          <h1 className="text-3xl font-bold mb-2 dark:text-white">Preview Your Products</h1>
         </div>
 
         {/* Search and Filter Bar */}
@@ -486,7 +515,7 @@ export default function PageContent() {
                       </span>
                     </div>
 
-                    {/* Action Buttons */}
+                    {/* Action Buttons 
                     <div className="mt-3 flex gap-2">
                       <button
                         onClick={(e) => {
@@ -506,7 +535,7 @@ export default function PageContent() {
                       >
                         View
                       </button>
-                    </div>
+                    </div>*/}
                   </div>
                 </div>
               ))}
@@ -553,7 +582,7 @@ export default function PageContent() {
           onClick={handleCloseModal}
         >
           <div
-            className="bg-white dark:bg-slate-900 rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto"
+            className="bg-white dark:bg-slate-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -575,7 +604,7 @@ export default function PageContent() {
                   <img
                     src={getProductImageUrl(selectedProduct)}
                     alt={selectedProduct.name}
-                    className="w-full h-64 object-cover rounded-lg"
+                    className="w-full h-80 object-cover rounded-lg"
                     onError={(e) => {
                       e.currentTarget.src =
                         'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
@@ -592,7 +621,7 @@ export default function PageContent() {
 
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Price</p>
-                    <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+                    <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">
                       ${selectedProduct.p_offer_price}
                     </p>
                   </div>
@@ -623,16 +652,16 @@ export default function PageContent() {
                     </div>
                   )}
 
-                  {/* Add to Cart Button */}
+                  {/* Add to Cart Button 
                   <button
                     onClick={() => {
                       handleAddToCart(selectedProduct);
                       handleCloseModal();
                     }}
-                    className="w-full bg-teal-500 text-white py-2 rounded-lg font-semibold hover:bg-teal-600 transition"
+                    className="w-full bg-teal-500 text-white py-3 rounded-lg font-semibold hover:bg-teal-600 transition mt-6"
                   >
                     Add to Cart
-                  </button>
+                  </button>*/}
                 </div>
               </div>
 
@@ -645,6 +674,41 @@ export default function PageContent() {
                   </p>
                 </div>
               )}
+
+              {/* Previous/Next Navigation Buttons */}
+              <div className="flex items-center justify-between mt-8 pt-6 border-t dark:border-slate-700">
+                <button
+                  onClick={() => {
+                    const currentIndex = filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id);
+                    if (currentIndex > 0) {
+                      setSelectedProduct(filteredProducts[currentIndex - 1]);
+                    }
+                  }}
+                  disabled={filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) === 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  <ChevronLeft size={20} />
+                  Previous
+                </button>
+
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) + 1} of {filteredProducts.length}
+                </span>
+
+                <button
+                  onClick={() => {
+                    const currentIndex = filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id);
+                    if (currentIndex < filteredProducts.length - 1) {
+                      setSelectedProduct(filteredProducts[currentIndex + 1]);
+                    }
+                  }}
+                  disabled={filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) === filteredProducts.length - 1}
+                  className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  Next
+                  <ChevronRight size={20} />
+                </button>
+              </div>
             </div>
           </div>
         </div>

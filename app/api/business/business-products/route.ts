@@ -10,13 +10,15 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get("page");
     const limit = searchParams.get("limit");
     const product_id = searchParams.get("product_id");
+    const vanity_url = searchParams.get("vanity_url");
+    const user_id = searchParams.get("user_id");
 
    
     const axios = await createServerAxios();
 
     // ✅ Pass query params correctly
     const response = await axios.get("/business/get-business-products", {
-      params: { page_id, product_id },
+      params: { page_id, product_id, limit, page, vanity_url, user_id },
     });
 
     return NextResponse.json(response.data);

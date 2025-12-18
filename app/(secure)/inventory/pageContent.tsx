@@ -20,11 +20,13 @@ interface Product {
   strain_cat: string;
   tag_no: string;
   is_safe: string;
-  is_pos: string; // "0" or "1"
+  enable_catalog: string; // "0" or "1"
   s_rooms: string | null;
   selected_rooms?: string[]; // Array from API
   enable_product: string; // "0" or "1" for PAGE
+  is_sample: string; // "0" or "1" for PAGE
   p_offer_price: string;
+  i_price?: string | null;
   i_deals: string | null;
   i_par: string | null;
   i_weight: string;
@@ -38,8 +40,12 @@ interface Product {
   product_code?: string;
   batch_id?: string;
   cat_id?: string;
+  cat_parent_id?: string; // Parent category ID
   fla_cat_id?: string;
   fle_cat_id?: string;
+  fla_sub_cat_id?: string | number; // Subcategory for flavors
+  bne_cat_id?: string | number; // Alternative subcategory ID
+  fle_sub_cat_id?: string | number; // Alternative subcategory ID
   med_measurements?: string;
   value1?: string | number;
   value2?: string | number;
@@ -48,6 +54,8 @@ interface Product {
   value5?: string | number;
   value6?: string | number;
   value7?: string | number;
+  variant_name?: string; // Product variant name
+  flavors?: string; // Comma-separated flavors
 }
 
 interface Category {
@@ -130,23 +138,23 @@ interface DiscountScope {
 function PublishedToggle({ product, onToggle }: { product: Product, onToggle: (id: string, status: string, type?: string) => void }) {
   return (
     <div className="flex flex-col gap-3">
-      {/* POS Toggle */}
+      {/* catalog Toggle */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">POS</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Catalog</span>
         <button
           onClick={() => {
-            const isCurrentlyPOS = product.is_pos === '1';
-            onToggle(product.product_id, product.is_pos, 'POS');
+            const isCurrentlyPOS = product.enable_catalog === '1';
+            onToggle(product.product_id, product.enable_catalog, 'CATALOG');
           }}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all ${
-            product.is_pos === '1'
+            product.enable_catalog === '1'
               ? 'accent-bg'
               : 'bg-gray-300 dark:bg-gray-600'
           }`}
         >
           <span
             className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-              product.is_pos === '1' ? 'translate-x-6' : 'translate-x-1'
+              product.enable_catalog === '1' ? 'translate-x-6' : 'translate-x-1'
             }`}
           />
         </button>
@@ -173,12 +181,33 @@ function PublishedToggle({ product, onToggle }: { product: Product, onToggle: (i
           />
         </button>
       </div>
+	  
+	  {/* Sample Toggle */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sample</span>
+        <button
+          onClick={() => {
+            const isCurrentlyPAGE = product.is_sample === '1';
+            onToggle(product.product_id, product.is_sample, 'SAMPLE');
+          }}
+          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all ${
+            product.is_sample === '1'
+              ? 'accent-bg'
+              : 'bg-gray-300 dark:bg-gray-600'
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+              product.is_sample === '1' ? 'translate-x-6' : 'translate-x-1'
+            }`}
+          />
+        </button>
+      </div>
     </div>
   );
 }
 
-export default function PageContent({ business }: { business: string }) {
-  const readableName = business.replace(/-/g, " ");
+export default function PageContent() {
 
   // Helper function to show error toast
   const showErrorToast = (error: any, defaultMessage: string = 'Something went wrong') => {
@@ -200,6 +229,7 @@ export default function PageContent({ business }: { business: string }) {
   const [selectedSubcategory, setSelectedSubcategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isAddMode, setIsAddMode] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -251,6 +281,8 @@ export default function PageContent({ business }: { business: string }) {
     subcategory: '',
     strainCat: '',
     flavor: '',
+    addedFlavors: [] as string[], // Array of selected/manual flavors
+    newFlavorInput: '', // Temporary input for manual flavor entry
     feeling: '',
     medMeasurements: 'unit',
     medEachValue: 'Each',
@@ -261,7 +293,49 @@ export default function PageContent({ business }: { business: string }) {
     price2: '',
     price3: '',
     selectedRoom: [] as string[],
-    pos: false,
+    catalog: false,
+    page: false,
+    enable_catalog: false,
+    is_sample: false,
+    thc: '',
+    cbd: '',
+    value1: '',
+    value2: '',
+    value3: '',
+    value4: '',
+    value5: '',
+    value6: '',
+    value7: ''
+  });
+
+  // Form state for add modal
+  const [addFormData, setAddFormData] = useState({
+    productName: '',
+    description: '',
+    variantName: '',
+    strainName: '',
+    quantityOnHand: '',
+    weight: '',
+    sku: '',
+    batchId: '',
+    tagNo: '',
+    category: '',
+    subcategory: '',
+    strainCat: '',
+    flavor: '',
+    addedFlavors: [] as string[],
+    newFlavorInput: '',
+    feeling: '',
+    medMeasurements: 'unit',
+    medEachValue: 'Each',
+    medEachPrice: '',
+    medGramPrice: '',
+    medValue: ['', '', '', '', '', '', ''],
+    price1: '',
+    price2: '',
+    price3: '',
+    selectedRoom: [] as string[],
+    catalog: false,
     page: false,
     thc: '',
     cbd: '',
@@ -273,6 +347,13 @@ export default function PageContent({ business }: { business: string }) {
     value6: '',
     value7: ''
   });
+
+  // Add modal dropdown data
+  const [addModalCategories, setAddModalCategories] = useState<Category[]>([]);
+  const [addModalSubcategories, setAddModalSubcategories] = useState<ApiCategory[]>([]);
+  const [addModalFlavors, setAddModalFlavors] = useState<ApiCategory[]>([]);
+  const [addModalFeelings, setAddModalFeelings] = useState<ApiCategory[]>([]);
+  const [addModalLoading, setAddModalLoading] = useState(false);
   
   // Shake Sale Tier states
   const [shakeSaleTiers, setShakeSaleTiers] = useState<ShakeSaleTier[]>([]);
@@ -312,7 +393,7 @@ export default function PageContent({ business }: { business: string }) {
   const [safeValues, setSafeValues] = useState({ onHand: 0, safeStorage: 0, posAvailable: 0 });
   
   // Row editing state for weight
-  const [editingRows, setEditingRows] = useState<{ [key: string]: { weight: string; totalWeight: string } }>({});
+  const [editingRows, setEditingRows] = useState<{ [key: string]: { weight?: string; totalWeight?: string; i_price?: string; i_deals?: string; i_onhand?: string; i_par?: string } }>({});
   
   // Multi-select rooms state
   const [selectedRooms, setSelectedRooms] = useState<{ [productId: string]: string[] }>({});
@@ -337,11 +418,25 @@ export default function PageContent({ business }: { business: string }) {
       try {
         setLoading(true);
         setError(null);
-        
-        const response = await axios.get(`/api/business/posinventory?business=${business}&page=${page}&is_from=pos`);
-        
+        // Get vanity_url from cookies
+		const getCookie = (name: string) => {
+			const value = `; ${document.cookie}`;
+			const parts = value.split(`; ${name}=`);
+			if (parts.length === 2) return parts.pop()?.split(';').shift();
+				return '';
+		};
+		const vanityUrl = getCookie('vanity_url');
+		
+        const response = await axios.get(`/api/business/posinventory?business=${vanityUrl}&page=${page}&is_from=product`);
+        console.log(response);
         if (response.data.status === 'success') {
           const productsData = response.data.data.products || [];
+          
+          // Set globalPageId from API response data
+          if (response.data.data.page_id && !globalPageId) {
+            setGlobalPageId(response.data.data.page_id);
+          }
+          
           const roomsData = response.data.data.aRooms || [];
           
           // Transform selected_rooms array to s_rooms string
@@ -425,7 +520,7 @@ export default function PageContent({ business }: { business: string }) {
     };
 
     fetchInventoryDetails(apiPage);
-  }, [apiPage, business]);
+  }, [apiPage]);
   
   useEffect(() => {
     // Load more pages if needed
@@ -475,42 +570,6 @@ export default function PageContent({ business }: { business: string }) {
     setSelectedSubcategory('All');
   };
 
-  const handleSafeClick = (product: Product) => {
-    const onHand = parseInt(product.i_onhand) || 0;
-    const safeStorage = parseInt(String(product.i_safehand ?? 0)) || 0; // Use i_safehand field from product
-    setSafeProduct(product);
-    setSafeValues({
-      onHand,
-      safeStorage,
-      posAvailable: onHand - safeStorage
-    });
-    setShowSafeModal(true);
-  };
-
-  const handleSafeSubmit = async () => {
-    try {
-      // API call to update safe storage
-      const response = await axios.post('/api/business/update-safe-storage', {
-        product_id: safeProduct?.product_id,
-        safe_storage: safeValues.safeStorage
-      });
-      
-      if (response.data.status === 'success') {
-        toast.success('Safe storage updated successfully!');
-        setShowSafeModal(false);
-        // Refresh the product data
-        setApiPage(1);
-        setAllProducts([]);
-      }
-    } catch (error: any) {
-      const errorMessage = error.response?.data?.error?.message || error.response?.data?.message || 'Failed to update safe storage';
-      toast.error(errorMessage, {
-        position: 'bottom-center',
-        autoClose: 5000,
-      });
-    }
-  };
-
   const handleTogglePublish = async (productId: string, currentStatus: string, publishType?: string) => {
     try {
       const newStatus = currentStatus === '1' ? '0' : '1';
@@ -524,6 +583,10 @@ export default function PageContent({ business }: { business: string }) {
         payload.is_pos = newStatus;
       } else if (publishType === 'PAGE') {
         payload.enable_product = newStatus;
+      }else if (publishType === 'CATALOG') {
+        payload.enable_catalog = newStatus;
+      }else if (publishType === 'SAMPLE') {
+        payload.is_sample = newStatus;
       }
       
       const response = await axios.post('/api/business/toggle-publish', payload);
@@ -534,6 +597,8 @@ export default function PageContent({ business }: { business: string }) {
           p.product_id === productId 
             ? { 
                 ...p,
+                ...(publishType === 'SAMPLE' && { is_sample: newStatus }),
+                ...(publishType === 'CATALOG' && { enable_catalog: newStatus }),
                 ...(publishType === 'POS' && { is_pos: newStatus }),
                 ...(publishType === 'PAGE' && { enable_product: newStatus })
               }
@@ -543,101 +608,15 @@ export default function PageContent({ business }: { business: string }) {
         setProducts(updateFn);
         setAllProducts(updateFn);
         
-        const typeLabel = publishType === 'POS' ? 'POS' : 'Page';
+        //const typeLabel = publishType === 'POS' ? 'POS' : 'Page';
         const action = newStatus === '1' ? 'enabled for' : 'disabled for';
-        toast.success(`Product ${action} ${typeLabel}!`);
+        toast.success(`Product ${action} ${publishType}!`);
       }
     } catch (error: any) {
       showErrorToast(error, 'Failed to update product');
     }
   };
 
-  const handleToggleDeals = async (productId: string, currentDeals: string | null) => {
-    try {
-      const newDeals = currentDeals === '1' ? '0' : '1';
-      const response = await axios.post('/api/business/toggle-deals', {
-        product_id: productId,
-        i_deals: newDeals
-      });
-      
-      if (response.data.status === 'success') {
-        // Update local state
-        setProducts(prev => prev.map(p => 
-          p.product_id === productId ? { ...p, i_deals: newDeals } : p
-        ));
-        setAllProducts(prev => prev.map(p => 
-          p.product_id === productId ? { ...p, i_deals: newDeals } : p
-        ));
-        toast.success(`Deals ${newDeals === '1' ? 'enabled' : 'disabled'} successfully!`);
-      }
-    } catch (error: any) {
-      showErrorToast(error, 'Failed to toggle deals');
-    }
-  };
-
-  const handleRoomChange = async (productId: string, roomIds: string[]) => {
-    try {
-      // If no rooms selected, send null; otherwise join with comma
-      const roomsValue = roomIds.length > 0 ? roomIds.join(',') : null;
-      
-      const response = await axios.post('/api/business/update-room', {
-        product_id: productId,
-        s_rooms: roomsValue  // ← null or "room-1,room-2"
-      });
-      
-      if (response.data.status === 'success') {
-        // Update local state
-        setProducts(prev => prev.map(p => 
-          p.product_id === productId 
-            ? { ...p, s_rooms: roomsValue }
-            : p
-        ));
-        setAllProducts(prev => prev.map(p => 
-          p.product_id === productId 
-            ? { ...p, s_rooms: roomsValue }
-            : p
-        ));
-        
-        // Close dropdown
-        setShowRoomDropdown(prev => ({ ...prev, [productId]: false }));
-        
-        toast.success('Rooms updated successfully!');
-      }
-    } catch (error: any) {
-      showErrorToast(error, 'Failed to update rooms');
-    }
-  };
-
-  // Toggle room selection in dropdown
-  const handleRoomToggle = (productId: string, roomId: string) => {
-    setSelectedRooms(prev => {
-      const current = prev[productId] || [];
-      const isSelected = current.includes(roomId);
-      
-      return {
-        ...prev,
-        [productId]: isSelected
-          ? current.filter(id => id !== roomId)
-          : [...current, roomId]
-      };
-    });
-  };
-
-  // Save selected rooms
-  const handleSaveRooms = (productId: string) => {
-    const roomIds = selectedRooms[productId] || [];
-    handleRoomChange(productId, roomIds);
-  };
-
-  // Open room edit dropdown
-  const handleRoomEditClick = (product: Product) => {
-    // Split by comma and trim whitespace from each room ID
-    const currentRooms = product.s_rooms 
-      ? product.s_rooms.split(',').map(room => room.trim()).filter(room => room.length > 0)
-      : [];
-    setSelectedRooms(prev => ({ ...prev, [product.product_id]: currentRooms }));
-    setShowRoomDropdown(prev => ({ ...prev, [product.product_id]: true }));
-  };
 
   const handleEditClick = (product: Product) => {
     setEditingProduct(product);
@@ -648,17 +627,21 @@ export default function PageContent({ business }: { business: string }) {
       page_id: product.page_id || '',
       productName: product.name || '',
       description: product.text_parsed || '',
-      variantName: '',
+      variantName: product.variant_name || '',
       strainName: product.strain || '',
       quantityOnHand: product.i_onhand || '',
       weight: product.i_weight || '',
       sku: product.product_code || '',
       batchId: product.batch_id || '',
       tagNo: product.tag_no || '',
-      category: product.cat_id || '',
-      subcategory: '',
+      category: String(product.cat_parent_id || ''),
+      // Try to get subcategory - could be from multiple sources
+      //subcategory: String(product.bne_cat_id || product.fla_sub_cat_id || product.fle_sub_cat_id || ''),
+      subcategory: String(product.cat_id),
       strainCat: product.strain_cat || '',
       flavor: product.fla_cat_id || '',
+      addedFlavors: product.flavors ? product.flavors.split(',').map(f => f.trim()) : [],
+      newFlavorInput: '',
       feeling: product.fle_cat_id || '',
       medMeasurements: product.med_measurements || 'unit',
       medEachValue: String(product.value1 || ''),
@@ -675,11 +658,13 @@ export default function PageContent({ business }: { business: string }) {
 	  value5: String(product.value5 || ''),
 	  value6: String(product.value6 || ''),
 	  value7: String(product.value7 || ''),
-	  thc: product.thc,
-	  cbd: product.cbd,
+	  thc: product.thc || '',
+	  cbd: product.cbd || '',
       selectedRoom: product.selected_rooms || [],
-      pos: product.is_pos === '1',
-      page: product.enable_product === '1'
+      catalog: product.enable_catalog === '1',
+      page: product.enable_product === '1',
+      enable_catalog: product.enable_catalog === '1',
+      is_sample: product.is_sample === '1'
     });
     
     fetchEditModalDropdowns(product);
@@ -690,28 +675,50 @@ export default function PageContent({ business }: { business: string }) {
       setEditModalLoading(true);
 	  console.log('product.product_id'+product.product_id);
       // Call API to get categories, flavors, and feelings
-      const response = await axios.get(`/api/business/categories?page_id=${product.page_id}&product_id=${product.product_id}`);
+      const response = await axios.get(`/api/business/categories?page_id=${globalPageId}&product_id=${product.product_id}`);
       
       if (response.data.status === 'success' && response.data.data) {
         const data = response.data.data;
         
-        // Extract categories
-        if (data.products) {
-          setEditModalCategories(data.products);
+        // Transform categories array to match Category interface
+        // API returns: { id, name, subcategories: [{ id, name }, ...] }
+        // We need: { cat_id, cat_name, sub: [{ cat_id, cat_name }, ...] }
+        if (data.categories && Array.isArray(data.categories)) {
+          const transformedCategories: Category[] = data.categories.map((cat: any) => ({
+            cat_id: String(cat.id),
+            cat_name: cat.name,
+            sub: (cat.subcategories || []).map((subcat: any) => ({
+              cat_id: String(subcat.id),
+              cat_name: subcat.name
+            }))
+          }));
+          
+          setEditModalCategories(transformedCategories);
           
           // Find and populate subcategories for the current product's category
-          const selectedCategory = data.products.find((cat: any) => cat.cat_name === product.cat_name);
+          // Use cat_parent_id to find the parent category (same as what's set in handleEditClick line 617)
+          const selectedCategory = transformedCategories.find((cat) => String(cat.cat_id) === String(product.cat_parent_id));
           if (selectedCategory && selectedCategory.sub) {
             setEditModalSubcategories(selectedCategory.sub);
+            
+            // Pre-select the product's subcategory if it exists
+            const productSubcategoryId = String(product.bne_cat_id || product.fla_sub_cat_id || product.fle_sub_cat_id || product.cat_id || '');
+            if (productSubcategoryId && productSubcategoryId !== '0' && productSubcategoryId !== 'null') {
+              // Update the form data to include the selected subcategory
+              setEditFormData(prev => ({
+                ...prev,
+                subcategory: productSubcategoryId
+              }));
+            }
           }
         }
         
-        // Extract flavors
+        // Extract flavors - handle both cat_name and flavor_name formats
         if (data.flavors) {
           setEditModalFlavors(data.flavors);
         }
 		
-		// Extract flavors
+		// Extract FlowerPriceTier
         if (data.FlowerPriceTier) {
           setEditModalFlowerTier(data.FlowerPriceTier);
         }
@@ -727,6 +734,46 @@ export default function PageContent({ business }: { business: string }) {
       console.error('Failed to fetch edit modal dropdowns:', error);
       setEditModalLoading(false);
       showErrorToast(error, 'Failed to load dropdown options');
+    }
+  };
+
+  const fetchAddModalDropdowns = async (pageId: string) => {
+    try {
+      setAddModalLoading(true);
+      const response = await axios.get(`/api/business/categories?page_id=${pageId}`);
+      
+      if (response.data.status === 'success' && response.data.data) {
+        const data = response.data.data;
+        
+        // Transform categories array to match Category interface
+        // API returns: { id, name, subcategories: [{ id, name }, ...] }
+        // We need: { cat_id, cat_name, sub: [{ cat_id, cat_name }, ...] }
+        if (data.categories && Array.isArray(data.categories)) {
+          const transformedCategories: Category[] = data.categories.map((cat: any) => ({
+            cat_id: String(cat.id),
+            cat_name: cat.name,
+            sub: (cat.subcategories || []).map((subcat: any) => ({
+              cat_id: String(subcat.id),
+              cat_name: subcat.name
+            }))
+          }));
+          
+          setAddModalCategories(transformedCategories);
+        }
+        
+        if (data.flavors) {
+          setAddModalFlavors(data.flavors);
+        }
+        
+        if (data.feelings) {
+          setAddModalFeelings(data.feelings);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching add modal dropdowns:', error);
+      showErrorToast(error, 'Failed to load categories');
+    } finally {
+      setAddModalLoading(false);
     }
   };
 
@@ -804,6 +851,12 @@ export default function PageContent({ business }: { business: string }) {
       formData.append('thc', editFormData.thc);
       formData.append('cbd', editFormData.cbd);
       
+	  // Add selected flavors as comma-separated string
+      if (editFormData.addedFlavors.length > 0) {
+        formData.append('added_flavors', editFormData.addedFlavors.join(','));
+      }
+	  
+	  
       // Add pricing based on measurement type
       if (editFormData.medMeasurements === 'bulk' || editFormData.medMeasurements === 'Pounds') {
         /*editFormData.medValue.forEach((val, idx) => {
@@ -830,7 +883,7 @@ export default function PageContent({ business }: { business: string }) {
       editFormData.selectedRoom.forEach(room => {
         formData.append('s_rooms[]', room);
       });
-      formData.append('is_pos', editFormData.pos ? '1' : '0');
+      formData.append('enable_catalog', editFormData.enable_catalog ? '1' : '0');
       formData.append('enable_product', editFormData.page ? '1' : '0');
       formData.append('page_id', editFormData.page_id);
       
@@ -857,7 +910,7 @@ export default function PageContent({ business }: { business: string }) {
 				  ...p,
 				  s_rooms: editFormData.selectedRoom?.join(',') || p.s_rooms, // update rooms
 				  i_weight: editFormData.weight,                               // update weight
-				  is_pos: editFormData.pos ? '1' : '0',                        // update POS status
+				  enable_catalog: editFormData.catalog ? '1' : '0',                        // update POS status
 				  enable_product: editFormData.page ? '1' : '0',               // update enable status
 				  p_offer_price: editFormData.price2 || p.p_offer_price,       // update price
 				  i_onhand: editFormData.quantityOnHand || p.i_onhand          // update on-hand qty
@@ -873,7 +926,7 @@ export default function PageContent({ business }: { business: string }) {
 				  ...p,
 				  s_rooms: editFormData.selectedRoom?.join(',') || p.s_rooms,
 				  i_weight: editFormData.weight,
-				  is_pos: editFormData.pos ? '1' : '0',
+				  enable_catalog: editFormData.catalog ? '1' : '0',
 				  enable_product: editFormData.page ? '1' : '0',
 				  p_offer_price: editFormData.price2 || p.p_offer_price,
 				  i_onhand: editFormData.quantityOnHand || p.i_onhand
@@ -894,225 +947,172 @@ export default function PageContent({ business }: { business: string }) {
     }
   };
 
-  const handleDealsClick = (product: Product) => {
-    setDealsProduct(product);
-    setGlobalPageId(product.page_id);
-    setDealData({
-      amount: '',
-      percentage: '',
-      scope_id: '',
-      membership_id: '',
-      type_id: '',
-      minimum_quantity: '',
-      minimum_spending: '',
-      quantity_allowed: '',
-      start_date: '',
-      end_date: '',
-      start_time: '',
-      end_time: '',
-      is_24_hours: false,
-      days_of_week: [],
-      discount_name: ''
-    });
-    setShowDealsModal(true);
-    
-    // Fetch dropdown options with page_id
-    fetchDiscountOptions(product.page_id);
-  };
-
-  const fetchDiscountOptions = async (pageId: string) => {
+  const handleAddProduct = async () => {
     try {
-      setLoadingDropdowns(true);
-      
-      // Fetch all three in parallel with page_id parameter
-      const [typesRes, membershipRes, scopesRes] = await Promise.all([
-        axios.get(`/api/business/discount-types?page_id=${pageId}`),
-        axios.get(`/api/business/membership-levels?page_id=${pageId}`),
-        axios.get(`/api/business/discount-scopes?page_id=${pageId}`)
-      ]);
-
-      // Handle types response
-      if (typesRes.data.status === 'success' && typesRes.data.data) {
-        setDiscountTypes(typesRes.data.data);
-        if (typesRes.data.data.length > 0) {
-          setDealData(prev => ({ ...prev, type_id: typesRes.data.data[0].id }));
-        }
+      // Validation
+      if (!editFormData.productName?.trim()) {
+        toast.error('Product Name is required', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        return;
       }
 
-      // Handle membership response
-      if (membershipRes.data.status === 'success' && membershipRes.data.data) {
-        setMembershipLevels(membershipRes.data.data);
-        if (membershipRes.data.data.length > 0) {
-          setDealData(prev => ({ ...prev, membership_id: membershipRes.data.data[0].id }));
-        }
+      if (!editFormData.category) {
+        toast.error('Category is required', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        return;
       }
 
-      // Handle scopes response
-      if (scopesRes.data.status === 'success' && scopesRes.data.data) {
-        setDiscountScopes(scopesRes.data.data);
-        if (scopesRes.data.data.length > 0) {
-          setDealData(prev => ({ ...prev, scope_id: scopesRes.data.data[0].id }));
-        }
-      }
-    } catch (error: any) {
-      console.error('Failed to fetch discount options:', error);
-      toast.error('Failed to load discount options');
-    } finally {
-      setLoadingDropdowns(false);
-    }
-  };
-
-  const handleDealSubmit = async () => {
-    try {
-      // Parse numeric values
-      const amount = parseFloat(dealData.amount) || 0;
-      const percentage = parseFloat(dealData.percentage) || 0;
-      const minimumQty = parseFloat(dealData.minimum_quantity) || 0;
-      const minimumSpending = parseFloat(dealData.minimum_spending) || 0;
-      const qtyAllowed = parseFloat(dealData.quantity_allowed) || 0;
-      
-      // Validation: Check discount name
-      if (!dealData.discount_name.trim()) {
-        toast.error('Please enter discount name');
+      /*if (!editFormData.quantityOnHand || Number(editFormData.quantityOnHand) <= 0) {
+        toast.error('Quantity On Hand must be greater than 0', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
         return;
-      }
-      
-      // Validation: Check amount and percentage values
-      if (amount < 0) {
-        toast.error('Amount cannot be negative');
-        return;
-      }
-      if (percentage < 0) {
-        toast.error('Percentage cannot be negative');
-        return;
-      }
-      if (percentage > 100) {
-        toast.error('Percentage cannot be greater than 100%');
-        return;
-      }
-      
-      // Validation: At least one discount value
-      if (amount === 0 && percentage === 0) {
-        toast.error('Please provide either amount or percentage');
-        return;
-      }
-      
-      // Validation: Minimum quantity
-      if (minimumQty < 0) {
-        toast.error('Minimum quantity cannot be negative');
-        return;
-      }
-      
-      // Validation: Minimum spending
-      if (minimumSpending < 0) {
-        toast.error('Minimum spending cannot be negative');
-        return;
-      }
-      
-      // Validation: Quantity allowed (cannot be 0 or negative)
-      if (!dealData.is_24_hours && qtyAllowed <= 0) {
-        toast.error('Quantity allowed must be greater than 0');
-        return;
-      }
-      
-      // Validation: Days of week
-      if (dealData.days_of_week.length === 0) {
-        toast.error('Please select at least one day of week');
-        return;
-      }
-      
-      // Validation: Dates and Times (if not 24 hours)
-      if (!dealData.is_24_hours) {
-        // Check if dates are provided
-        if (!dealData.start_date) {
-          toast.error('Please select start date');
-          return;
-        }
-        if (!dealData.end_date) {
-          toast.error('Please select end date');
-          return;
-        }
-        
-        // Check if times are provided
-        if (!dealData.start_time) {
-          toast.error('Please select start time');
-          return;
-        }
-        if (!dealData.end_time) {
-          toast.error('Please select end time');
-          return;
-        }
-        
-        // Validate date range
-        const startDate = new Date(dealData.start_date);
-        const endDate = new Date(dealData.end_date);
-        
-        if (startDate > endDate) {
-          toast.error('Start date cannot be after end date');
-          return;
-        }
-        
-        // Validate time range on same day
-        if (dealData.start_date === dealData.end_date) {
-          const [startHour, startMinute] = dealData.start_time.split(':').map(Number);
-          const [endHour, endMinute] = dealData.end_time.split(':').map(Number);
-          const startTimeInMinutes = startHour * 60 + startMinute;
-          const endTimeInMinutes = endHour * 60 + endMinute;
-          
-          if (startTimeInMinutes >= endTimeInMinutes) {
-            toast.error('Start time must be before end time');
-            return;
-          }
-        }
       }
 
-      const response = await axios.post('/api/business/add-deal', {
-        product_id: dealsProduct?.product_id,
-        page_id: globalPageId,
-        discount_name: dealData.discount_name,
-        discount_amount: amount > 0 ? amount : 0,
-        discount_percentage: percentage > 0 ? percentage : 0,
-        scope_id: dealData.scope_id,
-        membership_id: dealData.membership_id,
-        type_id: dealData.type_id,
-        minimum_qty: minimumQty,
-        minimum_spending: minimumSpending,
-        qty_allowed: qtyAllowed > 0 ? qtyAllowed : 0,
-        start_date: dealData.start_date,
-        start_time: dealData.start_time,
-        end_date: dealData.end_date,
-        end_time: dealData.end_time,
-        days_of_week: dealData.days_of_week,
-        '24hours_checkbox': dealData.is_24_hours ? 1 : 0
+      if (!editFormData.weight || Number(editFormData.weight) <= 0) {
+        toast.error('Weight (Grams) must be greater than 0', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        return;
+      }*/
+
+      if (!editFormData.medEachPrice || Number(editFormData.medEachPrice) <= 0) {
+        toast.error('Price must be greater than 0', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        return;
+      }
+
+      // Create FormData for file upload support
+      const formData = new FormData();
+      
+      // Add all product data
+      formData.append('product_name', editFormData.productName);
+      formData.append('description', editFormData.description);
+      formData.append('variant_name', editFormData.variantName);
+      formData.append('strain_name', editFormData.strainName);
+      formData.append('quantity_on_hand', editFormData.quantityOnHand);
+      formData.append('weight', editFormData.weight);
+      formData.append('sku', editFormData.sku);
+      formData.append('batch_id', editFormData.batchId);
+      formData.append('tag_no', editFormData.tagNo);
+      formData.append('category', editFormData.category);
+      formData.append('subcategory', editFormData.subcategory);
+      formData.append('strain_cat', editFormData.strainCat);
+      formData.append('flavor', editFormData.flavor);
+      formData.append('feeling', editFormData.feeling);
+      formData.append('med_measurements', editFormData.medMeasurements);
+      formData.append('thc', editFormData.thc);
+      formData.append('cbd', editFormData.cbd);
+      if (editFormData.addedFlavors.length > 0) {
+		  formData.append('added_flavors', editFormData.addedFlavors.join(','));
+		}
+      // Add pricing based on measurement type
+      if (editFormData.medMeasurements === 'bulk' || editFormData.medMeasurements === 'Pounds') {
+        formData.append(`med_value[]`, editFormData.value1);
+        formData.append(`med_value[]`, editFormData.value2);
+        formData.append(`med_value[]`, editFormData.value3);
+        formData.append(`med_value[]`, editFormData.value4);
+        formData.append(`med_value[]`, editFormData.value5);
+        formData.append(`med_value[]`, editFormData.value6);
+        formData.append(`med_value[]`, editFormData.value7);
+        if (selectedShakeTier) {
+          formData.append('shake_tier_id', selectedShakeTier);
+        }
+      } else {
+        formData.append('med_each_value', editFormData.medEachValue);
+        formData.append('med_each_price', editFormData.medEachPrice);
+      }
+      
+      formData.append('med_gram_price', editFormData.medGramPrice);
+      formData.append('page_id', editFormData.page_id);
+      
+      // Append each selected room
+      editFormData.selectedRoom.forEach(room => {
+        formData.append('s_rooms[]', room);
+      });
+      
+      formData.append('enable_catalog', editFormData.catalog ? '1' : '0');
+      formData.append('enable_product', editFormData.page ? '1' : '0');
+      
+      // Add image if uploaded
+      if (uploadedImage) {
+        formData.append('product_image', uploadedImage);
+      }
+      
+      // API call to create product
+      const response = await axios.post('/api/business/update-product', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
       
       if (response.data.status === 'success') {
-        toast.success('Deal created successfully!');
-        setShowDealsModal(false);
-      } else {
-        toast.error(response.data.message || 'Failed to create deal');
-      }
+        toast.success('Product created successfully!', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        
+        // Reset form and close modal
+        setShowEditModal(false);
+        setIsAddMode(false);
+        setEditFormData({
+          page_id: '',
+          productName: '',
+          description: '',
+          variantName: '',
+          strainName: '',
+          quantityOnHand: '',
+          weight: '',
+          sku: '',
+          batchId: '',
+          tagNo: '',
+          category: '',
+          subcategory: '',
+          strainCat: '',
+          flavor: '',
+          addedFlavors: [],
+          newFlavorInput: '',
+          feeling: '',
+          medMeasurements: 'unit',
+          medEachValue: 'Each',
+          medEachPrice: '',
+          medGramPrice: '',
+          medValue: ['', '', '', '', '', '', ''],
+          price1: '',
+          price2: '',
+          price3: '',
+          selectedRoom: [],
+          catalog: false,
+          page: false,
+          enable_catalog: false,
+          is_sample: false,
+          thc: '',
+          cbd: '',
+          value1: '',
+          value2: '',
+          value3: '',
+          value4: '',
+          value5: '',
+          value6: '',
+          value7: ''
+        });
+        setUploadedImage(null);
+        setUploadedImagePreview('');
+        setSelectedShakeTier('');
+      }else{
+		  showErrorToast(response,response.data.error.message);
+	  }
     } catch (error: any) {
-      showErrorToast(error, 'Failed to create deal');
+      showErrorToast(error, 'Failed to create product');
     }
-  };
-
-  // Weight handlers
-  const handleWeightChange = (productId: string, newWeight: string) => {
-    const product = products.find(p => p.product_id === productId);
-    if (!product) return;
-
-    const weight = parseFloat(newWeight) || 0;
-    const onHand = parseInt(product.i_onhand) || 0;
-    const totalWeight = weight * onHand;
-
-    setEditingRows(prev => ({
-      ...prev,
-      [productId]: {
-        weight: newWeight,
-        totalWeight: totalWeight.toString()
-      }
-    }));
   };
 
   const handleSaveWeight = async (product: Product) => {
@@ -1123,19 +1123,39 @@ export default function PageContent({ business }: { business: string }) {
       const response = await axios.post('/api/business/update-product-weight', {
         product_id: product.product_id,
         i_weight: rowData.weight,
-        i_total_weight: rowData.totalWeight
+        i_total_weight: rowData.totalWeight,
+        i_price: rowData.i_price,
+        i_deals: rowData.i_deals,
+        i_par: rowData.i_par,
+        i_onhand: rowData.i_onhand
       });
 
       if (response.data.status === 'success') {
         // Update products list
         setProducts(prev => prev.map(p => 
           p.product_id === product.product_id
-            ? { ...p, i_weight: rowData.weight, i_total_weight: rowData.totalWeight }
+            ? { 
+                ...p, 
+                ...(rowData.weight !== undefined && { i_weight: rowData.weight }),
+                ...(rowData.totalWeight !== undefined && { i_total_weight: rowData.totalWeight }),
+                ...(rowData.i_price !== undefined && { i_price: rowData.i_price }),
+                ...(rowData.i_deals !== undefined && { i_deals: rowData.i_deals }),
+                ...(rowData.i_par !== undefined && { i_par: rowData.i_par }),
+                ...(rowData.i_onhand !== undefined && { i_onhand: rowData.i_onhand })
+              }
             : p
         ));
         setAllProducts(prev => prev.map(p => 
           p.product_id === product.product_id
-            ? { ...p, i_weight: rowData.weight, i_total_weight: rowData.totalWeight }
+            ? { 
+                ...p, 
+                ...(rowData.weight !== undefined && { i_weight: rowData.weight }),
+                ...(rowData.totalWeight !== undefined && { i_total_weight: rowData.totalWeight }),
+                ...(rowData.i_price !== undefined && { i_price: rowData.i_price }),
+                ...(rowData.i_deals !== undefined && { i_deals: rowData.i_deals }),
+                ...(rowData.i_par !== undefined && { i_par: rowData.i_par }),
+                ...(rowData.i_onhand !== undefined && { i_onhand: rowData.i_onhand })
+              }
             : p
         ));
 
@@ -1146,13 +1166,13 @@ export default function PageContent({ business }: { business: string }) {
           return newState;
         });
 
-        toast.success('Weight updated successfully!', {
+        toast.success('Product details updated successfully!', {
           position: 'bottom-center',
           autoClose: 3000,
         });
       }
     } catch (error: any) {
-      showErrorToast(error, 'Failed to update weight');
+      showErrorToast(error, 'Failed to update product details');
     }
   };
 
@@ -1162,6 +1182,16 @@ export default function PageContent({ business }: { business: string }) {
       delete newState[productId];
       return newState;
     });
+  };
+
+  const handleEditFieldChange = (productId: string, field: string, value: string) => {
+    setEditingRows(prev => ({
+      ...prev,
+      [productId]: {
+        ...prev[productId],
+        [field]: value
+      }
+    }));
   };
 
   const handleToggleDayOfWeek = (day: string) => {
@@ -1217,8 +1247,8 @@ export default function PageContent({ business }: { business: string }) {
     return (
       <div className="flex-1 p-4 md:p-6 overflow-auto">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Inventory Management</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Loading inventory for {readableName}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 capitalize">Inventory Management</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Loading inventory </p>
         </div>
         <div className="flex flex-col items-center justify-center py-20">
           <Loader2 size={48} className="animate-spin text-blue-500 mb-4" />
@@ -1234,8 +1264,8 @@ export default function PageContent({ business }: { business: string }) {
     return (
       <div className="flex-1 p-4 md:p-6 overflow-auto bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Inventory Management</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Error loading inventory for {readableName}</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 capitalize">Inventory Management</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Error loading inventory</p>
         </div>
         
         <div className="flex items-center justify-center min-h-[70vh]">
@@ -1298,11 +1328,12 @@ export default function PageContent({ business }: { business: string }) {
     <div className="flex-1 p-4 md:p-6 overflow-auto">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Inventory Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 capitalize">Inventory Management</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Manage your product inventory for {readableName} • {filteredProducts.length} products
+          Manage your product inventory • {filteredProducts.length} products
           {loading && allProducts.length > 0 && <span className="ml-2 text-blue-500">(Loading more...)</span>}
         </p>
+		<div className="h-1 bg-gradient-to-r accent-bg accent-hover"></div>
       </div>
 
       {/* Category Filters */}
@@ -1374,6 +1405,57 @@ export default function PageContent({ business }: { business: string }) {
             <span>Import From Metrc</span>
           </button>
           <button
+            onClick={() => {
+              setIsAddMode(true);
+              setEditingProduct(null);
+              // Reset form data for add mode
+              setEditFormData({
+                page_id: globalPageId,
+                productName: '',
+                description: '',
+                variantName: '',
+                strainName: '',
+                quantityOnHand: '',
+                weight: '',
+                sku: '',
+                batchId: '',
+                tagNo: '',
+                category: '',
+                subcategory: '',
+                strainCat: '',
+                flavor: '',
+                addedFlavors: [],
+                newFlavorInput: '',
+                feeling: '',
+                medMeasurements: 'unit',
+                medEachValue: 'Each',
+                medEachPrice: '',
+                medGramPrice: '',
+                medValue: ['', '', '', '', '', '', ''],
+                price1: '',
+                price2: '',
+                price3: '',
+                selectedRoom: [],
+                catalog: false,
+                page: false,
+                enable_catalog: false,
+                is_sample: false,
+                thc: '',
+                cbd: '',
+                value1: '',
+                value2: '',
+                value3: '',
+                value4: '',
+                value5: '',
+                value6: '',
+                value7: ''
+              });
+              // Fetch dropdown data for add mode
+              if (globalPageId) {
+                fetchEditModalDropdowns({page_id: globalPageId} as any);
+              }
+              setShowEditModal(true);
+            }}
             className="px-4 py-2 text-white rounded-lg transition-all duration-300 hover:scale-105 flex items-center gap-2 accent-bg accent-hover"
           >
             <Plus size={18} />
@@ -1389,14 +1471,12 @@ export default function PageContent({ business }: { business: string }) {
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Item Name</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Safe</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Rooms</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Item Identifiers</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Published</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Price</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Deals</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Weight</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">On Hand</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Par</th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">OnHand</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Actions</th>
               </tr>
             </thead>
@@ -1412,149 +1492,56 @@ export default function PageContent({ business }: { business: string }) {
                         <div>
                           <div className="font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {product.text_parsed || 'No description'} • THC: {product.thc}% • CBD: {product.cbd}%
+                            {product.tag_no} 
                           </div>
                           <div className="text-xs text-gray-400 dark:text-gray-500">{product.cat_name}</div>
-                          <div className="text-xs text-gray-400 dark:text-gray-500 font-mono">{product.tag_no}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-4 text-center">
-                      <button
-                        onClick={() => handleSafeClick(product)}
-                        className={`inline-flex w-8 h-8 rounded-full items-center justify-center cursor-pointer transition-colors ${product.is_safe === '1' ? 'bg-green-100 dark:bg-green-900 hover:bg-green-200 dark:hover:bg-green-800' : 'bg-red-100 dark:bg-red-900 hover:bg-red-200 dark:hover:bg-red-800'}`}
-                      >
-                        {product.is_safe === '1' ? <CheckCircle size={16} className="text-green-600 dark:text-green-400" /> : <X size={16} className="text-red-600 dark:text-red-400" />}
-                      </button>
+					<td className="px-4 py-4">
+						<div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">{product.product_code}</div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500">{product.batch_id}</div>
+                        </div>
                     </td>
-                    <td className="px-4 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      <div className="relative">
-                        <button
-                          onClick={() => {
-                            const isOpening = !showRoomDropdown[product.product_id];
-                            if (isOpening) {
-                              // When opening, initialize selectedRooms with current s_rooms
-                              const currentRooms = product.s_rooms 
-                                ? product.s_rooms.split(',').map(room => room.trim()).filter(room => room.length > 0)
-                                : [];
-                              setSelectedRooms(prev => ({ ...prev, [product.product_id]: currentRooms }));
-                            }
-                            setShowRoomDropdown(prev => ({ ...prev, [product.product_id]: !prev[product.product_id] }));
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm text-left hover:border-gray-400 dark:hover:border-gray-600 transition-colors"
-                        >
-                          {product.s_rooms && product.s_rooms.length > 0
-                            ? product.s_rooms.split(',').map(roomId => {
-                                const trimmedId = roomId.trim();
-                                const room = rooms.find(r => r.room_id === trimmedId);
-                                return room ? (room.room_name || room.name) : null;
-                              }).filter(Boolean).join(', ')
-                            : 'None'}
-                          <span className="float-right">▼</span>
-                        </button>
-
-                        {showRoomDropdown[product.product_id] && (
-                          <div className="absolute z-50 top-full mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded shadow-lg p-3">
-                            {/* All checkbox */}
-                            <label className="flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded mb-2">
-                              <input
-                                type="checkbox"
-                                checked={(selectedRooms[product.product_id] || []).length === rooms.length && rooms.length > 0}
-                                onChange={() => {
-                                  if ((selectedRooms[product.product_id] || []).length === rooms.length) {
-                                    handleRoomToggle(product.product_id, 'all');
-                                    setSelectedRooms(prev => ({ ...prev, [product.product_id]: [] }));
-                                  } else {
-                                    setSelectedRooms(prev => ({ ...prev, [product.product_id]: rooms.map(r => r.room_id) }));
-                                  }
-                                }}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                              />
-                              <span className="ml-2 text-sm font-semibold text-gray-700 dark:text-gray-300">All</span>
-                            </label>
-
-                            {/* Divider */}
-                            <div className="border-t border-gray-300 dark:border-gray-700 my-2"></div>
-
-                            {/* Individual room checkboxes */}
-                            <div className="space-y-1 max-h-48 overflow-y-auto">
-                              {rooms.length > 0 ? (
-                                rooms.map((room) => (
-                                  <label key={room.room_id} className="flex items-center cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded">
-                                    <input
-                                      type="checkbox"
-                                      checked={(selectedRooms[product.product_id] || []).includes(room.room_id)}
-                                      onChange={() => handleRoomToggle(product.product_id, room.room_id)}
-                                      className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                                      {room.room_name || room.name}
-                                    </span>
-                                  </label>
-                                ))
-                              ) : (
-                                <p className="text-xs text-gray-500 dark:text-gray-400 p-2">No rooms available</p>
-                              )}
-                            </div>
-
-                            {/* Action buttons */}
-                            <div className="flex gap-2 mt-3 pt-2 border-t border-gray-300 dark:border-gray-700">
-                              <button
-                                onClick={() => {
-                                  handleSaveRooms(product.product_id);
-                                }}
-                                className="flex-1 px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                              >
-                                Save
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setShowRoomDropdown(prev => ({ ...prev, [product.product_id]: false }));
-                                  setSelectedRooms(prev => ({ ...prev, [product.product_id]: [] }));
-                                }}
-                                className="flex-1 px-2 py-1 text-xs bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                   
                     <td className="px-4 py-4 text-center">
                       <PublishedToggle 
                         product={product}
                         onToggle={handleTogglePublish}
                       />
                     </td>
-                    <td className="px-4 py-4 text-right font-medium text-gray-900 dark:text-gray-100">${parseFloat(product.p_offer_price).toFixed(2)}</td>
-                    <td className="px-4 py-4 text-center">
-                      <button
-                        onClick={() => handleDealsClick(product)}
-                        className={`inline-flex items-center justify-center w-8 h-8 rounded-full cursor-pointer transition-colors ${
-                          product.i_deals === '1'
-                            ? 'bg-blue-100 dark:bg-blue-900 hover:bg-blue-200 dark:hover:bg-blue-800 text-blue-600'
-                            : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600'
-                        }`}
-                        title="Click to manage deals"
-                      >
-                        <Eye size={16} />
-                      </button>
-                    </td>
+                    <td className="px-4 py-4 text-right font-medium text-gray-900 dark:text-gray-100">
+						<input 
+						type="text" 
+                        value={editingRows[product.product_id]?.i_price ?? product.i_price ?? ''}
+                        onChange={(e) => handleEditFieldChange(product.product_id, 'i_price', e.target.value)}
+                        className="w-16 text-center border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+					</td>
                     <td className="px-4 py-4 text-center">
                       <input 
-                        type="number" 
-                        step="0.01"
-                        value={editingRows[product.product_id]?.weight ?? product.i_weight}
-                        onChange={(e) => handleWeightChange(product.product_id, e.target.value)}
+						type="text" 
+                        value={editingRows[product.product_id]?.i_deals ?? product.i_deals ?? ''}
+                        onChange={(e) => handleEditFieldChange(product.product_id, 'i_deals', e.target.value)}
                         className="w-16 text-center border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </td>
-                    <td className="px-4 py-4 text-center font-semibold text-gray-900 dark:text-gray-100">{product.i_onhand}</td>
+                    <td className="px-4 py-4 text-center font-semibold text-gray-900 dark:text-gray-100">
+						 <input 
+							type="text" 
+							value={editingRows[product.product_id]?.i_par ?? product.i_par ?? ''}
+							onChange={(e) => handleEditFieldChange(product.product_id, 'i_par', e.target.value)}
+							className="w-16 text-center border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+						  />
+					</td>
                     <td className="px-4 py-4 text-center bg-gray-50 dark:bg-gray-800/50 rounded">
-                      <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        {editingRows[product.product_id]?.totalWeight ?? product.i_total_weight}
-                      </div>
+                      <input 
+							type="text" 
+							value={editingRows[product.product_id]?.i_onhand ?? product.i_onhand}
+						onChange={(e) => handleEditFieldChange(product.product_id, 'i_onhand', e.target.value)}
+							className="w-16 text-center border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+						  />
                     </td>
                     <td className="px-4 py-4 text-center">
                       <div className="flex justify-center gap-2">
@@ -1653,380 +1640,24 @@ export default function PageContent({ business }: { business: string }) {
         )}
       </div>
 
-      {/* Safe Storage Modal */}
-      {showSafeModal && safeProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-xl max-w-md w-full">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Safe Storage</h2>
-              <button
-                onClick={() => setShowSafeModal(false)}
-                className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">On Hand</label>
-                <input
-                  type="number"
-                  value={safeValues.onHand}
-                  readOnly
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Safe Storage</label>
-                <input
-                  type="number"
-                  value={safeValues.safeStorage}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value) || 0;
-                    setSafeValues(prev => ({
-                      ...prev,
-                      safeStorage: Math.min(val, prev.onHand),
-                      posAvailable: prev.onHand - Math.min(val, prev.onHand)
-                    }));
-                  }}
-                  min="0"
-                  max={safeValues.onHand}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Pos Available</label>
-                <input
-                  type="number"
-                  value={safeValues.posAvailable}
-                  readOnly
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                />
-              </div>
-            </div>
-            <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3">
-              <button
-                onClick={() => setShowSafeModal(false)}
-                className="px-6 py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-all duration-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSafeSubmit}
-                className="px-6 py-3 text-white rounded-lg transition-all duration-300 hover:scale-105 accent-bg accent-hover"
-              >
-                Submit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Deals Modal */}
-      {showDealsModal && dealsProduct && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-900 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Deals</h2>
-              <button
-                onClick={() => setShowDealsModal(false)}
-                className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Product Header */}
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                  <Package size={40} className="text-gray-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{dealsProduct.name}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">{dealsProduct.tag_no}</p>
-                </div>
-              </div>
-
-              {/* Discount Name */}
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Discount Name</label>
-                <input
-                  type="text"
-                  value={dealData.discount_name}
-                  onChange={(e) => setDealData(prev => ({ ...prev, discount_name: e.target.value }))}
-                  placeholder="Enter discount name"
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                />
-              </div>
-
-              {/* Amount and Percentage Row */}
-              <div className="flex items-end gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Amount</label>
-                  <div className="flex items-center">
-                    <span className="text-2xl font-bold text-green-600 bg-green-50 dark:bg-green-900/20 px-4 py-2 rounded-l-lg">$</span>
-                    <input
-                      type="number"
-                      value={dealData.amount}
-                      onChange={(e) => setDealData(prev => ({ ...prev, amount: e.target.value }))}
-                      placeholder="0"
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-r-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex-1">
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Percentage</label>
-                  <div className="flex items-center">
-                    <input
-                      type="number"
-                      value={dealData.percentage}
-                      onChange={(e) => setDealData(prev => ({ ...prev, percentage: e.target.value }))}
-                      placeholder="0"
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-l-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    />
-                    <span className="text-2xl font-bold text-green-600 bg-green-50 dark:bg-green-900/20 px-4 py-2 rounded-r-lg">%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Scope, Membership, Type */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Scope</label>
-                  {loadingDropdowns ? (
-                    <div className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                      <Loader2 size={16} className="animate-spin" />
-                      Loading...
-                    </div>
-                  ) : (
-                    <select
-                      value={dealData.scope_id}
-                      onChange={(e) => setDealData(prev => ({ ...prev, scope_id: e.target.value }))}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    >
-                      <option value="">Select Scope</option>
-                      {discountScopes.map(scope => (
-                        <option key={scope.id} value={scope.id}>{scope.sco_name}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Membership</label>
-                  {loadingDropdowns ? (
-                    <div className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                      <Loader2 size={16} className="animate-spin" />
-                      Loading...
-                    </div>
-                  ) : (
-                    <select
-                      value={dealData.membership_id}
-                      onChange={(e) => setDealData(prev => ({ ...prev, membership_id: e.target.value }))}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    >
-                      <option value="">Select Membership</option>
-                      {membershipLevels.map(membership => (
-                        <option key={membership.id} value={membership.id}>{membership.level_name}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Type</label>
-                  {loadingDropdowns ? (
-                    <div className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                      <Loader2 size={16} className="animate-spin" />
-                      Loading...
-                    </div>
-                  ) : (
-                    <select
-                      value={dealData.type_id}
-                      onChange={(e) => setDealData(prev => ({ ...prev, type_id: e.target.value }))}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    >
-                      <option value="">Select Type</option>
-                      {discountTypes.map(type => (
-                        <option key={type.id} value={type.id}>{type.type_name}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              </div>
-
-              {/* Minimum Quantity, Spending, Allowed */}
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Minimum Quantity</label>
-                  <input
-                    type="number"
-                    value={dealData.minimum_quantity}
-                    onChange={(e) => setDealData(prev => ({ ...prev, minimum_quantity: e.target.value }))}
-                    placeholder="0"
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Minimum Spending</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={dealData.minimum_spending}
-                    onChange={(e) => setDealData(prev => ({ ...prev, minimum_spending: e.target.value }))}
-                    placeholder="$0.00"
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Quantity Allowed</label>
-                  <input
-                    type="number"
-                    value={dealData.quantity_allowed}
-                    onChange={(e) => setDealData(prev => ({ ...prev, quantity_allowed: e.target.value }))}
-                    placeholder="0"
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                  />
-                </div>
-              </div>
-
-              {/* Start and End Date */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Start Date</label>
-                  <input
-                    type="date"
-                    value={dealData.start_date}
-                    onChange={(e) => setDealData(prev => ({ ...prev, start_date: e.target.value }))}
-                    disabled={dealData.is_24_hours}
-                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 ${
-                      dealData.is_24_hours
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 cursor-not-allowed opacity-50'
-                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">End Date</label>
-                  <input
-                    type="date"
-                    value={dealData.end_date}
-                    onChange={(e) => setDealData(prev => ({ ...prev, end_date: e.target.value }))}
-                    disabled={dealData.is_24_hours}
-                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 ${
-                      dealData.is_24_hours
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 cursor-not-allowed opacity-50'
-                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* Start and End Time */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Start Time</label>
-                  <input
-                    type="time"
-                    value={dealData.start_time}
-                    onChange={(e) => setDealData(prev => ({ ...prev, start_time: e.target.value }))}
-                    disabled={dealData.is_24_hours}
-                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 ${
-                      dealData.is_24_hours
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 cursor-not-allowed opacity-50'
-                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-                    }`}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">End Time</label>
-                  <input
-                    type="time"
-                    value={dealData.end_time}
-                    onChange={(e) => setDealData(prev => ({ ...prev, end_time: e.target.value }))}
-                    disabled={dealData.is_24_hours}
-                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 ${
-                      dealData.is_24_hours
-                        ? 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500 cursor-not-allowed opacity-50'
-                        : 'bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
-                    }`}
-                  />
-                </div>
-              </div>
-
-              {/* 24 Hours Checkbox */}
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={dealData.is_24_hours}
-                  onChange={(e) => setDealData(prev => ({ 
-                    ...prev, 
-                    is_24_hours: e.target.checked,
-                    start_date: e.target.checked ? '' : prev.start_date,
-                    end_date: e.target.checked ? '' : prev.end_date,
-                    start_time: e.target.checked ? '' : prev.start_time,
-                    end_time: e.target.checked ? '' : prev.end_time
-                  }))}
-                  className="w-4 h-4 rounded cursor-pointer"
-                />
-                <span className="text-sm text-gray-700 dark:text-gray-300">24 Hours</span>
-              </label>
-
-              {/* Days of Week */}
-              <div>
-                <label className="block text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">Days of Week</label>
-                <div className="flex gap-2 flex-wrap">
-                  {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(day => (
-                    <button
-                      key={day}
-                      onClick={() => handleToggleDayOfWeek(day.toLowerCase())}
-                      className={`px-4 py-2 rounded-lg font-semibold transition-all ${
-                        dealData.days_of_week.includes(day.toLowerCase())
-                          ? 'bg-green-600 text-white'
-                          : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      {day}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-200 dark:border-gray-800 flex justify-end gap-3">
-              <button
-                onClick={() => setShowDealsModal(false)}
-                className="px-6 py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-all duration-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDealSubmit}
-                className="px-6 py-3 text-white rounded-lg transition-all duration-300 hover:scale-105 accent-bg accent-hover"
-              >
-                Submit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+     
 	  
-	  {/* Edit Product Modal */}
-      {showEditModal && editingProduct && (
+	  {/* Edit/Add Product Modal */}
+      {showEditModal && (isAddMode || editingProduct) && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-900 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Edit Product</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                {isAddMode ? 'Add New Product' : 'Edit Product'}
+              </h2>
               <button
-                onClick={() => setShowEditModal(false)}
+                onClick={() => {
+                  setShowEditModal(false);
+                  setIsAddMode(false);
+                  setUploadedImage(null);
+                  setUploadedImagePreview('');
+                  setSelectedShakeTier('');
+                }}
                 className="w-8 h-8 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-center transition-colors"
               >
                 <X size={20} />
@@ -2257,21 +1888,120 @@ export default function PageContent({ business }: { business: string }) {
 
                   {/* Flavor and Feeling */}
                   <div className="grid grid-cols-2 gap-4">
+                    {/* Dynamic Flavor Selection */}
                     <div>
-                      <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Select Flavor</label>
-                      <select
-                        value={editFormData.flavor}
-                        onChange={(e) => setEditFormData({...editFormData, flavor: e.target.value})}
-                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      >
-                        <option value="">Select Flavor</option>
-                        {editModalFlavors.map(flavor => (
-                          <option key={flavor.cat_id} value={flavor.cat_name}>
-                            {flavor.cat_name}
-                          </option>
-                        ))}
-                      </select>
+                      <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                        <a href="#" className="text-blue-600 hover:underline" onClick={(e) => { e.preventDefault(); }}>Add Flavor</a>
+                      </label>
+                      
+                      <div className="space-y-3">
+                        {/* Flavor Selection Dropdowns - Grid for pre-defined flavors */}
+                        <div className="grid grid-cols-2 gap-2">
+                          {/* First dropdown with + button */}
+                          <div className="flex gap-1">
+                            <select
+                              value={editFormData.flavor}
+                              onChange={(e) => setEditFormData({...editFormData, flavor: e.target.value})}
+                              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg 
+                                         focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 
+                                         text-gray-900 dark:text-gray-100 text-sm"
+                            >
+                              <option value="">Select Flavor</option>
+                              {editModalFlavors.map(flavor => (
+                                <option key={flavor.cat_id} value={flavor.cat_name}>
+                                  {flavor.cat_name}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => {
+                                if (editFormData.flavor && !editFormData.addedFlavors.includes(editFormData.flavor)) {
+                                  setEditFormData({
+                                    ...editFormData,
+                                    addedFlavors: [...editFormData.addedFlavors, editFormData.flavor],
+                                    flavor: ''
+                                  });
+                                }
+                              }}
+                              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                              title="Add selected flavor"
+                              type="button"
+                            >
+                              <Plus size={18} />
+                            </button>
+                          </div>
+
+                          {/* Manual input with + button */}
+                          <div className="flex gap-1">
+                            <input
+                              type="text"
+                              value={editFormData.newFlavorInput}
+                              onChange={(e) => setEditFormData({...editFormData, newFlavorInput: e.target.value})}
+                              onKeyPress={(e) => {
+                                if (e.key === 'Enter' && editFormData.newFlavorInput) {
+                                  if (!editFormData.addedFlavors.includes(editFormData.newFlavorInput)) {
+                                    setEditFormData({
+                                      ...editFormData,
+                                      addedFlavors: [...editFormData.addedFlavors, editFormData.newFlavorInput],
+                                      newFlavorInput: ''
+                                    });
+                                  }
+                                }
+                              }}
+                              placeholder="Or type flavor"
+                              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg 
+                                         focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 
+                                         text-gray-900 dark:text-gray-100 text-sm"
+                            />
+                            <button
+                              onClick={() => {
+                                if (editFormData.newFlavorInput && !editFormData.addedFlavors.includes(editFormData.newFlavorInput)) {
+                                  setEditFormData({
+                                    ...editFormData,
+                                    addedFlavors: [...editFormData.addedFlavors, editFormData.newFlavorInput],
+                                    newFlavorInput: ''
+                                  });
+                                }
+                              }}
+                              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                              title="Add manual flavor"
+                              type="button"
+                            >
+                              <Plus size={18} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Display Added Flavors as Tags */}
+                        {editFormData.addedFlavors.length > 0 && (
+                          <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg flex flex-wrap gap-2">
+                            {editFormData.addedFlavors.map((addedFlavor, index) => (
+                              <div
+                                key={index}
+                                className="bg-white dark:bg-gray-600 px-3 py-1 rounded-full 
+                                           flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
+                              >
+                                {addedFlavor}
+                                <button
+                                  onClick={() => {
+                                    setEditFormData({
+                                      ...editFormData,
+                                      addedFlavors: editFormData.addedFlavors.filter((_, i) => i !== index)
+                                    });
+                                  }}
+                                  className="text-red-500 hover:text-red-700 ml-1"
+                                  type="button"
+                                >
+                                  <X size={16} />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Feeling - Keep existing */}
                     <div>
                       <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Select Feeling Creative</label>
                       <select
@@ -2428,18 +2158,18 @@ export default function PageContent({ business }: { business: string }) {
                   {/* Toggles */}
                   <div className="grid grid-cols-2 gap-6">
                     <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Pos</label>
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Catalog</label>
                       <button
-                        onClick={() => setEditFormData({...editFormData, pos: !editFormData.pos})}
+                        onClick={() => setEditFormData({...editFormData, catalog: !editFormData.catalog})}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all ${
-                          editFormData.pos
+                          editFormData.catalog
                             ? 'accent-bg'
                             : 'bg-gray-300 dark:bg-gray-600'
                         }`}
                       >
                         <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            editFormData.pos ? 'translate-x-6' : 'translate-x-1'
+                            editFormData.catalog ? 'translate-x-6' : 'translate-x-1'
                           }`}
                         />
                       </button>
@@ -2516,6 +2246,7 @@ export default function PageContent({ business }: { business: string }) {
                   <button
                     onClick={() => {
                       setShowEditModal(false);
+                      setIsAddMode(false);
                       setUploadedImage(null);
                       setUploadedImagePreview('');
                       setSelectedShakeTier('');
@@ -2525,10 +2256,16 @@ export default function PageContent({ business }: { business: string }) {
                     Cancel
                   </button>
                   <button
-                    onClick={() => handleSaveProduct()}
+                    onClick={() => {
+                      if (isAddMode) {
+                        handleAddProduct();
+                      } else {
+                        handleSaveProduct();
+                      }
+                    }}
                     className="px-6 py-3 text-white rounded-lg transition-all duration-300 hover:scale-105 accent-bg accent-hover"
                   >
-                    Update
+                    {isAddMode ? 'Create Product' : 'Update'}
                   </button>
                 </div>
               </>
