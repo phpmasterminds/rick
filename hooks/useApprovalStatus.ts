@@ -7,6 +7,7 @@ interface UseApprovalStatusReturn {
   setUserGroupId: (groupId: number) => void;
   // isApproved is now derived from userGroupId: if groupId === 2, not approved
   isApproved: boolean; // true if userGroupId !== 2, false if userGroupId === 2
+  isMounted: boolean; // True only after client-side hydration
 }
 
 /**
@@ -15,16 +16,25 @@ interface UseApprovalStatusReturn {
  * - If user_group_id === 2 → NOT APPROVED
  * - If user_group_id !== 2 → APPROVED
  * 
+ * CRITICAL: This hook requires client-side only execution.
+ * It will NOT initialize during SSR, only after hydration.
+ * 
  * Usage:
- * const { userGroupId, isApproved, setUserGroupId } = useApprovalStatus();
+ * const { userGroupId, isApproved, setUserGroupId, isMounted } = useApprovalStatus();
+ * 
+ * // Wait for mount before rendering approval-dependent content
+ * if (!isMounted) return null;
  */
 export function useApprovalStatus(): UseApprovalStatusReturn {
   const [userGroupId, setUserGroupIdState] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
 
-  // Initialize from localStorage and set cookies
+  // Initialize from localStorage only after client-side hydration
   useEffect(() => {
     try {
+      setIsMounted(true);
+      
       const storedGroupId = localStorage.getItem('user_group_id');
       const groupId = storedGroupId ? parseInt(storedGroupId, 10) : null;
 
@@ -48,12 +58,16 @@ export function useApprovalStatus(): UseApprovalStatusReturn {
   // Update user group ID and sync to cookie
   const setUserGroupId = (groupId: number) => {
     setUserGroupIdState(groupId);
-    localStorage.setItem('user_group_id', groupId.toString());
-    Cookies.set('user_group_id', groupId.toString(), {
-      expires: 7,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Lax',
-    });
+    
+    // Only access localStorage if mounted (client-side)
+    if (isMounted && typeof window !== 'undefined') {
+      localStorage.setItem('user_group_id', groupId.toString());
+      Cookies.set('user_group_id', groupId.toString(), {
+        expires: 7,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'Lax',
+      });
+    }
   };
 
   // Derived: isApproved means user_group_id !== 2
@@ -63,6 +77,7 @@ export function useApprovalStatus(): UseApprovalStatusReturn {
     userGroupId,
     isApproved,
     isLoading,
+    isMounted,
     setUserGroupId,
   };
 }

@@ -347,7 +347,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
         /*if (api.pages_image_path) {
           // If contains %s, remove it to get base image (no size suffix)
           const relative = api.pages_image_path.replace('%s', '');
-          return `https://www.okcannashop.com/PF.Base/file/pic/pages/${relative}`;
+          return `https://www.api.natureshigh.com/PF.Base/file/pic/pages/${relative}`;
         }*/
 
         // If image_path is already a full URL, use it
@@ -358,7 +358,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
         // If an image server pattern exists (fallback)
         /*if (api.image_path && api.image_path.indexOf('/file/pic/pages/') > -1) {
           // If it's a relative path, try to prefix
-          return api.image_path.startsWith('http') ? api.image_path : `https://www.okcannashop.com/${api.image_path}`;
+          return api.image_path.startsWith('http') ? api.image_path : `https://www.api.natureshigh.com/${api.image_path}`;
         }*/
         // If cover_photo_id given, attempt to construct (best-effort)
         if (api.cover_photo_url) {
@@ -419,7 +419,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
       id: String(api.page_id ?? api.locs_id ?? api.claim_id ?? Math.random().toString(36).slice(2, 9)),
       name: api.title ?? api.full_name ?? api.locs_name ?? 'Unknown',
       slug: api.vanity_url ?? (api.title ? String(api.title).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '') : undefined),
-      logo: api.image_path && String(api.image_path).startsWith('http') ? api.image_path : (api.owner_user_image ? `https://www.okcannashop.com/PF.Base/file/pic/pages/${api.owner_user_image.replace('%s', '')}` : null),
+      logo: api.image_path && String(api.image_path).startsWith('http') ? api.image_path : (api.owner_user_image ? `https://www.api.natureshigh.com/PF.Base/file/pic/pages/${api.owner_user_image.replace('%s', '')}` : null),
       cover_image: tryResolveCover(),
       description: sanitizeDescription(api.text_parsed || api.text_parsed || ''),
       address: api.locs_street || null,

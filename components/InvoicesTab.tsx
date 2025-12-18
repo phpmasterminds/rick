@@ -198,6 +198,7 @@ export default function InvoicesTab({ registrationData }: { registrationData: Re
       amount_paid: invoice.total_amount,
       payment_notes: '',
       status_notes: '',
+      status: invoice.status,
     });
   };
 
@@ -220,19 +221,18 @@ export default function InvoicesTab({ registrationData }: { registrationData: Re
 
     try {
       setSubmitting(true);
-	  
-	  const response = await axios.post(
-          `/api/user/invoice-id?id=${adminModal.invoice.id}`,
-          {
-            invoice_id: adminModal.invoice.id,
-            status: formData.status === 'paid' ? 'paid' : 'partial',
-            payment_method: formData.payment_method || null,
-			amount_paid: formData.amount_paid,
-            notes: formData.payment_notes,
-			p_status: 'update-payment'
-          }
-        );
-		
+
+      const response = await axios.post(
+        `/api/user/invoice-id?id=${adminModal.invoice.id}`,
+        {
+          invoice_id: adminModal.invoice.id,
+          status: formData.status || 'paid',
+          payment_method: formData.payment_method || null,
+          amount_paid: formData.amount_paid,
+          notes: formData.payment_notes,
+          p_status: 'update-payment'
+        }
+      );
 
       if (response.data.status === 'success') {
         toast.success('Payment recorded successfully');
@@ -484,8 +484,19 @@ export default function InvoicesTab({ registrationData }: { registrationData: Re
                           {/* Record Payment */}
                           <button
                             onClick={() => openAdminModal(invoice, 'payment')}
-                            className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 hover:bg-green-200 rounded text-xs transition-colors"
-                            title="Record payment"
+                            disabled={invoice.status === 'paid' && !isOverdue}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs transition-colors ${
+                              invoice.status === 'paid' && !isOverdue
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-green-100 text-green-700 hover:bg-green-200'
+                            }`}
+                            title={
+                              invoice.status === 'paid' && !isOverdue
+                                ? 'Invoice is already paid'
+                                : isOverdue && invoice.status === 'paid'
+                                ? 'Record late payment'
+                                : 'Record payment'
+                            }
                           >
                             <DollarSign className="w-3 h-3" />
                             Payment
@@ -789,6 +800,27 @@ function PaymentModal({
                 ⚠️ Partial payment - remaining: ${(parseFloat(invoice.total_amount) - parseFloat(formData.amount_paid)).toFixed(2)}
               </p>
             )}
+          </div>
+
+          {/* Invoice Status */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Invoice Status
+            </label>
+            <select
+              value={formData.status || invoice.status}
+              onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+            >
+              {INVOICE_STATUSES.map(status => (
+                <option key={status.value} value={status.value}>
+                  {status.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-500 mt-1">
+              Current status: {invoice.status}
+            </p>
           </div>
 
           {/* Payment Notes */}

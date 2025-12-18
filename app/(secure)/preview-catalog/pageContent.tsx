@@ -131,9 +131,6 @@ export default function PageContent() {
 
       setLoading(true);
       setError(null);
-
-      console.log(`📥 Fetching products for page ${page}...`);
-
       // Try multiple possible endpoints
       let response;
       const endpoints = [
@@ -146,13 +143,10 @@ export default function PageContent() {
       let lastError: any = null;
       for (const endpoint of endpoints) {
         try {
-          console.log(`🔍 Trying endpoint: ${endpoint}`);
           response = await axios.get(endpoint);
-          console.log(`✅ Success! Endpoint: ${endpoint}`);
           break;
         } catch (err) {
           lastError = err;
-          console.log(`❌ Failed: ${endpoint}`);
           continue;
         }
       }
@@ -168,30 +162,21 @@ export default function PageContent() {
       if (response.data.data?.products && Array.isArray(response.data.data.products)) {
         productsData = response.data.data.products;
         total = response.data.data.total || 0;
-        console.log(`✅ Extracted from: data.data.products`);
       } else if (response.data.products && Array.isArray(response.data.products)) {
         productsData = response.data.products;
         total = response.data.total || 0;
-        console.log(`✅ Extracted from: data.products`);
       } else if (response.data.data && Array.isArray(response.data.data)) {
         productsData = response.data.data;
         total = response.data.total || 0;
-        console.log(`✅ Extracted from: data.data`);
       } else if (Array.isArray(response.data)) {
         productsData = response.data;
         total = response.data.length;
-        console.log(`✅ Extracted from: direct array`);
       }
-
-      console.log(`📊 Page ${page}: ${productsData.length} products received`);
-      console.log(`📊 Total available: ${total}`);
 
       // Filter only enabled products
       const enabledProducts = productsData.filter(
         (p: any) => p.enable_product === '1' || p.enable_product === 1
       );
-
-      console.log(`✅ Enabled products: ${enabledProducts.length}`);
 
       // Calculate total pages
       const calculatedTotalPages = total > 0 ? Math.ceil(total / 30) : 1;
@@ -206,7 +191,6 @@ export default function PageContent() {
 
       // Check if total changed - if so, clear cache and update pagination
       if (lastTotalRef.current !== 0 && lastTotalRef.current !== total) {
-        console.log(`⚠️ Total products changed from ${lastTotalRef.current} to ${total}. Updating pagination...`);
         pageCache.current.clear();
         pageCache.current.set(page, cacheData);
       }
@@ -218,9 +202,6 @@ export default function PageContent() {
       setTotalPages(calculatedTotalPages);
       setCurrentPage(page);
     } catch (err: any) {
-      console.error('❌ Error fetching products:', err.message);
-      console.error('Error response:', err.response?.data);
-      
       setError(err.message || 'Failed to fetch products');
       toast.error('Failed to load products', {
         position: 'bottom-center',

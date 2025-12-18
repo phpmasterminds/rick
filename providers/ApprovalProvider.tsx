@@ -1,6 +1,6 @@
 'use client';
 
-import React, { ReactNode, useEffect } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 import { useApprovalStatus } from '@/hooks/useApprovalStatus';
 
 interface ApprovalProviderProps {
@@ -11,16 +11,35 @@ interface ApprovalProviderProps {
  * Provider component that initializes approval status on app load
  * Must wrap your entire app or at least the root layout
  * 
- * Usage in layout.tsx:
+ * IMPORTANT: This provider is "use client" only and will NOT block
+ * SSR. It initializes asynchronously after client-side hydration.
+ * 
+ * Usage in layout.tsx (or providers.tsx):
  * <ApprovalProvider>
  *   {children}
  * </ApprovalProvider>
  */
 export function ApprovalProvider({ children }: ApprovalProviderProps) {
-  const { isLoading } = useApprovalStatus();
+  const { isMounted, isLoading } = useApprovalStatus();
+  const [showContent, setShowContent] = useState(false);
 
-  // Prevent any content from rendering until approval status is initialized
-  if (isLoading) {
+  // Only show loading screen if we're still initializing after mount
+  useEffect(() => {
+    // After component mounts and initializes, show content
+    if (!isLoading) {
+      setShowContent(true);
+    }
+  }, [isLoading]);
+
+  // During hydration mismatch window, render minimal content
+  // Don't block rendering with loading screen - children render immediately
+  if (!isMounted) {
+    return <>{children}</>;
+  }
+
+  // Once mounted and fully initialized, render content
+  // (Optional: show loading state briefly, but it will be very quick)
+  if (isLoading && !showContent) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
