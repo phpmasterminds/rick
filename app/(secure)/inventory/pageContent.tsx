@@ -1472,7 +1472,6 @@ export default function PageContent() {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Item Name</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Item Identifiers</th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Published</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Price</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Deals</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Par</th>
@@ -1503,13 +1502,6 @@ export default function PageContent() {
                           <div className="font-medium text-gray-900 dark:text-gray-100">{product.product_code}</div>
                           <div className="text-xs text-gray-400 dark:text-gray-500">{product.batch_id}</div>
                         </div>
-                    </td>
-                   
-                    <td className="px-4 py-4 text-center">
-                      <PublishedToggle 
-                        product={product}
-                        onToggle={handleTogglePublish}
-                      />
                     </td>
                     <td className="px-4 py-4 text-right font-medium text-gray-900 dark:text-gray-100">
 						<input 

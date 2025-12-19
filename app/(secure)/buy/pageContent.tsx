@@ -88,6 +88,8 @@ export default function PageContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState('default');
+  const [sellers, setSellers] = useState<string[]>([]);
+  const [selectedSeller, setSelectedSeller] = useState('All');
   
   // Pagination state - 30 products per page (from API)
   const [currentPage, setCurrentPage] = useState(1);
@@ -109,10 +111,10 @@ export default function PageContent() {
     fetchCategories();
   }, []);
 
-  // Apply filters when products, search, category, or sort changes
+  // Apply filters when products, search, category, sort, or seller changes
   useEffect(() => {
     applyFiltersAndSort();
-  }, [products, searchTerm, selectedCategory, sortBy]);
+  }, [products, searchTerm, selectedCategory, sortBy, selectedSeller]);
 
   // Fetch products for a specific page with caching
   const fetchProducts = async (page: number = 1) => {
@@ -247,6 +249,21 @@ export default function PageContent() {
     }
   };
 
+  // Extract unique sellers from products
+  useEffect(() => {
+    if (products.length > 0) {
+      const uniqueSellers = Array.from(
+        new Set(
+          products
+            .filter((p) => p.bus_title && p.bus_title.trim())
+            .map((p) => p.bus_title)
+        )
+      ).sort() as string[];
+      setSellers(uniqueSellers);
+      console.log(`✅ Extracted ${uniqueSellers.length} unique sellers`);
+    }
+  }, [products]);
+
   // Apply filters and sort
   const applyFiltersAndSort = useCallback(() => {
     let filtered = [...products];
@@ -265,6 +282,11 @@ export default function PageContent() {
       filtered = filtered.filter((p) => p.cat_name === selectedCategory);
     }
 
+    // Filter by seller
+    if (selectedSeller !== 'All') {
+      filtered = filtered.filter((p) => p.bus_title === selectedSeller);
+    }
+
     // Sort
     switch (sortBy) {
       case 'price-asc':
@@ -281,7 +303,7 @@ export default function PageContent() {
     }
 
     setFilteredProducts(filtered);
-  }, [products, searchTerm, selectedCategory, sortBy]);
+  }, [products, searchTerm, selectedCategory, sortBy, selectedSeller]);
 
   // Handle previous page
   const handlePreviousPage = () => {
@@ -362,7 +384,33 @@ export default function PageContent() {
     setSelectedProduct(null);
   };
 
+  // Handle previous product in modal
+  const handlePreviousProduct = () => {
+    const currentIndex = displayProducts.findIndex(
+      (p) => p.product_id === selectedProduct?.product_id
+    );
+    if (currentIndex > 0) {
+      setSelectedProduct(displayProducts[currentIndex - 1]);
+    }
+  };
+
+  // Handle next product in modal
+  const handleNextProduct = () => {
+    const currentIndex = displayProducts.findIndex(
+      (p) => p.product_id === selectedProduct?.product_id
+    );
+    if (currentIndex < displayProducts.length - 1) {
+      setSelectedProduct(displayProducts[currentIndex + 1]);
+    }
+  };
+
   const displayProducts = filteredProducts.length > 0 ? filteredProducts : products;
+
+  // Calculate current product index and total for modal
+  const currentProductIndex = displayProducts.findIndex(
+    (p) => p.product_id === selectedProduct?.product_id
+  );
+  const totalProductsInModal = displayProducts.length;
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
@@ -414,6 +462,7 @@ export default function PageContent() {
             ))}
           </div>
 
+
           {/* Sort Dropdown */}
           <div className="flex items-center gap-2">
             <Filter size={20} className="text-gray-600 dark:text-gray-400" />
@@ -426,6 +475,20 @@ export default function PageContent() {
               <option value="price-asc">Price: Low to High</option>
               <option value="price-desc">Price: High to Low</option>
               <option value="name">Name: A to Z</option>
+            </select>
+
+            {/* Seller Dropdown */}
+            <select
+              value={selectedSeller}
+              onChange={(e) => setSelectedSeller(e.target.value)}
+              className="px-4 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+            >
+              <option value="All">All Sellers</option>
+              {sellers.map((seller) => (
+                <option key={seller} value={seller}>
+                  {seller}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -572,7 +635,7 @@ export default function PageContent() {
           onClick={handleCloseModal}
         >
           <div
-            className="bg-white dark:bg-slate-900 rounded-lg max-w-2xl w-full max-h-96 overflow-y-auto"
+            className="bg-white dark:bg-slate-900 rounded-lg max-w-2xl w-full max-h-[85vh] overflow-y-auto flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
@@ -587,7 +650,7 @@ export default function PageContent() {
             </div>
 
             {/* Modal Content */}
-            <div className="p-6">
+            <div className="p-6 flex-1 overflow-y-auto">
               <div className="grid grid-cols-2 gap-6">
                 {/* Image */}
                 <div>
@@ -664,6 +727,31 @@ export default function PageContent() {
                   </p>
                 </div>
               )}
+            </div>
+
+            {/* Modal Footer - Navigation */}
+            <div className="sticky bottom-0 flex items-center justify-between p-4 border-t dark:border-slate-700 bg-white dark:bg-slate-900">
+              <button
+                onClick={handlePreviousProduct}
+                disabled={currentProductIndex <= 0}
+                className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg font-medium hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                <ChevronLeft size={20} />
+                Previous
+              </button>
+
+              <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                {currentProductIndex + 1} of {totalProductsInModal}
+              </span>
+
+              <button
+                onClick={handleNextProduct}
+                disabled={currentProductIndex >= displayProducts.length - 1}
+                className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg font-medium hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                Next
+                <ChevronRight size={20} />
+              </button>
             </div>
           </div>
         </div>
