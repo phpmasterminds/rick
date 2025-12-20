@@ -14,6 +14,7 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import ProductCard from './components/ProductCard';
 import { useShopCart, CartItem } from "../../contexts/ShopCartContext";
+import { cookies } from "next/headers";
 
 // Helper function to get product image URL
 const getProductImageUrl = (product: any): string => {
@@ -74,7 +75,7 @@ interface PageCache {
   totalPages: number;
 }
 
-export default function PageContent() {
+export default function PageContent({ business }: { business: string }) {
   const { addToCart } = useShopCart();
 
   // Products state
@@ -109,7 +110,7 @@ export default function PageContent() {
   useEffect(() => {
     fetchProducts(1);
     fetchCategories();
-  }, []);
+  }, [business]);
 
   // Apply filters when products, search, category, sort, or seller changes
   useEffect(() => {
@@ -121,25 +122,22 @@ export default function PageContent() {
     try {
       // Check if page is already cached
       const cachedPage = pageCache.current.get(page);
-      if (cachedPage) {
-        console.log(`📦 Using cached data for page ${page}`);
+      /*if (cachedPage) {
         setProducts(cachedPage.products);
         setTotalProducts(cachedPage.total);
         setTotalPages(cachedPage.totalPages);
         setCurrentPage(page);
         setLoading(false);
         return;
-      }
+      }*/
 
       setLoading(true);
       setError(null);
-
-      console.log(`📥 Fetching products for page ${page}...`);
-
       // Try multiple possible endpoints
       let response;
+		
       const endpoints = [
-        `/api/business/business-products?page=${page}&limit=30`,
+        `/api/business/business-products?page=${page}&limit=30&section=buy-again&slug=${business}`,
         `/api/business/products?page=${page}&limit=30`,
         `/api/products?page=${page}&limit=30`,
         `/api/shop/products?page=${page}&limit=30`,
@@ -148,13 +146,10 @@ export default function PageContent() {
       let lastError: any = null;
       for (const endpoint of endpoints) {
         try {
-          console.log(`🔍 Trying endpoint: ${endpoint}`);
           response = await axios.get(endpoint);
-          console.log(`✅ Success! Endpoint: ${endpoint}`);
           break;
         } catch (err) {
           lastError = err;
-          console.log(`❌ Failed: ${endpoint}`);
           continue;
         }
       }
@@ -170,30 +165,22 @@ export default function PageContent() {
       if (response.data.data?.products && Array.isArray(response.data.data.products)) {
         productsData = response.data.data.products;
         total = response.data.data.total || 0;
-        console.log(`✅ Extracted from: data.data.products`);
       } else if (response.data.products && Array.isArray(response.data.products)) {
         productsData = response.data.products;
         total = response.data.total || 0;
-        console.log(`✅ Extracted from: data.products`);
       } else if (response.data.data && Array.isArray(response.data.data)) {
         productsData = response.data.data;
         total = response.data.total || 0;
-        console.log(`✅ Extracted from: data.data`);
       } else if (Array.isArray(response.data)) {
         productsData = response.data;
         total = response.data.length;
-        console.log(`✅ Extracted from: direct array`);
       }
 
-      console.log(`📊 Page ${page}: ${productsData.length} products received`);
-      console.log(`📊 Total available: ${total}`);
-
       // Filter only enabled products
-      const enabledProducts = productsData.filter(
+      /*const enabledProducts = productsData.filter(
         (p: any) => p.enable_product === '1' || p.enable_product === 1
-      );
-
-      console.log(`✅ Enabled products: ${enabledProducts.length}`);
+      );*/
+	  const enabledProducts = productsData;
 
       // Calculate total pages
       const calculatedTotalPages = total > 0 ? Math.ceil(total / 30) : 1;
@@ -208,7 +195,6 @@ export default function PageContent() {
 
       // Check if total changed - if so, clear cache and update pagination
       if (lastTotalRef.current !== 0 && lastTotalRef.current !== total) {
-        console.log(`⚠️ Total products changed from ${lastTotalRef.current} to ${total}. Updating pagination...`);
         pageCache.current.clear();
         pageCache.current.set(page, cacheData);
       }
@@ -220,9 +206,7 @@ export default function PageContent() {
       setTotalPages(calculatedTotalPages);
       setCurrentPage(page);
     } catch (err: any) {
-      console.error('❌ Error fetching products:', err.message);
-      console.error('Error response:', err.response?.data);
-      
+     
       setError(err.message || 'Failed to fetch products');
       toast.error('Failed to load products', {
         position: 'bottom-center',
@@ -236,13 +220,11 @@ export default function PageContent() {
   // Fetch categories
   const fetchCategories = async () => {
     try {
-      console.log('📥 Fetching categories...');
       const response = await axios.get('/api/business/non-empty-categories');
       
       if (response.data.data) {
         const categoryArray = Object.values(response.data.data) as Category[];
         setCategories(categoryArray);
-        console.log(`✅ Loaded ${categoryArray.length} categories`);
       }
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -260,7 +242,6 @@ export default function PageContent() {
         )
       ).sort() as string[];
       setSellers(uniqueSellers);
-      console.log(`✅ Extracted ${uniqueSellers.length} unique sellers`);
     }
   }, [products]);
 
@@ -417,8 +398,7 @@ export default function PageContent() {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2 dark:text-white">Shop Products</h1>
-          <p className="text-gray-600 dark:text-gray-400">Browse and add products</p>
+          <h1 className="text-3xl font-bold mb-2 dark:text-white">Buy Again Products</h1>
         </div>
 
         {/* Search and Filter Bar */}
@@ -556,10 +536,10 @@ export default function PageContent() {
                   {/* Product Info */}
                   <div className="p-3">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{product.cat_name}</p>
-                    <h3 className="font-semibold text-sm dark:text-white line-clamp-2 mb-2">
+                    <h3 className="font-semibold text-sm dark:text-white line-clamp-2 mb-1">
                       {product.name}
                     </h3>
-					{product.bus_title && (
+                    {product.bus_title && (
                       <p className="text-xs text-gray-600 dark:text-gray-300 mb-2 font-medium">
                         {product.bus_title}
                       </p>

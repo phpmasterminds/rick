@@ -12,11 +12,12 @@ export async function GET(req: Request) {
 	const order_id = searchParams.get("order_id");
 	const page = searchParams.get("page") || "1";
 	const is_from = searchParams.get("is_from") || "pos";
-	const limit = searchParams.get("limit") || "30";
+	const limit = searchParams.get("limit") || "10";
 	const wholesale = searchParams.get("wholesale") || "0";
+	const status = searchParams.get("status") || "";
 
     // 🔹 Replace this with your external API path
-    const response = await axios.get("/business/whole-sale-order",{params: { business, page, is_from, limit, wholesale  }});
+    const response = await axios.get("/business/whole-sale-order",{params: { business, page, is_from, limit, wholesale, status  }});
 
     return NextResponse.json(response.data);
   } catch (error: any) {

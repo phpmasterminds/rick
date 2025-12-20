@@ -132,7 +132,11 @@ export default function Sidebar({
       "invoice",
       "admin",
       "pos",
-	  "preview-catalog"
+	  "preview-catalog",
+	  "place-order",
+	  "new-orders",
+	  "order-history",
+	  "buy-again"
     ];
     
     // First segment that is not a known route is the vanity URL
@@ -381,7 +385,8 @@ export default function Sidebar({
       { id: "messages", icon: Megaphone, label: "Messages", path: "/messages" },
       { id: "inventory", icon: Package, label: "Inventory", path: "/inventory" },
       { id: "preview-catalog", icon: Box, label: "Preview Catalog", path: "/preview-catalog" },
-      { id: "new-received", icon: ClipboardList, label: "New Orders", path: "/orders" },
+      { id: "place-order", icon: ShoppingCart, label: "Place Order", path: "/place-order" },
+      { id: "new-orders", icon: ClipboardList, label: "New Orders", path: "/new-orders" },
       { id: "order-history", icon: FileText, label: "Order History", path: "/order-history" },      
       { id: "pricing", icon: CreditCard, label: "Pricing & Discounts", path: "/pricing" },
 	  { id: "customers", icon: Users, label: "My Customers", path: "/customers" },
