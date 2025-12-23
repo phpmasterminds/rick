@@ -108,6 +108,7 @@ export default function Sidebar({
       "auth",
       "shop",
       "buy",
+	  "cart",
       "orders",
       "reports",
       "settings",
@@ -136,7 +137,8 @@ export default function Sidebar({
 	  "place-order",
 	  "new-orders",
 	  "order-history",
-	  "buy-again"
+	  "buy-again",
+	  "open-orders"
     ];
     
     // First segment that is not a known route is the vanity URL
@@ -504,7 +506,7 @@ export default function Sidebar({
 		  { id: "messages", icon: Megaphone, label: "Messages", path: `/message` },
 		  { id: "go-shopping", icon: Store, label: "Go Shopping", path: `/buy` },
 		  { id: "buy-again", icon: Store, label: "Buy Again", path: `/buy-again` },
-		  { id: "open_orders", icon: ClipboardList, label: "Open Orders", path: `/order-list` },
+		  { id: "open-orders", icon: ClipboardList, label: "Open Orders", path: `/open-orders` },
 		  { id: "order_history", icon: FileText, label: "Order History", path: `/order-history` },
 		  { id: "vendors", icon: Building, label: "My Vendors", path: `/vendors` },
 		  { id: "reports", icon: BarChart, label: "Reports", path: `/reports` },

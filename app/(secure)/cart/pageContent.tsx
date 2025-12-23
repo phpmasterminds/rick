@@ -5,6 +5,7 @@ import { ShoppingCart, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { useShopCart } from "../../contexts/ShopCartContext";
 import axios from "axios";
+import Cookies from 'js-cookie';
 import CartItemsByBusiness from './components/CartItemsByBusiness';
 import CartSummary from './components/CartSummary';
 import { toast } from 'react-toastify';
@@ -21,8 +22,6 @@ export default function PageContent() {
   } = useShopCart();
 
   const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false);
-  const [selectedPageId, setSelectedPageId] = useState<string | null>(null); // ✨ Changed to string
-  const [selectedBusinessUserId, setSelectedBusinessUserId] = useState<string | null>(null); // ✨ Changed to string
   const [orderNotes, setOrderNotes] = useState('');
 
   // ✨ FIX: Provide default value for undefined business
@@ -38,69 +37,26 @@ export default function PageContent() {
     {} as Record<string, typeof cartItems>
   );
 
-  // ✨ FIXED: Convert all IDs to strings for consistent comparison
-  const uniqueBusinesses = Array.from(
-    new Map(
-      cartItems
-        .filter(item => item.page_id) // Only require page_id exists
-        .map(item => {
-          // ✨ Convert page_id to string for consistent keys
-          const pageIdString = String(item.page_id);
-          const businessUserId = item.business_user_id ? String(item.business_user_id) : null;
-          
-          // Build business name with fallback
-          const businessName = item.business?.trim() || `Business ${pageIdString}`;
-          
-          return [
-            pageIdString, // Use string as unique key
-            {
-              business: businessName,
-              page_id: pageIdString, // ✨ Store as string
-              business_user_id: businessUserId, // ✨ Store as string or null
-            }
-          ];
-        })
-    ).values()
-  );
+  // ✨ Get page_id from cart items (all items should have same page_id or we handle multi-page orders)
+  const getPageIdsFromCart = () => {
+    const pageIds = new Set(cartItems.map(item => item.page_id).filter(Boolean));
+    return Array.from(pageIds);
+  };
 
-  console.log('🔍 Unique businesses extracted:', uniqueBusinesses);
-  console.log('📦 Cart items for reference:', cartItems);
+  const pageIds = getPageIdsFromCart();
 
   const cartTotal = getCartTotal();
   const itemCount = getCartItemsCount();
   const businessCount = Object.keys(itemsByBusiness).length;
 
-  // ✨ Handle business selection - capture both IDs
-  const handleBusinessChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const pageId = e.target.value || null; // ✨ Keep as string from dropdown
-    
-    if (pageId) {
-      setSelectedPageId(pageId);
-      
-      // ✨ Find the selected business - compare strings to strings
-      const selectedBusiness = uniqueBusinesses.find(b => String(b.page_id) === String(pageId));
-      
-      console.log('🎯 Looking for business with page_id:', pageId);
-      console.log('🔗 Found business:', selectedBusiness);
-      
-      // Set business_user_id (could be null, that's OK)
-      setSelectedBusinessUserId(selectedBusiness?.business_user_id || null);
-      
-      console.log('✅ Business selected:', {
-        business: selectedBusiness?.business,
-        pageId: selectedBusiness?.page_id,
-        businessUserId: selectedBusiness?.business_user_id || 'Not provided (will use page_id fallback)'
-      });
-    } else {
-      setSelectedPageId(null);
-      setSelectedBusinessUserId(null);
-    }
-  };
+  // ✨ Log page IDs from cart for debugging
+  console.log('🔍 Page IDs from cart items:', pageIds);
+  console.log('📦 Cart items for reference:', cartItems);
 
   const handleCheckout = async () => {
-    // ✨ Validation: Only require selectedPageId
-    if (!selectedPageId) {
-      toast.error('Please select a business for your order', {
+    // ✨ Validation: Ensure all cart items have page_id
+    if (!pageIds || pageIds.length === 0) {
+      toast.error('Cart items are missing page_id. Please contact support.', {
         position: 'top-right',
         autoClose: 3000,
       });
@@ -110,21 +66,39 @@ export default function PageContent() {
     setIsCheckoutProcessing(true);
 
     try {
-      // ✨ Get the selected business name for reference
-      const selectedBusiness = uniqueBusinesses.find(b => String(b.page_id) === String(selectedPageId));
-      const businessName = selectedBusiness?.business || `Business ${selectedPageId}`;
+      // ✨ Extract vanity_url from cookie (the business identifier)
+      const vanityUrl = Cookies.get('vanity_url') || null;
 
-      // Prepare checkout payload with all cart items and their values
+      if (!vanityUrl) {
+        toast.error('Business identifier (vanity_url) not found. Please try again.', {
+          position: 'top-right',
+          autoClose: 3000,
+        });
+        setIsCheckoutProcessing(false);
+        return;
+      }
+
+      // ✨ Extract business_user_id from first item (or use page_id as fallback)
+      const businessUserIdMap = new Map<string, string | null>();
+      cartItems.forEach(item => {
+        const pageIdKey = String(item.page_id);
+        if (item.page_id && !businessUserIdMap.has(pageIdKey)) {
+          businessUserIdMap.set(pageIdKey, item.business_user_id ? String(item.business_user_id) : null);
+        }
+      });
+
+      // ✨ Prepare checkout payload with all cart items and their page_ids
       const checkoutPayload = {
         items: cartItems.map(item => ({
-          id: item.productId, // ✨ Use productId as the item ID
+          id: item.productId,
           name: item.name,
           quantity: item.quantity,
           price: item.price,
           subtotal: item.quantity * item.price,
-          business: item.business,
+          business: vanityUrl, // ✨ Use vanity_url from cookie as business identifier
           product_id: item.productId,
-          page_id: item.page_id,
+          page_id: item.page_id, // ✨ Each item carries its own page_id
+          business_user_id: item.business_user_id, // ✨ Each item carries its own business_user_id
           is_sample: item.is_sample,
           sample_order: item.sample_order,
           total: item.quantity * item.price,
@@ -136,20 +110,20 @@ export default function PageContent() {
           totalAmount: cartTotal,
           currency: 'USD',
         },
-        selected_page_id: selectedPageId, // ✨ Send as string (or convert to int if needed)
-        selected_business_name: businessName, // ✨ Business name for clarity
-        selected_business_user_id: selectedBusinessUserId || selectedPageId, // ✨ Fallback to page_id
+        vanity_url: vanityUrl, // ✨ Top-level business identifier
+        page_ids: pageIds, // ✨ Array of all page_ids in the order
+        business_user_ids: Object.fromEntries(businessUserIdMap), // ✨ Map of page_id -> business_user_id
         order_notes: orderNotes,
         timestamp: new Date().toISOString(),
       };
 
       console.log('📤 Checkout payload:', checkoutPayload);
+      console.log('🎯 Business User ID Map:', Object.fromEntries(businessUserIdMap));
+      console.log('🏪 Vanity URL (Business):', vanityUrl);
 
       // Send checkout request to your API
-      // ✨ Axios automatically throws errors for non-2xx status codes
       const response = await axios.post('/api/business/master-catalog-cart', checkoutPayload);
 
-      // ✨ Axios response data is accessed via response.data
       const result = response.data;
       
       toast.success('Order placed successfully! You will be redirected to payment.', {
@@ -242,53 +216,6 @@ export default function PageContent() {
             />
           ))}
 
-          {/* ✨ Business Selection Dropdown */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="mb-4">
-              <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                Select Business for Order
-                <span className="text-red-600 dark:text-red-400 ml-1">*</span>
-              </label>
-              <select
-                value={selectedPageId || ''}
-                onChange={handleBusinessChange}
-                className={`w-full px-4 py-3 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 transition-all ${
-                  selectedPageId
-                    ? 'border-green-500 dark:border-green-500 focus:ring-green-500'
-                    : 'border-gray-300 dark:border-gray-600 focus:ring-accent-500'
-                } ${!selectedPageId ? 'border-red-500 dark:border-red-500' : ''}`}
-              >
-                <option value="">-- Choose a Business --</option>
-                {uniqueBusinesses.length > 0 ? (
-                  uniqueBusinesses.map((item) => (
-                    <option key={item.page_id} value={item.page_id}>
-                      {item.business} (ID: {item.page_id})
-                    </option>
-                  ))
-                ) : (
-                  <option disabled>No businesses available</option>
-                )}
-              </select>
-              {!selectedPageId && (
-                <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                  ⚠️ Please select a business to proceed
-                </p>
-              )}
-              {selectedPageId && (
-                <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                  ✓ Business selected (Page ID: {selectedPageId})
-                </p>
-              )}
-              
-              {/* ✨ Debug info - Remove in production */}
-              {uniqueBusinesses.length === 0 && (
-                <div className="mt-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-xs text-yellow-800 dark:text-yellow-300">
-                  ⚠️ No businesses found in cart. Ensure cart items have page_id populated.
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* ✨ Order Notes Section */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
@@ -315,7 +242,6 @@ export default function PageContent() {
             onCheckout={handleCheckout}
             onClear={clearCart}
             isProcessing={isCheckoutProcessing}
-            isBusinessSelected={!!selectedPageId}
           />
         </div>
       </div>

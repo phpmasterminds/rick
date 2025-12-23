@@ -11,7 +11,6 @@ interface CartSummaryProps {
   onClear: () => void;
   isProcessing?: boolean;
   businessCount: number;
-  isBusinessSelected?: boolean; // ✨ NEW: Business selection state
 }
 
 export default function CartSummary({
@@ -21,7 +20,6 @@ export default function CartSummary({
   onClear,
   isProcessing = false,
   businessCount,
-  isBusinessSelected = false, // ✨ NEW: Default to false
 }: CartSummaryProps) {
   const [showConfirm, setShowConfirm] = useState(false);
 
@@ -71,15 +69,7 @@ export default function CartSummary({
         </p>
       </div>
 
-      {/* ✨ NEW: Business Selection Warning */}
-      {!isBusinessSelected && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 mb-4 flex gap-2">
-          <AlertCircle size={16} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-red-800 dark:text-red-300">
-            Please select a business above to proceed with checkout
-          </p>
-        </div>
-      )}
+      {/* ✨ REMOVED: Business Selection Warning - page_id now comes from cart items */}
 
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
         <p className="text-xs text-blue-800 dark:text-blue-300">
@@ -91,8 +81,8 @@ export default function CartSummary({
       <div className="space-y-2">
         <button
           onClick={onCheckout}
-          disabled={isProcessing || itemCount === 0 || !isBusinessSelected}
-          className="w-full bg-accent-600 hover:bg-accent-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+          disabled={isProcessing || itemCount === 0}
+          className="w-full bg-teal-600 dark:bg-teal-500 hover:bg-teal-700 dark:hover:bg-teal-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center gap-2 z-10 relative"
         >
           {isProcessing ? (
             <>
