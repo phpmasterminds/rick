@@ -11,6 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Page() {
   const cookieStore = await cookies();
   const slug = cookieStore.get('vanity_url')?.value || '';
+  const typeid = cookieStore.get('type_id')?.value || '';
 
-  return <PageContent business={slug} />;
+  return <PageContent business={slug} typeid={typeid} />;
 }

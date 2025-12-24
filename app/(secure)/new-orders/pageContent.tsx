@@ -668,6 +668,13 @@ export default function OrderPageContent({ business }: { business: string }) {
     try {
       // API call would go here
       toast.success('Order status updated');
+	  
+	  const response = await axios.put(`/api/business/order-items/change-order-status/`, {
+        business,
+        order_id: orderId,
+        order_status: newStatus,
+      });
+	  
       setOrders((prev) =>
         prev.map((order) =>
           order.order_id === orderId ? { ...order, order_status: newStatus } : order

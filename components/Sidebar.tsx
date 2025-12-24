@@ -138,7 +138,8 @@ export default function Sidebar({
 	  "new-orders",
 	  "order-history",
 	  "buy-again",
-	  "open-orders"
+	  "open-orders",
+	  "messages"
     ];
     
     // First segment that is not a known route is the vanity URL
@@ -503,7 +504,7 @@ export default function Sidebar({
 	  return [
 		  // Business menus
 		  { id: "dashboard", icon: Home, label: "Overview", path: `/dashboard` },
-		  { id: "messages", icon: Megaphone, label: "Messages", path: `/message` },
+		  { id: "messages", icon: Megaphone, label: "Messages", path: `/messages` },
 		  { id: "go-shopping", icon: Store, label: "Go Shopping", path: `/buy` },
 		  { id: "buy-again", icon: Store, label: "Buy Again", path: `/buy-again` },
 		  { id: "open-orders", icon: ClipboardList, label: "Open Orders", path: `/open-orders` },

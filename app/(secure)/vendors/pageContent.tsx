@@ -58,6 +58,7 @@ interface Customer {
   contact_email?: string;
   office_phone?: string;
   business_url?: string;
+  vanity_url?: string;
   state_name?: string;
   primary_email?: string;
   first_name?: string;
@@ -125,7 +126,8 @@ export default function CustomerListPage() {
 	useEffect(() => {
 		setCurrentVanityUrl(getCookie('vanity_url'));
 	}, []);
-    useEffect(() => {
+	
+  useEffect(() => {
     // Fetch customers on component mount
     if (aCurrentVanityUrl) {
 		fetchCustomers(1);
@@ -164,23 +166,75 @@ export default function CustomerListPage() {
     setCurrentPage(1);
   }, [searchTerm, customers, sortColumn, sortDirection]);
 
+  // Transform API response to Customer interface
+  const mapApiResponseToCustomer = (apiData: any): Customer => {
+    const addressDetail = apiData.address_detail || {};
+    
+    return {
+      customer_id: apiData.page_id || '',
+      account_id: apiData.page_id || '',
+      page_id: apiData.page_id || '',
+      account_name: apiData.title || apiData.locs_name || '',
+      website: addressDetail.business_website || apiData.info_website || '',
+      email: [], // API doesn't provide structured email array
+      billing_street: addressDetail.address || apiData.locs_street || '',
+      billing_city: addressDetail.locs_city || apiData.locs_city || '',
+      billing_state: addressDetail.country_child_id || apiData.country_child_id || '',
+      billing_postal_code: addressDetail.locs_zip || apiData.locs_zip || '',
+      billing_phone: addressDetail.contact_phone || apiData.locs_phone || '',
+      shipping_street: addressDetail.address || apiData.locs_street || '',
+      shipping_city: addressDetail.locs_city || apiData.locs_city || '',
+      shipping_state: addressDetail.country_child_id || apiData.country_child_id || '',
+      shipping_postal_code: addressDetail.locs_zip || apiData.locs_zip || '',
+      license_type: addressDetail.license_information?.[0]?.license_issued || '',
+      license_number: addressDetail.license_information?.[0]?.license_number || '',
+      expiration_date: '',
+      annual_revenue: '',
+      contact_first_name: addressDetail.contact_name || '',
+      contact_last_name: addressDetail.last_name || '',
+      contact_office_phone: addressDetail.contact_phone || '',
+      contact_mobile: '',
+      contact_job_title: '',
+      contact_department: '',
+      contact_address: addressDetail.address || apiData.locs_street || '',
+      contact_city: addressDetail.locs_city || apiData.locs_city || '',
+      contact_state: addressDetail.country_child_id || apiData.country_child_id || '',
+      contact_postal_code: addressDetail.locs_zip || apiData.locs_zip || '',
+      contact_account_name: apiData.title || apiData.locs_name || '',
+      contact_fax: addressDetail.locs_fax || apiData.locs_fax || '',
+      contact_description: '',
+      contact_company_name: apiData.title || apiData.locs_name || '',
+      contact_name: addressDetail.contact_name || '',
+      contact_email: addressDetail.email || apiData.locs_email || '',
+      office_phone: addressDetail.contact_phone || apiData.locs_phone || '',
+      business_url: addressDetail.business_url || '',
+      vanity_url: apiData.vanity_url || '',
+    };
+  };
+
   // Fetch customers with pagination
   const fetchCustomers = async (page: number = 1) => {
     setLoading(true);
     try {
 
-		
-      const response = await axios.get(
-        `/api/business/customers?page=${page}&limit=${itemsPerPage}&business=${aCurrentVanityUrl}`
-      );
+		const response = await axios.get(
+		`/api/business/vendors?page=${page}&limit=${itemsPerPage}&business=${encodeURIComponent(aCurrentVanityUrl)}`
+
+		);
+  
+   
       
       if (response.data.status === 'success') {
-		    const customers = response.data.data?.customers || [];
+		    const apiCustomers = response.data.data?.customers || [];
+		    // Transform API response to match Customer interface
+		    const transformedCustomers = apiCustomers.map((customer: any) => 
+		      mapApiResponseToCustomer(customer)
+		    );
 
-        setCustomers(customers);
+        setCustomers(transformedCustomers);
         setCurrentPage(page);
         
-        if (customers.length === 0 && page === 1) {
+        if (transformedCustomers.length === 0 && page === 1) {
 			toast.info('No customers found. Start by adding your first customer!');
 		  }
       } else {
@@ -242,9 +296,9 @@ export default function CustomerListPage() {
     <div className="flex-1 p-4 md:p-6 overflow-auto bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Customer Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Vendor Management</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Manage all your customers and contact information
+          Manage all your vendors and contact information
         </p>
       </div>
 	
@@ -256,7 +310,7 @@ export default function CustomerListPage() {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Search customers..."
+              placeholder="Search vendors..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
@@ -264,7 +318,7 @@ export default function CustomerListPage() {
           </div>
         </div>
 
-        {/* Add Button */}
+        {/* Add Button 
         <button
           onClick={() => {
             setEditingCustomer(null);
@@ -274,7 +328,7 @@ export default function CustomerListPage() {
         >
           <Plus className="w-5 h-5" />
           <span>Add Customer</span>
-        </button>
+        </button>*/}
       </div>
 
       {/* Customers Table */}
@@ -285,9 +339,9 @@ export default function CustomerListPage() {
             <div className="flex justify-center mb-4">
               <Loader2 className="w-12 h-12 text-blue-500 animate-spin" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Loading Customers</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Loading Vendors</h3>
             <p className="text-gray-500 dark:text-gray-400">
-              Please wait while we fetch your customers...
+              Please wait while we fetch your vendors...
             </p>
           </div>
         )}
@@ -296,11 +350,11 @@ export default function CustomerListPage() {
         {!loading && filteredCustomers.length === 0 && (
           <div className="p-12 text-center">
             <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No customers found</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">No vendors found</h3>
             <p className="text-gray-500 dark:text-gray-400 mb-6">
-              {searchTerm ? 'Try adjusting your search criteria' : 'Get started by adding your first customer'}
+              {searchTerm ? 'Try adjusting your search criteria' : ''}
             </p>
-            {!searchTerm && (
+            {/*{!searchTerm && (
               <button
                 onClick={() => {
                   setEditingCustomer(null);
@@ -311,7 +365,7 @@ export default function CustomerListPage() {
                 <Plus className="w-5 h-5" />
                 Add Your First Customer
               </button>
-            )}
+            )}*/}
           </div>
 		)}
         {/* Data Table */}
@@ -349,12 +403,7 @@ export default function CustomerListPage() {
                     <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
                       Phone
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      City
-                    </th>
-                    <th className="px-6 py-4 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                      Actions
-                    </th>
+
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
@@ -391,40 +440,14 @@ export default function CustomerListPage() {
                       </td>
                       <td className="px-6 py-4">
                         <a
-                          href={`tel:${customer.account_details?.contact_mobile || customer.contact_mobile}`}
+                          href={`tel:${customer.contact_office_phone || customer.billing_phone || customer.office_phone}`}
                           className="text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 text-sm flex items-center gap-1"
                         >
                           <Phone className="w-4 h-4" />
-                          {customer.account_details?.contact_mobile || customer.contact_mobile || 'N/A'}
+                          {customer.contact_office_phone || customer.billing_phone || customer.office_phone || 'N/A'}
                         </a>
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 text-gray-600 dark:text-gray-300 text-sm">
-                          <MapPin className="w-4 h-4" />
-                          {customer.contact_city}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-center gap-3">
-                          <button
-                            onClick={() => {
-                              setEditingCustomer(customer);
-                              setShowAddModal(true);
-                            }}
-                            className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
-                            title="Edit customer"
-                          >
-                            <Edit2 className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirm(customer.customer_id)}
-                            className="p-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition"
-                            title="Delete customer"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </td>
+
                     </tr>
                   ))}
                 </tbody>

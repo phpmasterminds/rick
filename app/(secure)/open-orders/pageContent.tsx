@@ -465,7 +465,7 @@ const StatusDisplay: React.FC<{ order: Order }> = ({ order }) => {
 
   return (
     <div className="inline-block">
-      <span className={`px-3 py-1 rounded-full text-sm font-semibold ${colorClass}`}>
+      <span className={`px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap ${colorClass}`}>
         {currentStatus}
       </span>
     </div>

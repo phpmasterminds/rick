@@ -23,6 +23,7 @@ export default async function Page({
   const { order_id } = await params;
   const cookieStore = await cookies();
   const slug = cookieStore.get('vanity_url')?.value || '';
+  const typeid = cookieStore.get('type_id')?.value || '';
   
-  return <PageContent business={slug} orderId={order_id} />;
+  return <PageContent business={slug} orderId={order_id} typeid={typeid} />;
 }

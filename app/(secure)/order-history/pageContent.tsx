@@ -468,13 +468,27 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ order, business, onPaymentClick
 
 
 // Status Dropdown Component
-const StatusDropdown: React.FC<{ order: Order; onStatusChange: (orderId: string, status: string) => void }> = ({
+const StatusDropdown: React.FC<{ 
+  order: Order; 
+  onStatusChange: (orderId: string, status: string) => void;
+  typeid?: string;
+}> = ({
   order,
   onStatusChange,
+  typeid,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const currentStatus = ORDER_STEPS[parseInt(order.order_status)] || 'Unknown';
   const colorClass = STATUS_DROPDOWN_COLORS[currentStatus] || 'bg-gray-500';
+
+  // For typeid 20, show only text status badge
+  if (typeid === '20') {
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-semibold inline-block ${STATUS_COLORS[currentStatus] || 'bg-gray-100 text-gray-700'}`}>
+        {currentStatus}
+      </span>
+    );
+  }
 
   return (
     <div className="relative inline-block w-full">
@@ -520,8 +534,22 @@ const SalesPersonDropdown: React.FC<{
   order: Order;
   salesReps: SalesRep[];
   onSalesPersonChange: (orderId: string, salesPersonId: string) => void;
-}> = ({ order, salesReps, onSalesPersonChange }) => {
+  typeid?: string;
+}> = ({ order, salesReps, onSalesPersonChange, typeid }) => {
   const [isOpen, setIsOpen] = useState(false);
+  
+  // For typeid 20, show only text
+  if (typeid === '20') {
+    return (
+      <div>
+        <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{order.sales_person_name || '-'}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 font-medium">
+          Commission: <span className="text-gray-700 dark:text-gray-300 font-bold">${parseFloat(order.total_commission).toFixed(2)}</span>
+        </p>
+      </div>
+    );
+  }
+  
   return (
     <div>
       <div className="relative">
@@ -550,7 +578,7 @@ const SalesPersonDropdown: React.FC<{
   );
 };
 
-export default function OrderPageContent({ business }: { business: string }) {
+export default function OrderPageContent({ business, typeid }: { business: string, typeid: string }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -572,10 +600,18 @@ export default function OrderPageContent({ business }: { business: string }) {
 		  
 		  const searchParams = new URLSearchParams(window.location.search);
 		  const wholesale = searchParams.get("wholesale") || 0;
-		  const response = await axios.get(
-			`/api/business/save-whole-sale-order/?business=${business}&page=${currentPage}&wholesale=${wholesale}&status=8`
-		  );
 		  
+		  let response;
+		  if(typeid === '20'){
+			  response = await axios.get(`/api/business/save-whole-sale-order/?business=${business}&page=${currentPage}&wholesale=${wholesale}&status=8&open_orders=1`
+			  );
+		  }else{
+			  response = await axios.get(
+				`/api/business/save-whole-sale-order/?business=${business}&page=${currentPage}&wholesale=${wholesale}&status=8`
+			  );
+		  }
+		  console.log("typeid-->"+typeid);
+			  console.log("==>"+response);
 		  if (response.data?.data?.orders) {
 			setOrders(response.data.data.orders);
 			setTotalOrders(response.data.data.total || 0);
@@ -594,7 +630,7 @@ export default function OrderPageContent({ business }: { business: string }) {
 	  };
 	  
 	  fetchOrders();
-	}, [business, currentPage]);
+	}, [business, currentPage, typeid]);
 
 	// Fetch sales representatives - only when page_id is available
 	useEffect(() => {
@@ -974,10 +1010,15 @@ export default function OrderPageContent({ business }: { business: string }) {
                         order={order}
                         salesReps={salesReps}
                         onSalesPersonChange={handleSalesPersonChange}
+                        typeid={typeid}
                       />
                     </td>
                     <td className="px-6 py-4">
-                      <StatusDropdown order={order} onStatusChange={handleStatusChange} />
+                      <StatusDropdown 
+                        order={order} 
+                        onStatusChange={handleStatusChange}
+                        typeid={typeid}
+                      />
                     </td>
                     {/*<td className="px-6 py-4">
                       <ActionMenu business={business} order={order} onPaymentClick={() => setPaymentModal({ isOpen: true, order })} />

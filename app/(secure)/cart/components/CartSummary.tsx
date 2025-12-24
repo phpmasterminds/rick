@@ -24,7 +24,7 @@ export default function CartSummary({
   const [showConfirm, setShowConfirm] = useState(false);
 
   const shippingCost = 0;
-  const tax = (cartTotal * 0.0725).toFixed(2);
+  const tax = (cartTotal * 0.045).toFixed(2);
   const finalTotal = (cartTotal + parseFloat(tax) + shippingCost).toFixed(2);
 
   return (
@@ -49,7 +49,7 @@ export default function CartSummary({
         </div>
 
         <div className="flex justify-between text-sm">
-          <span className="text-gray-600 dark:text-gray-400">Tax (7.25%)</span>
+          <span className="text-gray-600 dark:text-gray-400">Tax (4.5%)</span>
           <span className="text-gray-900 dark:text-white">${tax}</span>
         </div>
       </div>

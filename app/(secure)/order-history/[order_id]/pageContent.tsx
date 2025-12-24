@@ -142,9 +142,10 @@ interface SalesPerson {
 interface PageContentProps {
   business: string;
   orderId: string;
+  typeid?: string;
 }
 
-export default function PageContent({ business, orderId }: PageContentProps) {
+export default function PageContent({ business, orderId, typeid }: PageContentProps) {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -744,37 +745,49 @@ export default function PageContent({ business, orderId }: PageContentProps) {
         {/* Status Card */}
         <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
           <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">Status</p>
-          <select
-            value={order.order_status || '1'}
-            onChange={(e) => handleStatusChange(e.target.value)}
-            disabled={changingStatus}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-semibold text-sm disabled:opacity-50"
-          >
-            {Object.entries(ORDER_STEPS).map(([key, value]) => (
-              <option key={key} value={key}>
-                {value}
-              </option>
-            ))}
-          </select>
+          {typeid === '20' ? (
+            <span className={`inline-block px-3 py-2 rounded-lg text-sm font-semibold ${STATUS_BADGE_COLORS[ORDER_STEPS[parseInt(order.order_status)] || 'Unknown'] || 'bg-gray-100 text-gray-700'}`}>
+              {ORDER_STEPS[parseInt(order.order_status)] || 'Unknown'}
+            </span>
+          ) : (
+            <select
+              value={order.order_status || '1'}
+              onChange={(e) => handleStatusChange(e.target.value)}
+              disabled={changingStatus}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-semibold text-sm disabled:opacity-50"
+            >
+              {Object.entries(ORDER_STEPS).map(([key, value]) => (
+                <option key={key} value={key}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          )}
           {changingStatus && <p className="text-xs text-gray-500 mt-2">Updating...</p>}
         </div>
 
         {/* Sales Person Card */}
         <div className="bg-white dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
           <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-3">Sales Person</p>
-          <select
-            value={order.sales_person || ''}
-            onChange={(e) => handleSalesPersonChange(e.target.value)}
-            disabled={changingSalesPerson || loadingSalesPersons}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-semibold text-sm disabled:opacity-50"
-          >
-            <option value="">Select Sales Person</option>
-            {salesPersons.map((sp) => (
-              <option key={sp.user_id || sp.sales_person_id} value={sp.user_id || sp.sales_person_id}>
-                {sp.full_name || sp.sales_person_name}
-              </option>
-            ))}
-          </select>
+          {typeid === '20' ? (
+            <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+              {order.sales_person_name || '-'}
+            </p>
+          ) : (
+            <select
+              value={order.sales_person || ''}
+              onChange={(e) => handleSalesPersonChange(e.target.value)}
+              disabled={changingSalesPerson || loadingSalesPersons}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-semibold text-sm disabled:opacity-50"
+            >
+              <option value="">Select Sales Person</option>
+              {salesPersons.map((sp) => (
+                <option key={sp.user_id || sp.sales_person_id} value={sp.user_id || sp.sales_person_id}>
+                  {sp.full_name || sp.sales_person_name}
+                </option>
+              ))}
+            </select>
+          )}
           {changingSalesPerson && <p className="text-xs text-gray-500 mt-2">Updating...</p>}
           {loadingSalesPersons && <p className="text-xs text-gray-500 mt-2">Loading...</p>}
         </div>
