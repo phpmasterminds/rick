@@ -1,21 +1,23 @@
 /**
- * Create Message Modal Component - Themed Version
+ * Create Message Modal Component - Themed Version (UPDATED)
  * Location: components/messages/CreateMessageModal.tsx
  * 
- * Updated to use accent-bg and accent-hover for theme consistency
+ * Updated with:
+ * - User ID from localStorage auth data
+ * - Business/page_id from cookie (vanity_url)
+ * - accent-bg and accent-hover for theme consistency
  */
 
 'use client';
 
 import React, { useState, useEffect } from 'react';
 import axios, { AxiosError } from 'axios';
+import Cookies from 'js-cookie';
 
 interface Recipient {
-  page_id: number;
-  page_name: string;
-  page_url: string;
-  page_verified?: boolean;
-  page_category?: string;
+  page_id: string;
+  title: string;
+  user_id: string;
 }
 
 interface CreateMessageModalProps {
@@ -23,6 +25,33 @@ interface CreateMessageModalProps {
   onClose: () => void;
   onSuccess: (message: any) => void;
 }
+
+// ✅ Helper function to get user_id from localStorage
+const getUserId = (): string | null => {
+  try {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return null;
+    
+    const userData = JSON.parse(userStr);
+    // Try different possible paths where user_id might be
+    return userData?.data?.user_id || userData?.user_id || null;
+  } catch (error) {
+    console.error('Error parsing user from localStorage:', error);
+    return null;
+  }
+};
+
+// ✅ Helper function to get business/page_id from cookie
+const getBusinessPageId = (): string | null => {
+  try {
+    // Try to get vanity_url from cookie
+    const vanityUrl = Cookies.get('vanity_url');
+    return vanityUrl || null;
+  } catch (error) {
+    console.error('Error getting vanity_url from cookie:', error);
+    return null;
+  }
+};
 
 export default function CreateMessageModal({
   isOpen,
@@ -37,18 +66,38 @@ export default function CreateMessageModal({
   const [showDropdown, setShowDropdown] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // ✅ Get user_id and business from storage/cookies
+  const [userId, setUserId] = useState<string | null>(null);
+  const [businessPageId, setBusinessPageId] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     pageId: '',
     subject: '',
     message: ''
   });
 
-  // Fetch recipients on mount
+  // ✅ Initialize user_id and business on mount
   useEffect(() => {
-    if (isOpen) {
+    const uid = getUserId();
+    const bid = getBusinessPageId();
+    
+    setUserId(uid);
+    setBusinessPageId(bid);
+    
+    if (!uid) {
+      console.warn('User ID not found in localStorage');
+    }
+    if (!bid) {
+      console.warn('Business page ID not found in cookie');
+    }
+  }, []);
+
+  // ✅ Fetch recipients on mount or when user_id/business changes
+  useEffect(() => {
+    if (isOpen && userId) {
       fetchRecipients();
     }
-  }, [isOpen]);
+  }, [isOpen, userId, businessPageId]);
 
   // Filter recipients based on search query
   useEffect(() => {
@@ -56,23 +105,38 @@ export default function CreateMessageModal({
       setFilteredRecipients(recipients);
     } else {
       const filtered = recipients.filter(r =>
-        r.page_name.toLowerCase().includes(searchQuery.toLowerCase())
+        r.title.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredRecipients(filtered);
     }
   }, [searchQuery, recipients]);
 
+  // ✅ UPDATED: Fetch recipients with user_id and business
   const fetchRecipients = async () => {
     try {
       setLoadingRecipients(true);
 
-      const response = await axios.get<{ recipients: Recipient[] }>(
-        `api/messages/index/getRecipients`,
-        { withCredentials: true }
-      );
+      const params: any = {};
+      params.method = 'get_recipients';
+      // ✅ Add user_id if available
+      if (userId) {
+        params.user_id = userId;
+      }
+      
+      // ✅ Add business if available
+      if (businessPageId) {
+        params.business = businessPageId;
+      }
 
-      setRecipients(response.data.recipients || []);
-      setFilteredRecipients(response.data.recipients || []);
+      const response = await axios.get<{ status: string; data: { customers: Recipient[] } }>(
+        `/api/business/messages`, // ✅ Updated to Next.js route
+        { 
+          params,
+          withCredentials: true
+        }
+      );
+      setRecipients(response.data.data.customers || []);
+      setFilteredRecipients(response.data.data.customers || []);
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error('Error fetching recipients:', axiosError.message);
@@ -88,7 +152,7 @@ export default function CreateMessageModal({
       ...prev,
       pageId: recipient.page_id.toString()
     }));
-    setSearchQuery(recipient.page_name);
+    setSearchQuery(recipient.title);
     setShowDropdown(false);
     setErrors(prev => ({ ...prev, pageId: '' }));
   };
@@ -121,10 +185,16 @@ export default function CreateMessageModal({
       newErrors.subject = 'Subject must be less than 255 characters';
     }
 
+    // ✅ Check if user_id is available
+    if (!userId) {
+      newErrors.submit = 'User information not found. Please refresh and try again.';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  // ✅ UPDATED: Add user_id and business to create message request
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -136,17 +206,21 @@ export default function CreateMessageModal({
       setSubmitting(true);
 
       const response = await axios.post(
-        `api/messages/index/createMessage`,
+        `/api/business/messages`, // ✅ Updated to Next.js route
         {
           page_id: parseInt(formData.pageId),
+          user_id: parseInt(userId!), // ✅ Add user_id from localStorage
           subject: formData.subject.trim(),
-          message: formData.message.trim()
+          message: formData.message.trim(),
+          // ✅ Optional: Add business if needed
+          ...(businessPageId && { business: businessPageId })
         },
         { withCredentials: true }
       );
 
-      if (response.data.message) {
-        onSuccess(response.data.message);
+      if (response.data.data?.message || response.data.message) {
+        const message = response.data.data?.message || response.data.message;
+        onSuccess(message);
         // Reset form
         setFormData({
           pageId: '',
@@ -279,27 +353,12 @@ export default function CreateMessageModal({
                           >
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">
-                                {recipient.page_name}
+                                {recipient.title}
                               </div>
-                              {recipient.page_category && (
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
-                                  {recipient.page_category}
-                                </div>
-                              )}
+                              <div className="text-sm text-gray-500 dark:text-gray-400">
+                                ID: {recipient.user_id}
+                              </div>
                             </div>
-                            {recipient.page_verified && (
-                              <svg
-                                className="h-5 w-5 accent-text"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            )}
                           </button>
                         ))}
                       </div>

@@ -17,6 +17,29 @@ import MessageDetail from './components/MessageDetail';
 import CreateMessageModal from './components/CreateMessageModal';
 import LoadingSpinner from './components/LoadingSpinner';
 
+// ✅ API Response interface - matches actual API structure
+interface MessageAPIResponse {
+  message_id: string | number;
+  page_id: string | number;
+  page_user_id: string | number;
+  user_id: string | number;
+  sender_page_id: string | number;
+  subject: string;
+  message: string;
+  status: 'pending' | 'completed' | 'in_progress';
+  created_at: string;
+  updated_at: string;
+  read_at?: string | null;
+  is_read: string | number;
+  full_name: string;
+  user_name: string;
+  user_image?: string | null;
+  page_title: string;
+  page_image?: string;
+  page_url?: string;
+}
+
+// ✅ Frontend Message interface
 interface Message {
   message_id: number;
   page_id: number;
@@ -42,12 +65,17 @@ interface Message {
   reply_count?: number;
 }
 
+// ✅ API Response wrapper
 interface MessagesResponse {
-  messages: Message[];
-  total: number;
-  page: number;
-  limit: number;
-  pages: number;
+  status: string;
+  data: {
+    messages: MessageAPIResponse[];
+    total: number;
+    page: number;
+    limit: number;
+  };
+  message: string;
+  error: null;
 }
 
 interface FilterState {
@@ -55,6 +83,60 @@ interface FilterState {
   sort: string;
   search: string;
 }
+
+// ✅ Transform API response to frontend Message format
+const transformApiMessage = (apiMessage: MessageAPIResponse): Message => {
+  return {
+    message_id: Number(apiMessage.message_id),
+    page_id: Number(apiMessage.page_id),
+    user_id: Number(apiMessage.user_id),
+    subject: apiMessage.subject,
+    message: apiMessage.message,
+    status: apiMessage.status,
+    created_at: apiMessage.created_at,
+    read_at: apiMessage.read_at || undefined,
+    is_read: Number(apiMessage.is_read),
+    sender: {
+      user_id: Number(apiMessage.user_id),
+      full_name: apiMessage.full_name,
+      user_name: apiMessage.user_name,
+      user_image: apiMessage.user_image || undefined
+    },
+    recipient: {
+      page_id: Number(apiMessage.page_id),
+      page_name: apiMessage.page_title,
+      page_url: apiMessage.page_url || '',
+      page_image: apiMessage.page_image
+    }
+  };
+};
+
+// ✅ Helper function to get user_id from localStorage
+const getUserId = (): string | null => {
+  try {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return null;
+    
+    const userData = JSON.parse(userStr);
+    // Try different possible paths where user_id might be
+    return userData?.data?.user_id || userData?.user_id || null;
+  } catch (error) {
+    console.error('Error parsing user from localStorage:', error);
+    return null;
+  }
+};
+
+// ✅ Helper function to get business/page_id from cookie
+const getBusinessPageId = (): string | null => {
+  try {
+    // Try to get vanity_url from cookie
+    const vanityUrl = Cookies.get('vanity_url');
+    return vanityUrl || null;
+  } catch (error) {
+    console.error('Error getting vanity_url from cookie:', error);
+    return null;
+  }
+};
 
 export default function MessagesPage() {
   const router = useRouter();
@@ -70,6 +152,26 @@ export default function MessagesPage() {
     sort: 'created_at',
     search: ''
   });
+  
+  // ✅ Get user_id and business from storage/cookies
+  const [userId, setUserId] = useState<string | null>(null);
+  const [businessPageId, setBusinessPageId] = useState<string | null>(null);
+
+  // ✅ Initialize user_id and business on mount
+  useEffect(() => {
+    const uid = getUserId();
+    const bid = getBusinessPageId();
+
+    setUserId(uid);
+    setBusinessPageId(bid);
+
+    if (!uid) {
+      console.warn('User ID not found in localStorage');
+    }
+    if (!bid) {
+      console.warn('Business page ID not found in cookie');
+    }
+  }, []);
 
   // Check if user is buyer
   useEffect(() => {
@@ -85,30 +187,48 @@ export default function MessagesPage() {
     checkUserType();
   }, []);
 
-  // Fetch messages
+  // ✅ FIX: Use closure variables (userId, businessPageId) instead of function parameters
   const fetchMessages = useCallback(
     async (page = 1) => {
+      // Guard: Check if we have required data before fetching
+      if (!userId || !businessPageId) {
+        console.warn('Missing userId or businessPageId, skipping fetch');
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
 
         const params = new URLSearchParams({
           page: page.toString(),
           limit: '10',
+          user_id: userId,
+          business: businessPageId,
           ...(filters.status && { status: filters.status }),
           ...(filters.sort && { sort: filters.sort })
         });
 
         const response = await axios.get<MessagesResponse>(
-          `api/messages/getMessages`,
+          `api/business/messages`,
           {
             params: Object.fromEntries(params),
             withCredentials: true
           }
         );
 
-        setMessages(response.data.messages || []);
-        setCurrentPage(page);
-        setTotalPages(response.data.pages || 1);
+        // ✅ Transform API response to frontend format
+        const transformedMessages = (response.data.data?.messages || []).map(transformApiMessage);
+        
+        setMessages(transformedMessages);
+        setCurrentPage(response.data.data?.page || page);
+        
+        // ✅ Calculate total pages from API response
+        const total = response.data.data?.total || 0;
+        const limit = response.data.data?.limit || 10;
+        const calculatedPages = Math.ceil(total / limit) || 1;
+        
+        setTotalPages(calculatedPages);
       } catch (error) {
         const axiosError = error as AxiosError;
         console.error('Error fetching messages:', axiosError.message);
@@ -117,13 +237,13 @@ export default function MessagesPage() {
         setLoading(false);
       }
     },
-    [filters]
+    [filters, userId, businessPageId]
   );
 
-  // Initial load
+  // ✅ Initial load - only call fetchMessages when it changes
   useEffect(() => {
     fetchMessages(1);
-  }, [filters]);
+  }, [fetchMessages]);
 
   // Handle filter change
   const handleFilterChange = (key: keyof FilterState, value: string) => {

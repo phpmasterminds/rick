@@ -1,8 +1,8 @@
 /**
- * Message Detail Component - Themed Version
+ * Message Detail Component - Themed Version (UPDATED)
  * Location: components/messages/MessageDetail.tsx
  * 
- * Updated with accent-bg, accent-hover, and full dark mode support
+ * Updated with Next.js API routes and accent-bg, accent-hover, full dark mode support
  */
 
 'use client';
@@ -51,7 +51,10 @@ interface Message {
 }
 
 interface MessageDetailResponse {
-  message: Message & { replies: MessageReply[] };
+  status: 'success' | 'error';
+  data: {
+    message: Message & { replies: MessageReply[] };
+  };
 }
 
 interface MessageDetailProps {
@@ -59,6 +62,21 @@ interface MessageDetailProps {
   onStatusChange: (messageId: number, newStatus: string) => void;
   onReplyAdded: () => void;
 }
+
+// ✅ Helper function to get user_id from localStorage
+const getUserId = (): string | null => {
+  try {
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return null;
+    
+    const userData = JSON.parse(userStr);
+    // Try different possible paths where user_id might be
+    return userData?.data?.user_id || userData?.user_id || null;
+  } catch (error) {
+    console.error('Error parsing user from localStorage:', error);
+    return null;
+  }
+};
 
 export default function MessageDetail({
   message,
@@ -85,20 +103,19 @@ export default function MessageDetail({
     }
   };
 
-  // Fetch message replies
+  // ✅ UPDATED: Fetch message replies using Next.js API route
   useEffect(() => {
     const fetchReplies = async () => {
       try {
         setLoadingReplies(true);
         const response = await axios.get<MessageDetailResponse>(
-          `api/messages/index/getMessage`,
+          `/api/business/messages/${message.message_id}`, // ✅ Updated to Next.js route
           {
-            params: { message_id: message.message_id },
             withCredentials: true
           }
         );
 
-        setReplies(response.data.message.replies || []);
+        setReplies(response.data.data.message.replies || []);
       } catch (error) {
         const axiosError = error as AxiosError;
         console.error('Error fetching replies:', axiosError.message);
@@ -113,11 +130,11 @@ export default function MessageDetail({
     }
   }, [message.message_id]);
 
-  // Handle status change
+  // ✅ UPDATED: Handle status change using Next.js API route
   const handleStatusChange = async (newStatus: string) => {
     try {
-      await axios.post(
-        `api/messages/index/updateStatus`,
+      await axios.put(
+        `/api/business/messages`, // ✅ Updated to Next.js route
         {
           message_id: message.message_id,
           status: newStatus
@@ -134,7 +151,7 @@ export default function MessageDetail({
     }
   };
 
-  // Handle reply submission
+  // ✅ UPDATED: Handle reply submission using Next.js API route
   const handleSubmitReply = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -145,16 +162,16 @@ export default function MessageDetail({
     try {
       setSubmittingReply(true);
 
-      const response = await axios.post<{ reply: MessageReply }>(
-        `api/messages/index/addReply`,
+      const response = await axios.post<{ data: { reply: MessageReply } }>(
+        `/api/business/messages/${message.message_id}/replies`, // ✅ Updated to Next.js route
         {
-          message_id: message.message_id,
+          user_id: getUserId(), // ✅ NOTE: Get current user_id from your auth context/store
           reply_text: replyText.trim()
         },
         { withCredentials: true }
       );
 
-      setReplies(prev => [...prev, response.data.reply]);
+      setReplies(prev => [...prev, response.data.data.reply]);
       setReplyText('');
       onReplyAdded();
     } catch (error) {
