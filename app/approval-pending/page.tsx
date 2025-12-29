@@ -5,10 +5,27 @@ import { Clock, AlertCircle } from 'lucide-react';
 import { useApprovalStatus } from '@/hooks/useApprovalStatus';
 import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
+import Cookies from 'js-cookie';
 
 export default function ApprovalPendingPage() {
   const router = useRouter();
   const { userGroupId, isApproved, isLoading } = useApprovalStatus();
+
+  // ===== HANDLERS =====
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("shopCart");
+    const cartKey = `shopCart_${localStorage.getItem("user_id")}`;
+    localStorage.removeItem(cartKey);
+    Cookies.remove("access_token", { path: "/" });
+    Cookies.remove("user_id", { path: "/" });
+    Cookies.remove("user_group_id", { path: "/" });
+    Cookies.remove("page_id", { path: "/" });
+    Cookies.remove("vanity_url", { path: "/" });
+    Cookies.remove("type_id", { path: "/" });
+    router.push("/");
+  };
 
   // Redirect if user is approved (group ID changed)
   useEffect(() => {
@@ -111,7 +128,7 @@ export default function ApprovalPendingPage() {
           </div>
 
           {/* Footer */}
-          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
+          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center space-y-3">
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Have questions?{' '}
               <a
@@ -121,6 +138,12 @@ export default function ApprovalPendingPage() {
                 Contact support
               </a>
             </p>
+            <button
+              onClick={handleLogout}
+              className="w-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200"
+            >
+              Logout
+            </button>
           </div>
         </div>
 

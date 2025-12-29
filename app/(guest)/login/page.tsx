@@ -34,7 +34,11 @@ export default function LoginPage() {
       };
 
 		const res = await axios.post("/api/auth/login", payload);
-
+		
+		if (!res?.data?.access_token) {
+			toast.error("Login failed. Username / Password Wrong", {position: "bottom-center"});
+			return;
+		}
 		localStorage.setItem("token", JSON.stringify(res.data));
 
 		/*Get User Details*/

@@ -196,7 +196,7 @@ export default function RegistrationPage() {
         setMobileVerified(true);
         setShowMobileVerification(false);
         setVerificationInput('');
-        toast.success('Mobile number verified successfully!', {
+        toast.success('Email address verified successfully!', {
           position: 'bottom-center',
           autoClose: 3000,
         });
@@ -409,7 +409,7 @@ export default function RegistrationPage() {
         setRegistrationData(response.data);
         setRegistrationComplete(true);
         setShowMobileVerification(true);
-        toast.success(`✓ Registration successful! OTP sent to ${formData.contact_mobile}`, {
+        toast.success(`✓ Registration successful! OTP sent to ${formData.contact_email}`, {
               position: 'bottom-center',
               autoClose: 3000,
             });
@@ -975,7 +975,7 @@ export default function RegistrationPage() {
                   <Phone className="w-16 h-16 text-green-600" />
                 </div>
                 <h2 className="text-3xl font-bold text-gray-800 mb-2">Registration Successful!</h2>
-                <p className="text-gray-600">Verify your mobile number to activate your account</p>
+                <p className="text-gray-600">Verify your email address to activate your account</p>
               </div>
 
               <div className="bg-teal-50 border border-teal-200 rounded-lg p-6 space-y-4">
@@ -986,17 +986,17 @@ export default function RegistrationPage() {
                 
                 <div className="bg-white p-4 rounded border border-teal-200">
                   <p className="text-sm text-gray-700 mb-2">
-                    <span className="font-medium">Mobile Number:</span> {formData.contact_mobile}
+                    <span className="font-medium">Email Address:</span> {formData.contact_email}
                   </p>
                   <p className="text-sm text-gray-600">
-                    A 6-digit verification code has been sent to your mobile number
+                    A 6-digit verification code has been sent to your email address
                   </p>
                 </div>
 
                 {showMobileVerification && !mobileVerified && (
                   <div className="space-y-3">
                     <p className="text-sm text-teal-700 font-medium">
-                      Enter the 6-digit code sent to {formData.contact_mobile}
+                      Enter the 6-digit code sent to {formData.contact_email}
                     </p>
                     <div className="flex gap-2">
                       <input
@@ -1032,7 +1032,7 @@ export default function RegistrationPage() {
                     </div>
                     <div>
                       <p className="text-green-700 font-bold text-lg">Verification Successful!</p>
-                      <p className="text-sm text-green-600 mt-1">Your mobile number has been verified</p>
+                      <p className="text-sm text-green-600 mt-1">Your email address has been verified</p>
                     </div>
                   </div>
                 )}
