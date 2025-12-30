@@ -6,6 +6,7 @@
  * - User ID from localStorage auth data
  * - Business/page_id from cookie (vanity_url)
  * - accent-bg and accent-hover for theme consistency
+ * - FIXED: Ensure message response includes status field with default 'pending'
  */
 
 'use client';
@@ -13,6 +14,7 @@
 import React, { useState, useEffect } from 'react';
 import axios, { AxiosError } from 'axios';
 import Cookies from 'js-cookie';
+import { toast } from 'react-toastify';
 
 interface Recipient {
   page_id: string;
@@ -51,6 +53,23 @@ const getBusinessPageId = (): string | null => {
     console.error('Error getting vanity_url from cookie:', error);
     return null;
   }
+};
+
+// ✅ Helper function to normalize message response
+const normalizeMessage = (message: any) => {
+  return {
+    ...message,
+    // Ensure status field exists with default value
+    status: message.status || 'pending',
+    // Ensure other required fields exist
+    message_id: message.message_id || message.id,
+    page_id: message.page_id,
+    user_id: message.user_id,
+    subject: message.subject || '',
+    message: message.message || message.content || '',
+    created_at: message.created_at || new Date().toISOString(),
+    is_read: message.is_read || 0,
+  };
 };
 
 export default function CreateMessageModal({
@@ -219,45 +238,51 @@ export default function CreateMessageModal({
       );
 
       if (response.data.data?.message || response.data.message) {
-        const message = response.data.data?.message || response.data.message;
-        onSuccess(message);
+        // ✅ Normalize the message response to ensure status field exists
+        const normalizedMessage = normalizeMessage(
+          response.data.data
+        );
+        toast.success('Message sent successfully!');
+        onSuccess(normalizedMessage);
+        onClose();
+        
         // Reset form
-        setFormData({
-          pageId: '',
-          subject: '',
-          message: ''
-        });
+        setFormData({ pageId: '', subject: '', message: '' });
         setSearchQuery('');
+      } else {
+        throw new Error('No message data in response');
       }
     } catch (error) {
-      const axiosError = error as AxiosError<{ message?: string }>;
-      console.error('Error creating message:', axiosError.message);
+      const axiosError = error as AxiosError<any>;
+      const errorMessage = axiosError.response?.data?.message || axiosError.message || 'Failed to send message';
+      
+      console.error('Error sending message:', error);
+      toast.error(errorMessage);
+      
       setErrors(prev => ({
         ...prev,
-        submit: axiosError.response?.data?.message || 'Failed to create message'
+        submit: errorMessage
       }));
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (!isOpen) {
-    return null;
-  }
+  if (!isOpen) return null;
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Modal Overlay */}
       <div
-        className="fixed inset-0 z-40 bg-black bg-opacity-50 transition-opacity dark:bg-opacity-70"
+        className="fixed inset-0 z-40 bg-black/50 transition-opacity"
         onClick={onClose}
       />
 
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="relative w-full max-w-2xl rounded-lg bg-white dark:bg-gray-800 shadow-xl">
+      {/* Modal Content */}
+      <div className="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg shadow-xl">
+        <div className="rounded-lg bg-white dark:bg-gray-800 overflow-hidden">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 accent-bg px-6 py-4">
+          <div className="accent-bg flex items-center justify-between p-6">
             <div className="flex items-center gap-3">
               <svg
                 className="h-6 w-6 text-white"

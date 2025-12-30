@@ -1,9 +1,10 @@
 /**
  * Messages Page Component - Updated with Theme Integration
- * Location: app/messages/page.tsx
+ * Location: app/(secure)/messages/page.tsx
  * 
  * Integrated with Nature's High theme system
  * Uses accent-bg and accent-hover classes for dynamic theming
+ * ✅ Now imports types from shared types file
  */
 
 'use client';
@@ -16,73 +17,12 @@ import MessagesList from './components/MessagesList';
 import MessageDetail from './components/MessageDetail';
 import CreateMessageModal from './components/CreateMessageModal';
 import LoadingSpinner from './components/LoadingSpinner';
-
-// ✅ API Response interface - matches actual API structure
-interface MessageAPIResponse {
-  message_id: string | number;
-  page_id: string | number;
-  page_user_id: string | number;
-  user_id: string | number;
-  sender_page_id: string | number;
-  subject: string;
-  message: string;
-  status: 'pending' | 'completed' | 'in_progress';
-  created_at: string;
-  updated_at: string;
-  read_at?: string | null;
-  is_read: string | number;
-  full_name: string;
-  user_name: string;
-  user_image?: string | null;
-  page_title: string;
-  page_image?: string;
-  page_url?: string;
-}
-
-// ✅ Frontend Message interface
-interface Message {
-  message_id: number;
-  page_id: number;
-  user_id: number;
-  subject: string;
-  message: string;
-  status: 'pending' | 'completed' | 'in_progress';
-  created_at: string;
-  read_at?: string;
-  is_read: number;
-  sender?: {
-    user_id: number;
-    full_name: string;
-    user_name: string;
-    user_image?: string;
-  };
-  recipient?: {
-    page_id: number;
-    page_name: string;
-    page_url: string;
-    page_image?: string;
-  };
-  reply_count?: number;
-}
-
-// ✅ API Response wrapper
-interface MessagesResponse {
-  status: string;
-  data: {
-    messages: MessageAPIResponse[];
-    total: number;
-    page: number;
-    limit: number;
-  };
-  message: string;
-  error: null;
-}
-
-interface FilterState {
-  status: string;
-  sort: string;
-  search: string;
-}
+import type {
+  Message,
+  MessageAPIResponse,
+  MessagesResponse,
+  FilterState
+} from './types';
 
 // ✅ Transform API response to frontend Message format
 const transformApiMessage = (apiMessage: MessageAPIResponse): Message => {
@@ -92,10 +32,11 @@ const transformApiMessage = (apiMessage: MessageAPIResponse): Message => {
     user_id: Number(apiMessage.user_id),
     subject: apiMessage.subject,
     message: apiMessage.message,
-    status: apiMessage.status,
+    status: apiMessage.status || 'pending',
     created_at: apiMessage.created_at,
     read_at: apiMessage.read_at || undefined,
     is_read: Number(apiMessage.is_read),
+	full_name: apiMessage.full_name,
     sender: {
       user_id: Number(apiMessage.user_id),
       full_name: apiMessage.full_name,

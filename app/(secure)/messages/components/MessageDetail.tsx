@@ -3,6 +3,7 @@
  * Location: components/messages/MessageDetail.tsx
  * 
  * Updated with Next.js API routes and accent-bg, accent-hover, full dark mode support
+ * ✅ Now imports types from shared types file
  */
 
 'use client';
@@ -10,52 +11,7 @@
 import React, { useState, useEffect } from 'react';
 import { getRelativeTime, formatDate } from '@/utils/dateFormat';
 import axios, { AxiosError } from 'axios';
-
-interface MessageReply {
-  reply_id: number;
-  message_id: number;
-  user_id: number;
-  reply_text: string;
-  created_at: string;
-  sender?: {
-    user_id: number;
-    full_name: string;
-    user_name: string;
-    user_image?: string;
-  };
-}
-
-interface Message {
-  message_id: number;
-  page_id: number;
-  user_id: number;
-  subject: string;
-  message: string;
-  status: 'pending' | 'completed' | 'in_progress';
-  created_at: string;
-  read_at?: string;
-  is_read: number;
-  sender?: {
-    user_id: number;
-    full_name: string;
-    user_name: string;
-    user_image?: string;
-  };
-  recipient?: {
-    page_id: number;
-    page_name: string;
-    page_url: string;
-    page_image?: string;
-  };
-  reply_count?: number;
-}
-
-interface MessageDetailResponse {
-  status: 'success' | 'error';
-  data: {
-    message: Message & { replies: MessageReply[] };
-  };
-}
+import type { Message, MessageReply, MessageDetailResponse } from '../types';
 
 interface MessageDetailProps {
   message: Message;
@@ -76,6 +32,19 @@ const getUserId = (): string | null => {
     console.error('Error parsing user from localStorage:', error);
     return null;
   }
+};
+
+// ✅ Helper function to format text with line breaks - converts \n escape sequences to HTML
+const formatMessageText = (text: string): React.ReactNode => {
+  if (!text) return text;
+  
+  // Split by literal \n and actual newlines
+  return text.split(/\\n|\n/).map((line, index, array) => (
+    <React.Fragment key={index}>
+      {line}
+      {index < array.length - 1 && <br />}
+    </React.Fragment>
+  ));
 };
 
 export default function MessageDetail({
@@ -108,17 +77,48 @@ export default function MessageDetail({
     const fetchReplies = async () => {
       try {
         setLoadingReplies(true);
-        const response = await axios.get<MessageDetailResponse>(
+        const response = await axios.get<any>(
           `/api/business/messages/${message.message_id}`, // ✅ Updated to Next.js route
           {
             withCredentials: true
           }
         );
 
-        setReplies(response.data.data.message.replies || []);
+        console.log('API Response full structure:', response.data);
+
+        // ✅ Defensive: Handle multiple possible API response structures
+        let repliesData: any[] = [];
+
+        // Try different possible paths where replies might be
+        if (response.data?.data?.message?.replies) {
+          // Path 1: data.message.replies (array)
+          repliesData = response.data.data.message.replies;
+          console.log('Found replies at path: data.message.replies');
+        } else if (response.data?.data?.replies) {
+          // Path 2: data.replies (array)
+          repliesData = response.data.data.replies;
+          console.log('Found replies at path: data.replies');
+        } else if (response.data?.data?.message) {
+          // Path 3: message itself might be the replies or have replies
+          const msgData = response.data.data.message;
+          if (Array.isArray(msgData)) {
+            repliesData = msgData;
+            console.log('Found replies at path: data.message (array)');
+          }
+        }
+
+        // ✅ Ensure it's an array and filter out invalid entries
+        const validReplies = Array.isArray(repliesData)
+          ? repliesData.filter((r: any) => r && typeof r === 'object' && Object.keys(r).length > 0)
+          : [];
+        
+        console.log('Processed replies:', validReplies);
+        console.log('Valid replies count:', validReplies.length);
+        setReplies(validReplies);
       } catch (error) {
         const axiosError = error as AxiosError;
         console.error('Error fetching replies:', axiosError.message);
+        console.error('Error response:', (error as any).response?.data);
         setError('Failed to load message replies');
       } finally {
         setLoadingReplies(false);
@@ -162,7 +162,7 @@ export default function MessageDetail({
     try {
       setSubmittingReply(true);
 
-      const response = await axios.post<{ data: { reply: MessageReply } }>(
+      const response = await axios.post<any>(
         `/api/business/messages/${message.message_id}/replies`, // ✅ Updated to Next.js route
         {
           user_id: getUserId(), // ✅ NOTE: Get current user_id from your auth context/store
@@ -171,9 +171,52 @@ export default function MessageDetail({
         { withCredentials: true }
       );
 
-      setReplies(prev => [...prev, response.data.data.reply]);
-      setReplyText('');
-      onReplyAdded();
+      console.log('Reply response:', response.data);
+      
+      // ✅ Defensive: Extract reply data from response with multiple fallback paths
+      let newReply: MessageReply | null = null;
+      
+      if (response.data?.data?.reply) {
+        newReply = response.data.data.reply;
+      } else if (response.data?.reply) {
+        newReply = response.data.reply;
+      } else if (response.data?.data && typeof response.data.data === 'object') {
+        // If data itself looks like a reply object, use it
+        const dataKeys = Object.keys(response.data.data);
+        if (dataKeys.includes('reply_id') || dataKeys.includes('reply_text')) {
+          newReply = response.data.data as MessageReply;
+        }
+      }
+
+      if (newReply) {
+        console.log('Adding new reply to list:', newReply);
+        setReplies(prev => [...prev, newReply]);
+        setReplyText('');
+        onReplyAdded();
+      } else {
+        console.warn('Could not extract reply from response, refetching...');
+        // If we can't find the reply in response, refetch the entire message
+        const refetchResponse = await axios.get<any>(
+          `/api/business/messages/${message.message_id}`,
+          { withCredentials: true }
+        );
+        
+        // Extract replies from refetch
+        let repliesData: any[] = [];
+        if (refetchResponse.data?.data?.message?.replies) {
+          repliesData = refetchResponse.data.data.message.replies;
+        } else if (refetchResponse.data?.data?.replies) {
+          repliesData = refetchResponse.data.data.replies;
+        }
+        
+        const validReplies = Array.isArray(repliesData)
+          ? repliesData.filter((r: any) => r && typeof r === 'object' && Object.keys(r).length > 0)
+          : [];
+        
+        setReplies(validReplies);
+        setReplyText('');
+        onReplyAdded();
+      }
     } catch (error) {
       const axiosError = error as AxiosError;
       console.error('Error adding reply:', axiosError.message);
@@ -191,7 +234,7 @@ export default function MessageDetail({
           <div className="flex-1 min-w-0">
             <h2 className="text-xl font-bold text-white truncate">{message.subject}</h2>
             <p className="mt-1 text-sm text-gray-100">
-              From: {message.sender?.full_name || 'Unknown'}
+              From: {message.full_name || 'Unknown'}
             </p>
             {message.recipient && (
               <p className="text-sm text-gray-100">
@@ -279,9 +322,9 @@ export default function MessageDetail({
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
               Original Message
             </h3>
-            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap break-words">
-              {message.message}
-            </p>
+            <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap break-words">
+              {formatMessageText(message.message)}
+            </div>
           </div>
 
           {/* Error Message */}
@@ -294,7 +337,7 @@ export default function MessageDetail({
           {/* Replies Section */}
           <div>
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-4">
-              Replies ({replies.length})
+              Replies ({replies?.length || 0})
             </h3>
 
             {loadingReplies ? (
@@ -313,28 +356,45 @@ export default function MessageDetail({
                   />
                 </svg>
               </div>
-            ) : replies.length === 0 ? (
+            ) : !replies || replies.length === 0 ? (
               <p className="text-sm text-gray-500 dark:text-gray-400">No replies yet</p>
             ) : (
               <div className="space-y-4">
-                {replies.map(reply => (
-                  <div
-                    key={reply.reply_id}
-                    className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 p-4"
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {reply.sender?.full_name || 'Unknown'}
-                      </h4>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {getRelativeTime(reply.created_at)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
-                      {reply.reply_text}
-                    </p>
-                  </div>
-                ))}
+                {replies && Array.isArray(replies) && replies.length > 0 ? (
+                  replies.map((reply, index) => {
+                    // Comprehensive defensive check: ensure reply exists and has required properties
+                    if (!reply || typeof reply !== 'object') {
+                      console.warn('Invalid reply object at index', index, reply);
+                      return null;
+                    }
+
+                    const replyId = reply?.reply_id || `reply-${message.message_id}-${index}`;
+                    const replyName = reply?.full_name || reply?.sender?.full_name || 'Unknown User';
+                    const replyText = reply?.reply_text || '';
+                    const replyTime = reply?.created_at || new Date().toISOString();
+                    
+                    return (
+                      <div
+                        key={replyId}
+                        className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h4 className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {replyName}
+                          </h4>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {getRelativeTime(replyTime)}
+                          </span>
+                        </div>
+                        <div className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-words">
+                          {formatMessageText(replyText)}
+                        </div>
+                      </div>
+                    );
+                  }).filter(Boolean)
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">No replies found</p>
+                )}
               </div>
             )}
           </div>

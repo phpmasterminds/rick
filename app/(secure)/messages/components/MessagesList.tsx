@@ -3,37 +3,19 @@
  * Location: components/messages/MessagesList.tsx
  * 
  * Updated with accent-bg, accent-hover, and full dark mode support
+ * ✅ Now imports types from shared types file and uses helper functions
  */
 
 'use client';
 
 import React, { useMemo } from 'react';
 import { getRelativeTime, formatDate } from '@/utils/dateFormat';
-
-interface Message {
-  message_id: number;
-  page_id: number;
-  user_id: number;
-  subject: string;
-  message: string;
-  status: 'pending' | 'completed' | 'in_progress';
-  created_at: string;
-  read_at?: string;
-  is_read: number;
-  sender?: {
-    user_id: number;
-    full_name: string;
-    user_name: string;
-    user_image?: string;
-  };
-  recipient?: {
-    page_id: number;
-    page_name: string;
-    page_url: string;
-    page_image?: string;
-  };
-  reply_count?: number;
-}
+import {
+  type Message,
+  getSafeStatus,
+  getStatusBadgeClass,
+  getStatusDisplayText
+} from '../types';
 
 interface MessageListProps {
   messages: Message[];
@@ -62,19 +44,6 @@ export default function MessagesList({
   totalPages,
   onPageChange
 }: MessageListProps) {
-  // Get status badge classes
-  const getStatusBadgeClass = (status: string): string => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300';
-      case 'in_progress':
-        return 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300';
-      case 'pending':
-      default:
-        return 'bg-slate-100 dark:bg-slate-900/30 text-slate-800 dark:text-slate-300';
-    }
-  };
-
   // Get message preview
   const getMessagePreview = (text: string, maxLength: number = 60): string => {
     if (text.length <= maxLength) return text;
@@ -87,7 +56,7 @@ export default function MessagesList({
 
     // Filter by status
     if (filters.status) {
-      filtered = filtered.filter(m => m.status === filters.status);
+      filtered = filtered.filter(m => getSafeStatus(m.status) === filters.status);
     }
 
     // Filter by search
@@ -97,7 +66,7 @@ export default function MessagesList({
         m =>
           m.subject.toLowerCase().includes(query) ||
           m.message.toLowerCase().includes(query) ||
-          m.sender?.full_name.toLowerCase().includes(query)
+          m.full_name.toLowerCase().includes(query)
       );
     }
 
@@ -251,7 +220,7 @@ export default function MessagesList({
                       {message.subject}
                     </h4>
                     <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium whitespace-nowrap ${getStatusBadgeClass(message.status)}`}>
-                      {message.status.charAt(0).toUpperCase() + message.status.slice(1)}
+                      {getStatusDisplayText(message.status)}
                     </span>
                   </div>
 
@@ -261,7 +230,7 @@ export default function MessagesList({
                       ? 'text-gray-100'
                       : 'text-gray-600 dark:text-gray-400'
                   }`}>
-                    {message.sender?.full_name || 'Unknown'}
+                    {message.full_name || 'Unknown'}
                   </p>
 
                   {/* Preview */}
