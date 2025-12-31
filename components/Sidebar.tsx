@@ -88,13 +88,101 @@ export default function Sidebar({
   const [showAdminMenu, setShowAdminMenu] = useState(false); // Toggle for admin to switch between menus
   const [selectedSection, setSelectedSection] = useState<"business" | "pos">("business"); // Track selected section
   const [showSectionDropdown, setShowSectionDropdown] = useState(false); // Toggle section dropdown
-  const [currentMode, setCurrentMode] = useState<"admin" | "business" | "pos" | "select">("select"); // Current mode selector
+  const [currentMode, setCurrentMode] = useState<"admin" | "marketplace" | "business" | "pos">("marketplace"); // Current mode selector
   const [showModeDropdown, setShowModeDropdown] = useState(false); // Toggle mode dropdown
+  const [showBusinessOption, setShowBusinessOption] = useState(true); // Show/hide Business option
+  const [showPosOption, setShowPosOption] = useState(true); // Show/hide POS option
+  const [showMarketplaceOption, setShowMarketplaceOption] = useState(true); // Show/hide Marketplace option
   const router = useRouter();
   const pathname = usePathname();
   
   // Get context to share business data with other components
   const { setBusinessData: setContextBusinessData } = useBusinessData();
+
+  // Check business_variants localStorage and set dropdown option visibility
+  const checkVariantsVisibility = useCallback(() => {
+    try {
+      const businessVariantsStr = localStorage.getItem("business_variants");
+      
+      if (!businessVariantsStr) {
+        // Default: show all options if no variants
+        setShowBusinessOption(true);
+        setShowPosOption(true);
+        setShowMarketplaceOption(true);
+        return;
+      }
+
+      const variants = JSON.parse(businessVariantsStr);
+      
+      if (!Array.isArray(variants)) {
+        setShowBusinessOption(true);
+        setShowPosOption(true);
+        setShowMarketplaceOption(true);
+        return;
+      }
+
+      // Initialize visibility flags
+      let businessVisible = false;
+      let posVisible = false;
+      let marketplaceVisible = false;
+
+      // Check each variant
+      variants.forEach((variant: any) => {
+        const moduleId = variant?.module_id?.toLowerCase();
+        const variantName = variant?.variant_name?.toLowerCase();
+
+	  
+        // Brand Marketplace - Controls Business option
+        if (moduleId === "brands_marketplace") {
+          if (variantName === "without business page") {
+			marketplaceVisible = true;
+            businessVisible = false;
+            posVisible = false;
+          } else if (variantName === "with business page") {
+			marketplaceVisible = true;
+            businessVisible = true;
+			posVisible = false;
+          }
+        }
+
+        // POS - Controls POS option
+        if (moduleId === "pos") {
+          if (variantName === "without business page") {
+			marketplaceVisible = false;
+            posVisible = true;
+			businessVisible = false;
+          } else if (variantName === "with business page") {
+            marketplaceVisible = true;
+			posVisible = true;
+			businessVisible = true;
+          }
+        }
+
+        // Business Page - Controls Marketplace option
+        if (moduleId === "business_page") {
+          if (variantName === "without inventory") {
+            marketplaceVisible = false;
+			businessVisible = true;
+			posVisible = false;
+          } else if (variantName === "with inventory") {
+            marketplaceVisible = true;
+			businessVisible = true;
+			posVisible = false;
+          }
+        }
+      });
+      // Set visibility states
+      setShowBusinessOption(businessVisible);
+      setShowPosOption(posVisible);
+      setShowMarketplaceOption(marketplaceVisible);
+    } catch (error) {
+      console.error("Error checking business_variants:", error);
+      // Default: show all options on error
+      setShowBusinessOption(true);
+      setShowPosOption(true);
+      setShowMarketplaceOption(true);
+    }
+  }, []);
 
   // Extract vanity URL from pathname (first segment)
   const getVanityUrlFromPath = useCallback(() => {
@@ -178,14 +266,32 @@ export default function Sidebar({
     const localStorageUserGroupId = getUserGroupIdFromLocalStorage();
     setUserGroupId(localStorageUserGroupId);
     setIsHydrated(true);
-  }, [getUserGroupIdFromLocalStorage]);
+    
+    // Check variants visibility on mount
+    checkVariantsVisibility();
+  }, [getUserGroupIdFromLocalStorage, checkVariantsVisibility]);
 
   // Fetch business data using vanity URL from path
   useEffect(() => {
     const fetchBusinessData = async () => {
-      // If no vanity URL in path, skip fetch
+      // If no vanity URL in path, load from cookies
       if (!vanityUrl) {
-        setBusinessData(null);
+        const vanityUrlFromCookie = Cookies.get("vanity_url");
+        const businessTitleFromCookie = Cookies.get("business_title");
+        const businessLogoFromCookie = Cookies.get("business_logo");
+
+        // Set business data from cookies if available
+        if (!isAdmin && (vanityUrlFromCookie || businessTitleFromCookie)) {
+          setBusinessData({
+            type_id: Cookies.get("type_id") || "",
+            vanity_url: vanityUrlFromCookie || "",
+            title: businessTitleFromCookie || "Nature's High",
+            image_path: businessLogoFromCookie || "/images/natures-high-logo.png",
+          });
+        } else {
+          setBusinessData(null);
+        }
+
         setTypeId(Cookies.get("type_id") || null);
         setCurrentBusiness(null);
         setIsHydrated(true);
@@ -193,7 +299,7 @@ export default function Sidebar({
       }
 
       // Skip if already fetched for this vanity URL
-      if (businessData && currentBusiness === vanityUrl) {
+      if (currentBusiness === vanityUrl) {
         setIsHydrated(true);
         return;
       }
@@ -246,7 +352,7 @@ export default function Sidebar({
     if (isHydrated) {
       fetchBusinessData();
     }
-  }, [vanityUrl, isHydrated, businessData, currentBusiness, setContextBusinessData]);
+  }, [vanityUrl, isHydrated, currentBusiness, setContextBusinessData]);
 
   // Build final path helper - only prepend vanityUrl if it exists and not showing admin menu
   /*const buildPath = useCallback(
@@ -595,7 +701,7 @@ export default function Sidebar({
     } else if (isOnBusinessPage && vanityUrl) {
       setCurrentMode("business");
     } else {
-      setCurrentMode("select");
+      setCurrentMode("marketplace");
     }
   }, [pathname, isOnBusinessPage, vanityUrl, isHydrated]);
 
@@ -610,15 +716,14 @@ export default function Sidebar({
       items = getAdminMenu();
     }
     // Processor (type 36)
-    else if (typeId === "36") {
+    else if (typeId === "36" || typeId === "33") {
       if (currentMode === "pos") {
         items = getProcessorPosMenu();
       } else if (currentMode === "business") {
         items = getProcessorBusinessMenu();
-      } else if (currentMode === "select") {
-        items = getProcessorGeneralMenu();
       } else {
-        items = getProcessorMenu(); // Fallback to routing function
+        // Marketplace mode - general menu
+        items = getProcessorGeneralMenu();
       }
     }
     // Dispensary (type 20)
@@ -627,10 +732,9 @@ export default function Sidebar({
         items = getDispensaryPosMenu();
       } else if (currentMode === "business") {
         items = getDispensaryBusinessMenu();
-      } else if (currentMode === "select") {
-        items = getDispensaryGeneralMenu();
       } else {
-        items = getDispensaryMenu(); // Fallback to routing function
+        // Marketplace mode - general menu
+        items = getDispensaryGeneralMenu();
       }
     }
     // Fallback to default
@@ -662,9 +766,9 @@ export default function Sidebar({
     setShowAdminMenu((prev) => !prev);
   }, []);
 
-  // Handle mode change (Admin/Business/POS)
+  // Handle mode change (Marketplace/Business/POS/Admin)
   const handleModeChange = useCallback(
-    (mode: "admin" | "business" | "pos") => {
+    (mode: "admin" | "marketplace" | "business" | "pos") => {
       setCurrentMode(mode);
       setShowModeDropdown(false);
       
@@ -673,10 +777,14 @@ export default function Sidebar({
       
       if (mode === "admin") {
         router.push("/dashboard");
+      } else if (mode === "marketplace") {
+        // Marketplace: go to /dashboard (no vanity URL)
+        router.push("/dashboard");
       } else if (mode === "business") {
+        // Business: go to /{vanityUrl}/dashboard
         router.push(finalVanityUrl ? `/${finalVanityUrl}/dashboard` : "/dashboard");
       } else if (mode === "pos") {
-        // Include vanity URL in POS path if available
+        // POS: go to /{vanityUrl}/pos/dashboard
         router.push(finalVanityUrl ? `/${finalVanityUrl}/pos/dashboard` : "/pos/dashboard");
       }
       
@@ -737,7 +845,7 @@ export default function Sidebar({
     const vanityUrlFromCookie = Cookies.get("vanity_url");
     const finalVanityUrl = vanityUrl || vanityUrlFromCookie;
 
-    if (typeId === "36") {
+    if (typeId === "36" || typeId === "33") {
       // Processor
       return {
         business: finalVanityUrl ? `/${finalVanityUrl}` : "/",
@@ -789,6 +897,7 @@ export default function Sidebar({
   // Get business title for logo label
   const businessTitle = showAdminMenu ? "Admin Panel" : (businessData?.title || "Nature's High");
   const businessLogo = showAdminMenu ? "/images/admin-logo.png" : (businessData?.image_path || "/images/natures-high-logo.png");
+
 
   return (
     <>
@@ -905,8 +1014,8 @@ export default function Sidebar({
         </div>
       )}
 
-      {/* MODE SELECTOR DROPDOWN - Show ONLY for Processor (36) and Dispensary (20) users, NOT for admin */}
-      {(typeId === "36" || typeId === "20") && !isAdmin && (
+      {/* MODE SELECTOR DROPDOWN - Show for Processor (36) and Dispensary (20) users, NOT for admin */}
+      {((typeId === "36" || typeId === "33" || typeId === "20") && !isAdmin) && (
         <div className="px-3 mb-3 relative">
           <button
             type="button"
@@ -923,7 +1032,7 @@ export default function Sidebar({
           >
             <div className="flex items-center space-x-2">
               <span className="text-sm font-semibold">
-                {currentMode === "admin" ? "🔐 Admin" : currentMode === "business" ? "🏢 Business" : currentMode === "pos" ? "🛍️ POS" : "📋 Select"}
+                {currentMode === "admin" ? "🔐 Admin" : currentMode === "business" ? "🏢 Business" : currentMode === "pos" ? "🛍️ POS" : "🏪 Marketplace"}
               </span>
             </div>
             {!isCollapsed && (
@@ -939,61 +1048,51 @@ export default function Sidebar({
           {/* Dropdown Menu */}
           {showModeDropdown && !isCollapsed && (
             <div className="absolute top-full left-3 right-3 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
-              <button
-                type="button"
-                onClick={() => {
-                  router.push("/dashboard");
-                  setShowModeDropdown(false);
-                  if (window.innerWidth < 768) setIsMobileOpen(false);
-                }}
-                className={`w-full text-left px-4 py-3 text-sm rounded-t-lg transition-all duration-200 flex items-center space-x-2
-                  bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30
-                `}
-              >
-                <span>🏠</span>
-                <span>Dashboard</span>
-              </button>
-              {isAdmin && (
+              {showMarketplaceOption && (
                 <button
                   type="button"
-                  onClick={() => handleModeChange("admin")}
-                  className={`w-full text-left px-4 py-3 text-sm transition-all duration-200 flex items-center space-x-2
-                    ${currentMode === "admin"
+                  onClick={() => handleModeChange("marketplace")}
+                  className={`w-full text-left px-4 py-3 text-sm rounded-t-lg transition-all duration-200 flex items-center space-x-2
+                    ${currentMode === "marketplace"
                       ? "accent-bg text-white"
                       : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                     }
                   `}
                 >
-                  <span>🔐</span>
-                  <span>Admin Panel</span>
+                  <span>🏪</span>
+                  <span>Marketplace</span>
                 </button>
               )}
-              <button
-                type="button"
-                onClick={() => handleModeChange("business")}
-                className={`w-full text-left px-4 py-3 text-sm transition-all duration-200 flex items-center space-x-2
-                  ${currentMode === "business"
-                    ? "accent-bg text-white"
-                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }
-                `}
-              >
-                <span>🏢</span>
-                <span>Business</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModeChange("pos")}
-                className={`w-full text-left px-4 py-3 text-sm rounded-b-lg transition-all duration-200 flex items-center space-x-2
-                  ${currentMode === "pos"
-                    ? "accent-bg text-white"
-                    : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  }
-                `}
-              >
-                <span>🛍️</span>
-                <span>POS System</span>
-              </button>
+              {showBusinessOption && (
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("business")}
+                  className={`w-full text-left px-4 py-3 text-sm transition-all duration-200 flex items-center space-x-2
+                    ${currentMode === "business"
+                      ? "accent-bg text-white"
+                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }
+                  `}
+                >
+                  <span>🏢</span>
+                  <span>Business</span>
+                </button>
+              )}
+              {showPosOption && (
+                <button
+                  type="button"
+                  onClick={() => handleModeChange("pos")}
+                  className={`w-full text-left px-4 py-3 text-sm rounded-b-lg transition-all duration-200 flex items-center space-x-2
+                    ${currentMode === "pos"
+                      ? "accent-bg text-white"
+                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    }
+                  `}
+                >
+                  <span>🛍️</span>
+                  <span>POS</span>
+                </button>
+              )}
             </div>
           )}
         </div>

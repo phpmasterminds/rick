@@ -110,6 +110,7 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [approvalSubmitted, setApprovalSubmitted] = useState(false);
+  const [isUpdateMode, setIsUpdateMode] = useState(false);
   
   const [modules] = useState<Module[]>([
     { 
@@ -544,6 +545,75 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
     } catch (error: any) {
       console.error('❌ Approval error:', error);
       const errorMsg = error.response?.data?.error || 'Failed to approve registration';
+      toast.error(errorMsg, {
+        position: 'bottom-center',
+        autoClose: 3000,
+      });
+      setSubmitting(false);
+    }
+  };
+
+  // Handle update (same API call as approve for approved registrations)
+  const handleUpdate = async () => {
+    try {
+      setSubmitting(true);
+      if (!registrationData?.id) {
+        toast.error('Registration data not loaded', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      if (selectedVariants.length === 0) {
+        toast.error('Please select at least one variant', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      const response = await axios.post(`/api/admin/register-id/?id=${registrationData.id}`, {
+        selected_variants: selectedVariants,
+        module_amounts: moduleAmounts,
+        admin_notes: adminApprovalNotes,
+        trial_days: parseInt(trialDays),
+        status: 'approved_update',
+        id: registrationData.id,
+        user_id: registrationData.user_id,
+      });
+
+      if (response.data.status === 'success') {
+        toast.success('Registration updated successfully!', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+
+        // Update registration data
+        setRegistrationData({
+          ...registrationData,
+          admin_approval_data: {
+            selected_variants: selectedVariants,
+            module_amounts: moduleAmounts,
+            notes: adminApprovalNotes,
+            trial_days: trialDays,
+          },
+        });
+
+        // Exit update mode
+        setIsUpdateMode(false);
+      } else {
+        toast.error(response.data.error || 'Failed to update registration', {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+        setSubmitting(false);
+      }
+    } catch (error: any) {
+      console.error('❌ Update error:', error);
+      const errorMsg = error.response?.data?.error || 'Failed to update registration';
       toast.error(errorMsg, {
         position: 'bottom-center',
         autoClose: 3000,
@@ -1024,13 +1094,41 @@ export default function RegistrationPage({ registrationId }: RegistrationPagePro
                   </div>
                 )}
 
-                {/* Approval Success Message */}
-                {approvalSubmitted && (
-                  <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-lg">
-                    <CheckCircle className="w-5 h-5 text-green-600" />
-                    <p className="text-sm font-medium text-green-700">
-                      Registration approved successfully. Redirecting...
-                    </p>
+                {/* Update Button - Shown after approval */}
+                {approvalSubmitted && !isUpdateMode && (
+                  <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <p className="text-sm font-medium text-green-700">
+                        Registration approved successfully.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setIsUpdateMode(true)}
+                      className="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-medium transition-colors"
+                    >
+                      Update
+                    </button>
+                  </div>
+                )}
+
+                {/* Update Mode Buttons */}
+                {approvalSubmitted && isUpdateMode && (
+                  <div className="flex gap-4 justify-end">
+                    <button
+                      onClick={() => setIsUpdateMode(false)}
+                      disabled={submitting}
+                      className="px-8 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleUpdate}
+                      disabled={submitting || selectedVariants.length === 0}
+                      className="px-8 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+                    >
+                      {submitting ? 'Updating...' : 'Save Update'}
+                    </button>
                   </div>
                 )}
               </div>

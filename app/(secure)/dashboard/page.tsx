@@ -1,106 +1,100 @@
 'use client';
-import React, { useState, useEffect } from 'react';
-import { Bell, Home, Megaphone, Package, CreditCard, Settings, HelpCircle, Plus, X, Upload, Target, DollarSign, MousePointer, Eye, CheckCircle, ChevronDown, ChevronRight, Menu, User, LogOut, Users, Folder } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import StatCard from "@/components/StatCard";
-import PageHeading from "@/components/PageHeading";
-import Link from "next/link";
 
+import React, { useState, useEffect } from 'react';
+import AdminDashboard from './components/AdminDashboard';
+import SellerDashboard from './components/SellerDashboard';
+import BuyerDashboard from './components/BuyerDashboard';
+import { useTheme } from 'next-themes';
+import Cookies from "js-cookie";
+
+type UserType = 'admin' | 'seller' | 'buyer' | null;
 
 export default function DashboardPage() {
-	const chartData = [
-    { date: '3 Oct', clicks: 0, impressions: 0 },
-    { date: '4 Oct', clicks: 0, impressions: 0 },
-    { date: '5 Oct', clicks: 0, impressions: 0 },
-    { date: '6 Oct', clicks: 0, impressions: 0 },
-    { date: '7 Oct', clicks: 0, impressions: 0 },
-    { date: '8 Oct', clicks: 0, impressions: 0 },
-    { date: '9 Oct', clicks: 0, impressions: 0 },
-	];
+  const { theme } = useTheme();
+  const [userType, setUserType] = useState<UserType>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    determineUserType();
+  }, []);
+
+  const determineUserType = async () => {
+    try {
+      setLoading(true);
+
+      // Get user info from localStorage
+      const userJson = localStorage.getItem('user');
+      if (!userJson) {
+        setError('User information not found');
+        setLoading(false);
+        return;
+      }
+
+      const user = JSON.parse(userJson);
+      const userGroupId = parseInt(user.data.user_group_id, 10);
+      // Check if admin (user_group_id is 1)
+      if (userGroupId === 1) {
+        setUserType('admin');
+        setLoading(false);
+        return;
+      }
+
+      // Get type_id from localStorage (cookie equivalent)
+      const typeId = Cookies.get("type_id");
+
+      // Check if buyer (type_id is 20)
+      if (typeId === '20') {
+        setUserType('buyer');
+      } else {
+        // Default to seller for all other cases
+        setUserType('seller');
+      }
+    } catch (err) {
+      console.error('Error determining user type:', err);
+      setError('Failed to determine user type');
+      // Default to seller on error
+      setUserType('seller');
+    } finally {
+      setLoading(false);
+    }
+  };
+console.log(userType+'---');
+  if (loading) {
+    return (
+      <div className="flex-1 p-4 md:p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 p-4 md:p-6 flex items-center justify-center">
+        <div className="text-center bg-white dark:bg-gray-900 rounded-lg p-8 border border-gray-200 dark:border-gray-800">
+          <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+          <button
+            onClick={() => {
+              setError(null);
+              determineUserType();
+            }}
+            className="px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex-1 p-4 md:p-6 overflow-auto">
-      {/* Dynamic Page Heading with Business Name */}
-      <div className="mb-6">
-        <PageHeading 
-          pageName="Dashboard" 
-          description="Track your advertising performance"
-        />
-      </div>
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard
-          title="Clicks"
-          value="0"
-          icon={MousePointer}
-          color="bg-blue-500"
-          trend="+0%"
-        />
-        <StatCard
-          title="Impressions"
-          value="0"
-          icon={Eye}
-          color="bg-red-500"
-          trend="+0%"
-        />
-        <StatCard
-          title="Ad Spend"
-          value="$0.00"
-          icon={DollarSign}
-          color="bg-gray-700"
-          trend="$0.00"
-        />
-        <StatCard
-          title="Conversions"
-          value="0"
-          icon={CheckCircle}
-          color="bg-gray-500"
-          trend="+0%"
-        />
-      </div>
-
-      {/* Campaign Insights Chart */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 md:p-6 transition-colors duration-300">
-        <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Campaign Insights</h2>
-          <select className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-offset-0 accent-border">
-            <option>Last 7 Days</option>
-            <option>Last 30 Days</option>
-            <option>Last 90 Days</option>
-          </select>
-        </div>
-
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={chartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" opacity={0.1} />
-            <XAxis dataKey="date" stroke="#6B7280" />
-            <YAxis stroke="#6B7280" />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: '#1F2937',
-                border: 'none',
-                borderRadius: '8px',
-                color: '#fff',
-              }}
-            />
-            <Line
-              type="monotone"
-              dataKey="clicks"
-              stroke="#3B82F6"
-              strokeWidth={3}
-              dot={{ fill: '#3B82F6', r: 4 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="impressions"
-              stroke="#EF4444"
-              strokeWidth={3}
-              dot={{ fill: '#EF4444', r: 4 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
+    <>
+      {userType === 'admin' && <AdminDashboard />}
+      {userType === 'seller' && <SellerDashboard />}
+      {userType === 'buyer' && <BuyerDashboard />}
+    </>
   );
 }

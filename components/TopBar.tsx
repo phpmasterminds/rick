@@ -88,6 +88,8 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   const [fullname, setFullname] = useState<string | null>(null);
   const [initials, setInitials] = useState("U");
   const [loggedIn, setLoggedIn] = useState(false);
+  const [userImage, setuserImage] = useState<string | null>(null);
+  const apiUrl = process.env.NEXT_PUBLIC_API_SITE_URL;
   
   // Business data
   const [businessData, setBusinessData] = useState<BusinessData | null>(null);
@@ -224,6 +226,11 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
         const user = JSON.parse(userData);
         setFullname(user.data.full_name || null);
         setEmail(user.data.email || null);
+		
+		if (user.data.user_image) {
+			const image120 = user.data.user_image.replace('%s', '_120_square');
+			setuserImage(`${apiUrl}user/${image120}`);
+		}
 
         if (user.data.full_name?.trim() !== "") {
           const nameParts = user.data.full_name.trim().split(" ");
@@ -510,7 +517,18 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
                     }}
                     className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-300"
                   >
-                    <span className="text-white font-semibold text-sm">{initials}</span>
+				  {userImage ? (
+						<img
+						  src={userImage}
+						  className="w-full h-full object-cover"
+						  onError={() => setuserImage(null)} // fallback if image fails
+						/>
+					  ) : (
+						<span className="text-white font-semibold text-sm">
+						  {initials}
+						</span>
+					  )}
+					  					
                   </button>
 
                   {showUserMenu && (
@@ -519,22 +537,24 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
                         <p className="font-semibold text-sm text-gray-900 dark:text-white">{fullname}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400">{email}</p>
                   </div>
-
-                  <button
+				  
+				  <Link href="/settings/profile">
+				  <button
                     onClick={() => setShowUserMenu(false)}
                     className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left text-gray-900 dark:text-white"
                   >
                     <User size={18} />
                     <span className="text-sm font-medium">Profile</span>
                   </button>
+                  </Link>
 
-                  <button
+                  {/*<button
                     onClick={() => setShowUserMenu(false)}
                     className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left text-gray-900 dark:text-white"
                   >
                     <Settings size={18} />
                     <span className="text-sm font-medium">Settings</span>
-                  </button>
+                  </button>*/}
 
                   <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
 

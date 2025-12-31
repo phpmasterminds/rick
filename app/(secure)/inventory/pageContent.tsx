@@ -182,7 +182,7 @@ function PublishedToggle({ product, onToggle }: { product: Product, onToggle: (i
         </button>
       </div>
 	  
-	  {/* Sample Toggle */}
+	  {/* Sample Toggle 
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sample</span>
         <button
@@ -202,7 +202,7 @@ function PublishedToggle({ product, onToggle }: { product: Product, onToggle: (i
             }`}
           />
         </button>
-      </div>
+      </div>*/}
     </div>
   );
 }
@@ -414,7 +414,18 @@ export default function PageContent() {
   };
   
   useEffect(() => {
-    const fetchInventoryDetails = async (page: number = 1) => {
+    
+    fetchInventoryDetails(apiPage);
+  }, [apiPage]);
+  
+  useEffect(() => {
+    // Load more pages if needed
+    if (allProducts.length < totalProducts && !loading) {
+      setApiPage(prev => prev + 1);
+    }
+  }, [allProducts.length, totalProducts, loading]);
+  
+	const fetchInventoryDetails = async (page: number = 1) => {
       try {
         setLoading(true);
         setError(null);
@@ -518,16 +529,6 @@ export default function PageContent() {
         setLoading(false);
       }
     };
-
-    fetchInventoryDetails(apiPage);
-  }, [apiPage]);
-  
-  useEffect(() => {
-    // Load more pages if needed
-    if (allProducts.length < totalProducts && !loading) {
-      setApiPage(prev => prev + 1);
-    }
-  }, [allProducts.length, totalProducts, loading]);
 
   const currentCategory = categories.find(c => c.name === selectedCategory);
   const subcategories = currentCategory?.subcategories || [];
@@ -883,8 +884,10 @@ export default function PageContent() {
       editFormData.selectedRoom.forEach(room => {
         formData.append('s_rooms[]', room);
       });
-      formData.append('enable_catalog', editFormData.enable_catalog ? '1' : '0');
-      formData.append('enable_product', editFormData.page ? '1' : '0');
+     // formData.append('enable_catalog', editFormData.enable_catalog ? '1' : '0');
+      //formData.append('enable_product', editFormData.page ? '1' : '0');
+      formData.append('enable_catalog', '1');
+      formData.append('enable_product', '0');
       formData.append('page_id', editFormData.page_id);
       
       // Add image if uploaded
@@ -910,8 +913,8 @@ export default function PageContent() {
 				  ...p,
 				  s_rooms: editFormData.selectedRoom?.join(',') || p.s_rooms, // update rooms
 				  i_weight: editFormData.weight,                               // update weight
-				  enable_catalog: editFormData.catalog ? '1' : '0',                        // update POS status
-				  enable_product: editFormData.page ? '1' : '0',               // update enable status
+				  enable_catalog: '1',                        // update POS status
+				  enable_product: '0',               // update enable status
 				  p_offer_price: editFormData.price2 || p.p_offer_price,       // update price
 				  i_onhand: editFormData.quantityOnHand || p.i_onhand          // update on-hand qty
 				}
@@ -926,8 +929,8 @@ export default function PageContent() {
 				  ...p,
 				  s_rooms: editFormData.selectedRoom?.join(',') || p.s_rooms,
 				  i_weight: editFormData.weight,
-				  enable_catalog: editFormData.catalog ? '1' : '0',
-				  enable_product: editFormData.page ? '1' : '0',
+				  enable_catalog: '1',
+				  enable_product: '0',
 				  p_offer_price: editFormData.price2 || p.p_offer_price,
 				  i_onhand: editFormData.quantityOnHand || p.i_onhand
 				}
@@ -1039,8 +1042,9 @@ export default function PageContent() {
         formData.append('s_rooms[]', room);
       });
       
-      formData.append('enable_catalog', editFormData.catalog ? '1' : '0');
-      formData.append('enable_product', editFormData.page ? '1' : '0');
+      //formData.append('enable_catalog', editFormData.catalog ? '1' : '0');
+      formData.append('enable_catalog', '1');
+      formData.append('enable_product', '0');
       
       // Add image if uploaded
       if (uploadedImage) {
@@ -1059,6 +1063,8 @@ export default function PageContent() {
           position: 'bottom-center',
           autoClose: 3000,
         });
+		
+		fetchInventoryDetails(1);
         
         // Reset form and close modal
         setShowEditModal(false);
@@ -1472,7 +1478,7 @@ export default function PageContent() {
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Item Name</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Item Identifiers</th>
-				{/*<th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Published</th>*/}
+				<th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Published</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Price</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Deals</th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Par</th>
@@ -1504,12 +1510,12 @@ export default function PageContent() {
                           <div className="text-xs text-gray-400 dark:text-gray-500">{product.batch_id}</div>
                         </div>
                     </td>
-					{/*<td className="px-4 py-4 text-center">
+					<td className="px-4 py-4 text-center">
                       <PublishedToggle 
                         product={product}
                         onToggle={handleTogglePublish}
                       />
-                    </td>*/}
+                    </td>
                     <td className="px-4 py-4 text-right font-medium text-gray-900 dark:text-gray-100">
 						<input 
 						type="text" 
@@ -1713,7 +1719,6 @@ export default function PageContent() {
                       onChange={(e) => setEditFormData({...editFormData, strainName: e.target.value})}
                       className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       placeholder="Strain Name"
-					  readOnly		
                     />
                   </div>
 
@@ -1726,7 +1731,6 @@ export default function PageContent() {
                         value={editFormData.quantityOnHand}
                         onChange={(e) => setEditFormData({...editFormData, quantityOnHand: e.target.value})}
                         className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-						readOnly
                       />
                     </div>
                     <div>
@@ -1737,7 +1741,6 @@ export default function PageContent() {
                         value={editFormData.weight}
                         onChange={(e) => setEditFormData({...editFormData, weight: e.target.value})}
                         className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-						readOnly
                       />
                     </div>
                   </div>
@@ -1750,7 +1753,6 @@ export default function PageContent() {
                         type="text"
                         value={editFormData.sku}
                         className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
-                        readOnly
                       />
                     </div>
                     <div>
@@ -2154,7 +2156,7 @@ export default function PageContent() {
 
 
 
-                  {/* Toggles */}
+                  {/* Toggles 
                   <div className="grid grid-cols-2 gap-6">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Catalog</label>
@@ -2190,7 +2192,7 @@ export default function PageContent() {
                         />
                       </button>
                     </div>
-                  </div>
+                  </div>*/}
 
                   {/* File Upload */}
                   <div>

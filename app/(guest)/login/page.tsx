@@ -54,6 +54,12 @@ export default function LoginPage() {
 			const aUserBusinessDetails = await axios.get(
 			  `/api/business/mine?user_id=${aUserDetails.data.data.user_id}`
 			);
+			
+			localStorage.setItem("business_variants", JSON.stringify(
+    aUserBusinessDetails.data.data.business_variants,
+    null,
+    2
+  ));
 			const business = aUserBusinessDetails.data.data.business[0];
 
 			if (business?.page_id) {
@@ -61,6 +67,7 @@ export default function LoginPage() {
 			  Cookies.set("vanity_url", business.vanity_url, { expires: 1 });
 			  Cookies.set("type_id", business.type_id, { expires: 1 });
 			  Cookies.set("business_title", business.title, { expires: 1 });
+			  Cookies.set("business_logo", business.image_path, { expires: 1 });
 			}
 		  } else {
 			console.error("User ID not found in user details response");
