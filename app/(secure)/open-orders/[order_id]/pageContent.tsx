@@ -106,6 +106,17 @@ interface Order {
     locs_phone?: string;
     locs_email?: string;
     full_name?: string;
+	pages_image_url?: string;
+  };
+  seller_information?: {
+    title?: string;
+    locs_city?: string;
+    locs_zip?: string;
+    locs_street?: string;
+    locs_phone?: string;
+    locs_email?: string;
+    full_name?: string;
+	pages_image_url?: string;
   };
   cart?: CartItem[];
 }
@@ -216,6 +227,9 @@ export default function PageContent({ business, orderId }: PageContentProps) {
             }));
             setOrderItems(mappedItems);
           }
+          
+          // Fetch payment data on page load
+          fetchOrderPayments();
         } else {
           setError('Order not found');
         }
@@ -269,12 +283,17 @@ export default function PageContent({ business, orderId }: PageContentProps) {
     try {
       setPaymentsLoading(true);
       const response = await axios.get(
-        `/api/business/order-payments/?business=${business}&order_id=${orderId}`
+        `/api/business/payments/?business=${business}&order_id=${orderId}`
       );
-      if (response.data?.data?.payments) {
-        setOrderPayments(response.data.data.payments);
-        setTotalPaid(response.data.data.total_paid || '0');
-        setBalanceDue(response.data.data.balance_due || '0');
+      if (response.data && response.data.data) {
+        const paymentsData = response.data.data;
+        // Convert object with numeric keys to array, excluding 'summary'
+        const paymentsArray = Object.entries(paymentsData)
+          .filter(([key]) => key !== 'summary')
+          .map(([, payment]) => payment) as OrderPayment[];
+        setOrderPayments(paymentsArray);
+        setTotalPaid(paymentsData.summary?.total_paid || '0');
+        setBalanceDue(paymentsData.summary?.balance_due || '0');
       }
     } catch (err) {
       console.error('Failed to fetch payments:', err);
@@ -494,8 +513,30 @@ export default function PageContent({ business, orderId }: PageContentProps) {
   };
 
   const handleApplyPayment = async () => {
+    // Validation
+    const amount = parseFloat(paymentFormData.amount || '0');
+    const balanceDueAmount = parseFloat(balanceDue || '0');
+
+    // Check all fields are filled
+    if (!paymentFormData.payment_method) {
+      toast.error('Please select a payment method');
+      return;
+    }
+
+    // Check amount is valid
+    if (amount <= 0) {
+      toast.error('Amount must be greater than 0');
+      return;
+    }
+
+    // Check amount doesn't exceed balance due
+    if (amount > balanceDueAmount) {
+      toast.error(`Amount cannot exceed balance due of $${balanceDueAmount.toFixed(2)}`);
+      return;
+    }
+
     try {
-      await axios.post(`/api/business/add-order-payment/`, {
+      await axios.post(`/api/business/payments/`, {
         business,
         order_id: orderId,
         ...paymentFormData,
@@ -622,15 +663,15 @@ export default function PageContent({ business, orderId }: PageContentProps) {
           {/* Business Logo */}
           {order.to_address_detail_f_locs?.pages_image_url && (
             <img
-              src={order.to_address_detail_f_locs.pages_image_url}
-              alt={readableName}
+              src= {order.from_address_detail_f_locs?.pages_image_url ?? '—'}
+              alt={order.from_address_detail_f_locs?.title}
               className="h-12 md:h-16 object-contain rounded"
             />
           )}
 
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Order #{order.order_id}</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">{readableName}</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">{order.from_address_detail_f_locs?.title}</p>
           </div>
 
           {/* Dropdown Menu Button */}
@@ -690,20 +731,6 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                     <span>Edit Order</span>
                   </button>
 
-                  {/* Payments */}
-                  <button
-                    onClick={() => {
-                      setShowPaymentModal(true);
-                      setShowDropdown(false);
-                    }}
-                    className="w-full px-4 py-3 text-left hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition flex items-center gap-3 text-yellow-600 dark:text-yellow-400 border-l-4 border-transparent hover:border-yellow-600"
-                  >
-                    <CreditCard size={18} />
-                    <div>
-                      <div className="font-medium">Payments</div>
-                      <div className="text-xs text-gray-500">Add payment</div>
-                    </div>
-                  </button>
 
                   {/* Divider */}
                   <div className="my-2 border-t border-gray-200 dark:border-gray-700"></div>
@@ -827,35 +854,28 @@ export default function PageContent({ business, orderId }: PageContentProps) {
               {/* Customer Information */}
               <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                  <User size={20} /> Customer Information
+                  <User size={20} /> Seller Information
                 </h3>
                 <div className="space-y-4">
                   <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
                     <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Name</p>
                     <p className="text-gray-900 dark:text-gray-100 font-medium">
-                      {order.full_name || `${order.contact_fname || ''} ${order.contact_lname || ''}`.trim() || 'N/A'}
+                      {order.seller_information?.title ?? 'N/A'}
                     </p>
                   </div>
-                  {order.account_name && (
-                    <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                      <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Account</p>
-                      <p className="text-gray-900 dark:text-gray-100 font-medium">{order.account_name}</p>
-                    </div>
-                  )}
+                  
                   <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
                     <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
                       <Mail size={16} /> Email
                     </p>
-                    <p className="text-blue-600 dark:text-blue-400 font-medium">{order.contact_email}</p>
+                    <p className="text-blue-600 dark:text-blue-400 font-medium">{order.seller_information?.locs_email ?? 'N/A'}</p>
                   </div>
-                  {order.contact_phone && (
                     <div>
                       <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
                         <Phone size={16} /> Phone
                       </p>
-                      <p className="text-gray-900 dark:text-gray-100 font-medium">{order.contact_phone}</p>
+                      <p className="text-gray-900 dark:text-gray-100 font-medium">{order.seller_information?.locs_phone ?? 'N/A'}</p>
                     </div>
-                  )}
                 </div>
               </div>
 
@@ -908,10 +928,32 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       })()}
                     </span>
                   </div>
-                  <button className="w-full mt-6 px-4 py-3 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover shadow-md hover:shadow-lg flex items-center justify-center gap-2">
-                    <CreditCard size={20} />
-                    Apply Payment
-                  </button>
+                  
+                  {/* Payment Status Section */}
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Total Paid</span>
+                      <span className="font-semibold text-green-600 dark:text-green-400">
+                        ${parseFloat(totalPaid || '0').toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Balance Due</span>
+                      <span className={`font-semibold ${parseFloat(balanceDue || '0') <= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        ${parseFloat(balanceDue || '0').toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Apply Payment Button - Only show if balance is due */}
+                  
+                  {/* Fully Paid Badge */}
+                  {parseFloat(balanceDue || '0') <= 0 && (
+                    <div className="w-full mt-6 px-4 py-3 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center gap-2">
+                      <Check size={20} className="text-green-600 dark:text-green-400" />
+                      <span className="font-semibold text-green-600 dark:text-green-400">Fully Paid</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -996,17 +1038,17 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                               <h4 className="font-bold text-gray-900 dark:text-gray-100">{payment.payment_method}</h4>
                             </div>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                              {formatDate(payment.payment_date)}
+                              {payment.payment_date}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-500">
-                              Transaction ID: {payment.transaction_id}
-                            </p>
+                            {/*<p className="text-xs text-gray-500 dark:text-gray-500">
+                              Transaction ID: {payment.payment_id}
+                            </p>*/}
                           </div>
                           <div className="text-right">
                             <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                               ${parseFloat(payment.amount).toFixed(2)}
                             </p>
-                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 ${
+                            {/*<span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 ${
                               payment.status === 'success' 
                                 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                 : payment.status === 'pending'
@@ -1014,7 +1056,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                                 : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                             }`}>
                               {payment.status}
-                            </span>
+                            </span>*/}
                           </div>
                         </div>
                       </div>
@@ -1046,10 +1088,12 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                   <CreditCard size={48} className="mx-auto mb-4 opacity-30" />
                   <p className="text-lg">No payments recorded</p>
                   <p className="text-sm mt-2">Payments will appear here when added</p>
-                  <button className="mt-6 px-6 py-2 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover">
+                  {/*<button className="mt-6 px-6 py-2 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover" onClick={() => {
+                      setShowPaymentModal(true);
+                    }}>
                     <CreditCard size={18} className="inline mr-2" />
                     Add Payment
-                  </button>
+                  </button>*/}
                 </div>
               )}
             </div>
@@ -1607,11 +1651,11 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 >
                   <option value="">Select option</option>
-                  <option value="cash">Cash</option>
-                  <option value="check">Check</option>
-                  <option value="credit_card">Credit Card</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="other">Other</option>
+                  <option value="1">Cash</option>
+                  <option value="2">Check</option>
+                  <option value="3">Credit Card</option>
+                  <option value="4">Bank Transfer</option>
+                  <option value="5">Other</option>
                 </select>
               </div>
 
@@ -1623,10 +1667,16 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                     ${parseFloat(order?.cart_total_cost || '0').toFixed(2)}
                   </span>
                 </div>
+                <div className="flex justify-between mb-2">
+                  <span className="font-medium text-gray-700 dark:text-gray-300">Total Paid</span>
+                  <span className="font-bold text-green-600 dark:text-green-400">
+                    ${parseFloat(totalPaid || '0').toFixed(2)}
+                  </span>
+                </div>
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-700 dark:text-gray-300">Outstanding</span>
-                  <span className="font-bold text-red-600 dark:text-red-400">
-                    ${parseFloat(order?.cart_total_cost || '0').toFixed(2)}
+                  <span className={`font-bold ${parseFloat(balanceDue || '0') <= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    ${parseFloat(balanceDue || '0').toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -1641,7 +1691,12 @@ export default function PageContent({ business, orderId }: PageContentProps) {
               </button>
               <button
                 onClick={handleApplyPayment}
-                className="px-4 py-2 text-white bg-teal-500 rounded-lg hover:bg-teal-600 transition font-medium"
+                disabled={parseFloat(paymentFormData.amount || '0') <= 0 || !paymentFormData.payment_method || parseFloat(paymentFormData.amount || '0') > parseFloat(balanceDue || '0')}
+                className={`px-4 py-2 text-white rounded-lg transition font-medium ${
+                  parseFloat(paymentFormData.amount || '0') <= 0 || !paymentFormData.payment_method || parseFloat(paymentFormData.amount || '0') > parseFloat(balanceDue || '0')
+                    ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                    : 'bg-teal-500 hover:bg-teal-600'
+                }`}
               >
                 Apply
               </button>

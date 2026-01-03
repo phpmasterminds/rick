@@ -77,6 +77,9 @@ interface Order {
     locs_zip?: string;
     locs_street?: string;
   };
+  seller_information?: {
+    title?: string;
+  };
 }
 
 interface PaymentModalProps {
@@ -610,8 +613,7 @@ export default function OrderPageContent({ business, typeid }: { business: strin
 				`/api/business/save-whole-sale-order/?business=${business}&page=${currentPage}&wholesale=${wholesale}&status=8`
 			  );
 		  }
-		  console.log("typeid-->"+typeid);
-			  console.log("==>"+response);
+		 
 		  if (response.data?.data?.orders) {
 			setOrders(response.data.data.orders);
 			setTotalOrders(response.data.data.total || 0);
@@ -641,7 +643,7 @@ export default function OrderPageContent({ business, typeid }: { business: strin
 		  const response = await axios.get(
 			`/api/business/sales-persons?page_id=${pageId}`
 		  );
-		  console.log(response.data.data);
+		  
 		  if (response.data?.data) {
 			setSalesReps(response.data.data);
 		  }
@@ -812,6 +814,7 @@ export default function OrderPageContent({ business, typeid }: { business: strin
       </div>
     );
   }
+  
 
   return (
     <div className="flex-1 p-4 md:p-6 overflow-auto bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900">
@@ -834,7 +837,7 @@ export default function OrderPageContent({ business, typeid }: { business: strin
               <Search size={20} className="absolute left-3 top-3.5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Search by Order ID or Customer"
+                placeholder={`Search by Order ID or ${typeid === '20' ? "Seller" : "Customer"}`}
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -933,7 +936,7 @@ export default function OrderPageContent({ business, typeid }: { business: strin
                     }
                     className="flex items-center gap-2 font-bold text-gray-700 dark:text-gray-300 text-sm hover:text-gray-900 dark:hover:text-gray-100"
                   >
-                    Customer
+                    {typeid === '20' ? "Seller" : "Customer"}
                     <ChevronDown size={16} />
                   </button>
                 </th>
@@ -970,7 +973,7 @@ export default function OrderPageContent({ business, typeid }: { business: strin
                     </td>
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">{order.full_name}</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">{typeid === '20' ? order.seller_information?.title ?? "N/A" : order.full_name}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Sales Reps: {order.sales_person_name || '-'}</p>{/*
                         <div className="flex gap-1 mt-2">
                           <span className="inline-block bg-yellow-300 text-yellow-900 text-xs px-2 py-0.5 rounded font-bold">
@@ -994,13 +997,8 @@ export default function OrderPageContent({ business, typeid }: { business: strin
                         className="px-2 py-1 border border-gray-300 dark:border-gray-700 rounded text-sm dark:bg-gray-800 dark:text-gray-100"
                       />
                     </td>
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => setPaymentModal({ isOpen: true, order })}
-                        className="text-red-600 dark:text-red-400 font-bold hover:text-red-700 dark:hover:text-red-300 cursor-pointer"
-                      >
-                        ${parseFloat(order.cart_total_cost).toFixed(2)}
-                      </button>
+                    <td className="px-6 py-4 font-bold text-gray-900 dark:text-gray-100">
+                      ${parseFloat(order.cart_total_cost).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 font-bold text-gray-900 dark:text-gray-100">
                       ${parseFloat(order.cart_total_cost).toFixed(2)}

@@ -413,52 +413,61 @@ export default function PageContent() {
     }));
   };
   
+
+  // ============================================================
+  // FIXED: Single useEffect for inventory loading
+  // Prevents infinite loop caused by two interconnected effects
+  // ============================================================
+  
+  const [hasInitialized, setHasInitialized] = useState(false);
+
   useEffect(() => {
+    // Guard: only run once on mount
+    if (hasInitialized) return;
     
-    fetchInventoryDetails(apiPage);
-  }, [apiPage]);
-  
-  useEffect(() => {
-    // Load more pages if needed
-    if (allProducts.length < totalProducts && !loading) {
-      setApiPage(prev => prev + 1);
-    }
-  }, [allProducts.length, totalProducts, loading]);
-  
-	const fetchInventoryDetails = async (page: number = 1) => {
+    const fetchAllInventory = async () => {
       try {
         setLoading(true);
         setError(null);
-        // Get vanity_url from cookies
-		const getCookie = (name: string) => {
-			const value = `; ${document.cookie}`;
-			const parts = value.split(`; ${name}=`);
-			if (parts.length === 2) return parts.pop()?.split(';').shift();
-				return '';
-		};
-		const vanityUrl = getCookie('vanity_url');
-		
-        const response = await axios.get(`/api/business/posinventory?business=${vanityUrl}&page=${page}&is_from=product`);
-        console.log(response);
-        if (response.data.status === 'success') {
-          const productsData = response.data.data.products || [];
+        
+        // Helper to get cookie
+        const getCookie = (name: string) => {
+          const value = `; ${document.cookie}`;
+          const parts = value.split(`; ${name}=`);
+          if (parts.length === 2) return parts.pop()?.split(';').shift();
+          return '';
+        };
+        
+        const vanityUrl = getCookie('vanity_url');
+        let currentPage = 1;
+        let allLoadedProducts: Product[] = [];
+        let totalProdCount = 0;
+        let isFirstPageLoaded = false;
+        
+        // Load all pages sequentially in a single loop
+        while (true) {
+          const response = await axios.get(
+            `/api/business/posinventory?business=${vanityUrl}&page=${currentPage}&is_from=product`
+          );
           
-          // Set globalPageId from API response data
-          if (response.data.data.page_id && !globalPageId) {
-            setGlobalPageId(response.data.data.page_id);
+          if (response.data.status !== 'success') {
+            throw new Error(
+              response.data.error?.message || 
+              response.data.message || 
+              'Failed to load inventory'
+            );
           }
           
-          const roomsData = response.data.data.aRooms || [];
+          const productsData = response.data.data.products || [];
           
-          // Transform selected_rooms array to s_rooms string
-          const transformedProducts = transformProductsData(productsData);
-          
-          setRooms(roomsData);
-          setTotalProducts(response.data.data.total || 0);
-          
-          if (page === 1) {
-            setAllProducts(transformedProducts);
-            setProducts(transformedProducts);
+          // On first page, extract metadata and categories
+          if (!isFirstPageLoaded) {
+            if (response.data.data.page_id) {
+              setGlobalPageId(response.data.data.page_id);
+            }
+            
+            const roomsData = response.data.data.aRooms || [];
+            setRooms(roomsData);
             
             // Transform categories data
             const categoriesData = response.data.data.categories || {};
@@ -471,36 +480,35 @@ export default function PageContent() {
             ];
             setCategories(transformedCategories);
             
-            toast.success(`Loaded ${productsData.length} products successfully`);
-          } else {
-            setAllProducts(prev => [...prev, ...transformedProducts]);
-            setProducts(prev => [...prev, ...transformedProducts]);
-          }
-        } else if (response.data.status === 'failed') {
-          // Handle failed status without throwing
-          let errorMsg = 'Failed to load inventory';
-          
-          if (response.data.error?.message) {
-            errorMsg = response.data.error.message;
-          } else if (response.data.message) {
-            errorMsg = response.data.message;
+            totalProdCount = response.data.data.total || 0;
+            isFirstPageLoaded = true;
           }
           
-          // Strip HTML tags if present
-          errorMsg = errorMsg.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, '');
+          // Transform and add products
+          const transformedProducts = transformProductsData(productsData);
+          allLoadedProducts = [...allLoadedProducts, ...transformedProducts];
           
-          setError(errorMsg);
-          toast.error(errorMsg, {
-            position: 'bottom-center',
-            autoClose: 5000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: true,
-          });
-        } else {
-          throw new Error('Unexpected response status');
+          // Check if we've loaded all products
+          if (allLoadedProducts.length >= totalProdCount || productsData.length === 0) {
+            break;
+          }
+          
+          currentPage++;
         }
+        
+        // Set all state at once after loading is complete
+        setAllProducts(allLoadedProducts);
+        setProducts(allLoadedProducts);
+        setTotalProducts(totalProdCount);
+        
+        // Show success message
+        if (allLoadedProducts.length > 0) {
+          toast.success(`Loaded ${allLoadedProducts.length} products successfully`);
+        }
+        
+        // Mark as initialized to prevent re-runs
+        setHasInitialized(true);
+        
       } catch (error: any) {
         let errorMessage = 'Failed to fetch inventory';
         
@@ -529,6 +537,32 @@ export default function PageContent() {
         setLoading(false);
       }
     };
+    
+    fetchAllInventory();
+    
+  }, []); // Empty dependency array: only run once on component mount
+
+  // ============================================================
+  // REMOVED: The following problematic effects that caused
+  // the infinite loop have been replaced by the single effect above:
+  //
+  // OLD CODE (REMOVED):
+  // useEffect(() => {
+  //   fetchInventoryDetails(apiPage);
+  // }, [apiPage]);
+  //
+  // useEffect(() => {
+  //   if (allProducts.length < totalProducts && !loading) {
+  //     setApiPage(prev => prev + 1);
+  //   }
+  // }, [allProducts.length, totalProducts, loading]);
+  //
+  // ALSO REMOVED:
+  // - const [apiPage, setApiPage] = useState(1);
+  // - const fetchInventoryDetails function (lines 428-531)
+  // - All references to apiPage and setApiPage
+  // ============================================================
+
 
   const currentCategory = categories.find(c => c.name === selectedCategory);
   const subcategories = currentCategory?.subcategories || [];
@@ -1063,8 +1097,9 @@ export default function PageContent() {
           position: 'bottom-center',
           autoClose: 3000,
         });
-		
-		fetchInventoryDetails(1);
+        
+        // Refresh inventory by reloading all products
+        setHasInitialized(false);
         
         // Reset form and close modal
         setShowEditModal(false);

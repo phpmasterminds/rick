@@ -62,6 +62,7 @@ interface Order {
   contact_phone: string;
   age: string;
   total_commission: string;
+  total_balance: string;
   seller_information?: SellerInformation;
   to_address_detail_t_locs?: {
     locs_city?: string;
@@ -491,7 +492,7 @@ const SalesPersonDropdown: React.FC<{
   );
 };
 
-export default function OrderPageContent({ business }: { business: string }) {
+export default function OrderPageContent({ business, typeid }: { business: string, typeid: string }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -898,13 +899,14 @@ export default function OrderPageContent({ business }: { business: string }) {
                         className="px-2 py-1 border border-gray-300 dark:border-gray-700 rounded text-sm dark:bg-gray-800 dark:text-gray-100"
                       />
                     </td>
-                    <td className="px-6 py-4">
-                      <button
+                    <td className="px-6 py-4 font-bold text-gray-900 dark:text-gray-100">
+					{/*<button
                         onClick={() => setPaymentModal({ isOpen: true, order })}
                         className="text-red-600 dark:text-red-400 font-bold hover:text-red-700 dark:hover:text-red-300 cursor-pointer"
                       >
-                        ${parseFloat(order.cart_total_cost).toFixed(2)}
-                      </button>
+                        ${parseFloat(order.total_balance).toFixed(2)}
+					</button>*/}
+					${parseFloat(order.total_balance).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 font-bold text-gray-900 dark:text-gray-100">
                       ${parseFloat(order.cart_total_cost).toFixed(2)}

@@ -190,7 +190,7 @@ export default function PageContent() {
 
       // Filter only enabled products
       const enabledProducts = productsData.filter(
-        (p: any) => p.enable_product === '1' || p.enable_product === 1
+        (p: any) => p.enable_catalog === '1' || p.enable_catalog === 1
       );
 
       console.log(`✅ Enabled products: ${enabledProducts.length}`);

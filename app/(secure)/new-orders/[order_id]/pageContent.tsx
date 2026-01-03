@@ -216,6 +216,9 @@ export default function PageContent({ business, orderId }: PageContentProps) {
             }));
             setOrderItems(mappedItems);
           }
+          
+          // Fetch payment data on page load
+          fetchOrderPayments();
         } else {
           setError('Order not found');
         }
@@ -269,12 +272,17 @@ export default function PageContent({ business, orderId }: PageContentProps) {
     try {
       setPaymentsLoading(true);
       const response = await axios.get(
-        `/api/business/order-payments/?business=${business}&order_id=${orderId}`
+        `/api/business/payments/?business=${business}&order_id=${orderId}`
       );
-      if (response.data?.data?.payments) {
-        setOrderPayments(response.data.data.payments);
-        setTotalPaid(response.data.data.total_paid || '0');
-        setBalanceDue(response.data.data.balance_due || '0');
+      if (response.data && response.data.data) {
+        const paymentsData = response.data.data;
+        // Convert object with numeric keys to array, excluding 'summary'
+        const paymentsArray = Object.entries(paymentsData)
+          .filter(([key]) => key !== 'summary')
+          .map(([, payment]) => payment) as OrderPayment[];
+        setOrderPayments(paymentsArray);
+        setTotalPaid(paymentsData.summary?.total_paid || '0');
+        setBalanceDue(paymentsData.summary?.balance_due || '0');
       }
     } catch (err) {
       console.error('Failed to fetch payments:', err);
@@ -494,8 +502,30 @@ export default function PageContent({ business, orderId }: PageContentProps) {
   };
 
   const handleApplyPayment = async () => {
+    // Validation
+    const amount = parseFloat(paymentFormData.amount || '0');
+    const balanceDueAmount = parseFloat(balanceDue || '0');
+
+    // Check all fields are filled
+    if (!paymentFormData.payment_method) {
+      toast.error('Please select a payment method');
+      return;
+    }
+
+    // Check amount is valid
+    if (amount <= 0) {
+      toast.error('Amount must be greater than 0');
+      return;
+    }
+
+    // Check amount doesn't exceed balance due
+    if (amount > balanceDueAmount) {
+      toast.error(`Amount cannot exceed balance due of $${balanceDueAmount.toFixed(2)}`);
+      return;
+    }
+
     try {
-      await axios.post(`/api/business/add-order-payment/`, {
+      await axios.post(`/api/business/payments/`, {
         business,
         order_id: orderId,
         ...paymentFormData,
@@ -630,7 +660,9 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Order #{order.order_id}</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">{readableName}</p>
+			
+            <p className="text-gray-500 dark:text-gray-400 mt-1">  {order.to_address_detail_f_locs?.title ?? '—'}
+</p>
           </div>
 
           {/* Dropdown Menu Button */}
@@ -691,7 +723,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                   </button>
 
                   {/* Payments */}
-                  <button
+                  {parseFloat(balanceDue || '0') > 0 && (<button
                     onClick={() => {
                       setShowPaymentModal(true);
                       setShowDropdown(false);
@@ -704,6 +736,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       <div className="text-xs text-gray-500">Add payment</div>
                     </div>
                   </button>
+				  )}
 
                   {/* Divider */}
                   <div className="my-2 border-t border-gray-200 dark:border-gray-700"></div>
@@ -926,10 +959,40 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       })()}
                     </span>
                   </div>
-                  <button className="w-full mt-6 px-4 py-3 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover shadow-md hover:shadow-lg flex items-center justify-center gap-2">
-                    <CreditCard size={20} />
-                    Apply Payment
-                  </button>
+                  
+                  {/* Payment Status Section */}
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Total Paid</span>
+                      <span className="font-semibold text-green-600 dark:text-green-400">
+                        ${parseFloat(totalPaid || '0').toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Balance Due</span>
+                      <span className={`font-semibold ${parseFloat(balanceDue || '0') <= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        ${parseFloat(balanceDue || '0').toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Apply Payment Button - Only show if balance is due */}
+                  {parseFloat(balanceDue || '0') > 0 && (
+                    <button className="w-full mt-6 px-4 py-3 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover shadow-md hover:shadow-lg flex items-center justify-center gap-2" onClick={() => {
+                      setShowPaymentModal(true);
+                    }}>
+                      <CreditCard size={20} />
+                      Apply Payment
+                    </button>
+                  )}
+                  
+                  {/* Fully Paid Badge */}
+                  {parseFloat(balanceDue || '0') <= 0 && (
+                    <div className="w-full mt-6 px-4 py-3 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center gap-2">
+                      <Check size={20} className="text-green-600 dark:text-green-400" />
+                      <span className="font-semibold text-green-600 dark:text-green-400">Fully Paid</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1014,17 +1077,17 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                               <h4 className="font-bold text-gray-900 dark:text-gray-100">{payment.payment_method}</h4>
                             </div>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                              {formatDate(payment.payment_date)}
+                              {payment.payment_date}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-500">
-                              Transaction ID: {payment.transaction_id}
-                            </p>
+                            {/*<p className="text-xs text-gray-500 dark:text-gray-500">
+                              Transaction ID: {payment.payment_id}
+                            </p>*/}
                           </div>
                           <div className="text-right">
                             <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                               ${parseFloat(payment.amount).toFixed(2)}
                             </p>
-                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 ${
+                            {/*<span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 ${
                               payment.status === 'success' 
                                 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                 : payment.status === 'pending'
@@ -1032,7 +1095,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                                 : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                             }`}>
                               {payment.status}
-                            </span>
+                            </span>*/}
                           </div>
                         </div>
                       </div>
@@ -1064,7 +1127,9 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                   <CreditCard size={48} className="mx-auto mb-4 opacity-30" />
                   <p className="text-lg">No payments recorded</p>
                   <p className="text-sm mt-2">Payments will appear here when added</p>
-                  <button className="mt-6 px-6 py-2 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover">
+                  <button className="mt-6 px-6 py-2 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover" onClick={() => {
+                      setShowPaymentModal(true);
+                    }}>
                     <CreditCard size={18} className="inline mr-2" />
                     Add Payment
                   </button>
@@ -1625,11 +1690,11 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 >
                   <option value="">Select option</option>
-                  <option value="cash">Cash</option>
-                  <option value="check">Check</option>
-                  <option value="credit_card">Credit Card</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="other">Other</option>
+                  <option value="1">Cash</option>
+                  <option value="2">Check</option>
+                  <option value="3">Credit Card</option>
+                  <option value="4">Bank Transfer</option>
+                  <option value="5">Other</option>
                 </select>
               </div>
 
@@ -1641,10 +1706,16 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                     ${parseFloat(order?.cart_total_cost || '0').toFixed(2)}
                   </span>
                 </div>
+                <div className="flex justify-between mb-2">
+                  <span className="font-medium text-gray-700 dark:text-gray-300">Total Paid</span>
+                  <span className="font-bold text-green-600 dark:text-green-400">
+                    ${parseFloat(totalPaid || '0').toFixed(2)}
+                  </span>
+                </div>
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-700 dark:text-gray-300">Outstanding</span>
-                  <span className="font-bold text-red-600 dark:text-red-400">
-                    ${parseFloat(order?.cart_total_cost || '0').toFixed(2)}
+                  <span className={`font-bold ${parseFloat(balanceDue || '0') <= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    ${parseFloat(balanceDue || '0').toFixed(2)}
                   </span>
                 </div>
               </div>
@@ -1659,7 +1730,12 @@ export default function PageContent({ business, orderId }: PageContentProps) {
               </button>
               <button
                 onClick={handleApplyPayment}
-                className="px-4 py-2 text-white bg-teal-500 rounded-lg hover:bg-teal-600 transition font-medium"
+                disabled={parseFloat(paymentFormData.amount || '0') <= 0 || !paymentFormData.payment_method || parseFloat(paymentFormData.amount || '0') > parseFloat(balanceDue || '0')}
+                className={`px-4 py-2 text-white rounded-lg transition font-medium ${
+                  parseFloat(paymentFormData.amount || '0') <= 0 || !paymentFormData.payment_method || parseFloat(paymentFormData.amount || '0') > parseFloat(balanceDue || '0')
+                    ? 'bg-gray-400 cursor-not-allowed opacity-50'
+                    : 'bg-teal-500 hover:bg-teal-600'
+                }`}
               >
                 Apply
               </button>

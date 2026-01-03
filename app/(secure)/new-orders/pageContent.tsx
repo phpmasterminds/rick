@@ -59,6 +59,7 @@ interface Order {
   full_name: string;
   account_name: string;
   contact_email: string;
+  total_balance: string;
   cart_total_cost: string;
   order_time: string;
   order_status: string;
@@ -82,6 +83,8 @@ interface PaymentModalProps {
   isOpen: boolean;
   order: Order | null;
   onClose: () => void;
+  business: string;
+  onPaymentSuccess?: () => void;
 }
 
 interface SalesRep {
@@ -96,17 +99,124 @@ interface ActionMenuProps {
 }
 
 // Payment Modal Component
-const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose }) => {
+const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, business, onPaymentSuccess }) => {
   const [paymentData, setPaymentData] = useState({
     paymentToApply: 'Partial payment',
     amount: '',
     paymentDate: new Date().toISOString().split('T')[0],
     paymentType: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Auto-detect and update payment type when amount equals outstanding
+  useEffect(() => {
+    if (!isOpen || !order) return; // Early return inside effect
+    
+    const outstanding = parseFloat(order.total_balance);
+    const amount = parseFloat(paymentData.amount || '0');
+    
+    if (Math.abs(amount - outstanding) < 0.01 && paymentData.amount !== '') {
+      // Only update if it's not already set to 'Full payment'
+      if (paymentData.paymentToApply !== 'Full payment') {
+        setPaymentData(prev => ({ ...prev, paymentToApply: 'Full payment' }));
+      }
+    }
+  }, [isOpen, order, paymentData.amount, paymentData.paymentToApply]);
+
+  // Early return only happens in render after hooks
   if (!isOpen || !order) return null;
 
-  const outstanding = parseFloat(order.cart_total_cost);
+  const outstanding = parseFloat(order.total_balance);
+  const amount = parseFloat(paymentData.amount || '0');
+  const isFullyPaid = outstanding <= 0;
+
+  // Validation checks
+  const isPaymentMethodSelected = paymentData.paymentType !== '';
+  const isAmountValid = amount > 0;
+  const isAmountNotExceedingOutstanding = amount <= outstanding;
+  
+  // Smart payment type validation
+  const isPartialPayment = paymentData.paymentToApply === 'Partial payment';
+  const isFullPayment = paymentData.paymentToApply === 'Full payment';
+  
+  // If partial payment selected, amount should be less than total
+  const isPartialPaymentValid = !isPartialPayment || (isPartialPayment && amount < outstanding);
+  // If full payment, amount should equal outstanding
+  const isFullPaymentValid = !isFullPayment || (isFullPayment && Math.abs(amount - outstanding) < 0.01);
+  
+  const isFormValid = isPaymentMethodSelected && isAmountValid && isAmountNotExceedingOutstanding && isPartialPaymentValid && isFullPaymentValid;
+
+  const handleApplyPayment = async () => {
+    // Validation
+    if (!paymentData.paymentType) {
+      toast.error('Please select a payment method');
+      return;
+    }
+
+    if (amount <= 0) {
+      toast.error('Amount must be greater than 0');
+      return;
+    }
+
+    if (amount > outstanding) {
+      toast.error(`Amount cannot exceed outstanding balance of $${outstanding.toFixed(2)}`);
+      return;
+    }
+
+    // Partial payment validation
+    if (isPartialPayment && amount >= outstanding) {
+      toast.error(`For partial payment, amount must be less than $${outstanding.toFixed(2)}`);
+      return;
+    }
+
+    // Full payment validation
+    if (isFullPayment && Math.abs(amount - outstanding) > 0.01) {
+      toast.error(`For full payment, amount must equal $${outstanding.toFixed(2)}`);
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      
+      // Determine final payment type based on amount
+      let finalPaymentType = isPartialPayment ? 'partial' : 'full';
+      if (Math.abs(amount - outstanding) < 0.01) {
+        finalPaymentType = 'full'; // Auto-switch to full if amount matches outstanding
+      }
+
+      const response = await axios.post(`/api/business/payments/`, {
+        business,
+        order_id: order.order_id,
+        amount: paymentData.amount,
+        payment_date: paymentData.paymentDate,
+        payment_method: paymentData.paymentType,
+        payment_type: finalPaymentType,
+      });
+
+      toast.success('Payment applied successfully!');
+      
+      // Reset form
+      setPaymentData({
+        paymentToApply: 'Partial payment',
+        amount: '',
+        paymentDate: new Date().toISOString().split('T')[0],
+        paymentType: '',
+      });
+
+      // Close modal
+      onClose();
+      
+      // Callback to refresh orders if provided
+      if (onPaymentSuccess) {
+        onPaymentSuccess();
+      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || 'Failed to apply payment';
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -116,6 +226,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose }) =
           <h2 className="text-white text-lg font-semibold">Apply Payment</h2>
           <button
             onClick={onClose}
+            disabled={isSubmitting}
             className="text-white hover:bg-white hover:bg-opacity-20 p-1 rounded-lg transition"
           >
             <X size={24} />
@@ -124,111 +235,149 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose }) =
 
         {/* Content */}
         <div className="p-6 space-y-6">
-          <div className="grid grid-cols-2 gap-6">
-            {/* Payment to Apply */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Payment to apply
-              </label>
-              <select
-                value={paymentData.paymentToApply}
-                onChange={(e) =>
-                  setPaymentData({ ...paymentData, paymentToApply: e.target.value })
-                }
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100"
-              >
-                <option>Partial payment</option>
-                <option>Full payment</option>
-              </select>
-            </div>
-
-            {/* Amount */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Amount
-              </label>
-              <div className="flex items-center">
-                <span className="text-gray-500 text-lg mr-3 font-semibold">$</span>
-                <input
-                  type="number"
-                  value={paymentData.amount}
-                  onChange={(e) =>
-                    setPaymentData({ ...paymentData, amount: e.target.value })
-                  }
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100"
-                  placeholder="0.00"
-                />
+          {/* Show message if fully paid */}
+          {isFullyPaid && (
+            <div className="bg-green-100 dark:bg-green-900/30 border border-green-300 dark:border-green-700 rounded-lg p-4 flex items-center gap-3">
+              <AlertCircle size={20} className="text-green-600 dark:text-green-400" />
+              <div>
+                <p className="font-semibold text-green-600 dark:text-green-400">Order is Fully Paid</p>
+                <p className="text-sm text-green-600 dark:text-green-400">No payment is needed for this order.</p>
               </div>
             </div>
+          )}
 
-            {/* Payment Date */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Payment Date
-              </label>
-              <div className="relative">
-                <input
-                  type="date"
-                  value={paymentData.paymentDate}
-                  onChange={(e) =>
-                    setPaymentData({ ...paymentData, paymentDate: e.target.value })
-                  }
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100"
-                />
-                <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                  <X size={18} />
-                </button>
+          {!isFullyPaid && (
+            <>
+              <div className="grid grid-cols-2 gap-6">
+                {/* Payment to Apply */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Payment to apply
+                  </label>
+                  <select
+                    value={paymentData.paymentToApply}
+                    onChange={(e) =>
+                      setPaymentData({ ...paymentData, paymentToApply: e.target.value })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100 disabled:opacity-50"
+                  >
+                    <option>Partial payment</option>
+                    <option>Full payment</option>
+                  </select>
+                </div>
+
+                {/* Amount */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Amount
+                  </label>
+                  <div className="flex items-center">
+                    <span className="text-gray-500 text-lg mr-3 font-semibold">$</span>
+                    <input
+                      type="number"
+                      value={paymentData.amount}
+                      onChange={(e) =>
+                        setPaymentData({ ...paymentData, amount: e.target.value })
+                      }
+                      disabled={isSubmitting}
+                      step="0.01"
+                      min="0"
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100 disabled:opacity-50"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                {/* Payment Date */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Payment Date
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={paymentData.paymentDate}
+                      onChange={(e) =>
+                        setPaymentData({ ...paymentData, paymentDate: e.target.value })
+                      }
+                      disabled={isSubmitting}
+                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100 disabled:opacity-50"
+                    />
+                    <button className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50" disabled={isSubmitting}>
+                      <X size={18} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Payment Type */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Payment Type
+                  </label>
+                  <select
+                    value={paymentData.paymentType}
+                    onChange={(e) =>
+                      setPaymentData({ ...paymentData, paymentType: e.target.value })
+                    }
+                    disabled={isSubmitting}
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100 disabled:opacity-50"
+                  >
+                    <option value="">Select option</option>
+                    <option value="1">Cash</option>
+                    <option value="2">Check</option>
+                    <option value="3">Credit Card</option>
+                    <option value="4">Bank Transfer</option>
+                    <option value="5">Other</option>
+                  </select>
+                </div>
               </div>
-            </div>
 
-            {/* Payment Type */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                Payment Type
-              </label>
-              <select
-                value={paymentData.paymentType}
-                onChange={(e) =>
-                  setPaymentData({ ...paymentData, paymentType: e.target.value })
-                }
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100"
-              >
-                <option value="">Select option</option>
-                <option>Credit Card</option>
-                <option>Bank Transfer</option>
-                <option>Check</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Summary */}
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-6 py-4 flex justify-center gap-12">
-            <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-medium">Order Total</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                ${parseFloat(order.cart_total_cost).toFixed(2)}
-              </p>
-            </div>
-            <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-400 text-sm font-medium">Outstanding</p>
-              <p className="text-2xl font-bold text-red-600">${outstanding.toFixed(2)}</p>
-            </div>
-          </div>
+              {/* Summary */}
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg px-6 py-4 flex justify-center gap-12">
+                <div className="text-center">
+                  <p className="text-gray-600 dark:text-gray-400 text-sm font-medium">Order Total</p>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                    ${parseFloat(order.cart_total_cost).toFixed(2)}
+                  </p>
+                </div>
+                <div className="text-center">
+                  <p className="text-gray-600 dark:text-gray-400 text-sm font-medium">Outstanding</p>
+                  <p className="text-2xl font-bold text-red-600">${outstanding.toFixed(2)}</p>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Buttons */}
           <div className="flex justify-end gap-3 pt-4">
             <button
               onClick={onClose}
-              className="px-6 py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 font-semibold transition-all"
+              disabled={isSubmitting}
+              className="px-6 py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 font-semibold transition-all disabled:opacity-50"
             >
               Cancel
             </button>
-            <button
-              onClick={onClose}
-              className="px-6 py-3 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover"
-            >
-              Apply
-            </button>
+            {!isFullyPaid && (
+              <button
+                onClick={handleApplyPayment}
+                disabled={!isFormValid || isSubmitting}
+                className={`px-6 py-3 text-white rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+                  isFormValid && !isSubmitting
+                    ? 'accent-bg accent-hover hover:scale-105 active:scale-95'
+                    : 'bg-gray-400 cursor-not-allowed opacity-50'
+                }`}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Applying...
+                  </>
+                ) : (
+                  'Apply'
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -662,6 +811,7 @@ export default function OrderPageContent({ business }: { business: string }) {
 
   // No need to filter/sort on client since API handles pagination
   // Just use the orders returned by API for current page
+
   const paginatedOrders = filteredOrders;
 
   const handleStatusChange = async (orderId: string, newStatus: string) => {
@@ -965,12 +1115,18 @@ export default function OrderPageContent({ business }: { business: string }) {
                       />
                     </td>
                     <td className="px-6 py-4">
-                      <button
-                        onClick={() => setPaymentModal({ isOpen: true, order })}
-                        className="text-red-600 dark:text-red-400 font-bold hover:text-red-700 dark:hover:text-red-300 cursor-pointer"
-                      >
-                        ${parseFloat(order.cart_total_cost).toFixed(2)}
-                      </button>
+                      {parseFloat(order.total_balance) > 0 ? (
+                        <button
+                          onClick={() => setPaymentModal({ isOpen: true, order })}
+                          className="text-red-600 dark:text-red-400 font-bold hover:text-red-700 dark:hover:text-red-300 cursor-pointer"
+                        >
+                          ${parseFloat(order.total_balance).toFixed(2)}
+                        </button>
+                      ) : (
+                        <span className="text-green-600 dark:text-green-400 font-bold">
+                          $0.00
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 font-bold text-gray-900 dark:text-gray-100">
                       ${parseFloat(order.cart_total_cost).toFixed(2)}
@@ -1006,7 +1162,14 @@ export default function OrderPageContent({ business }: { business: string }) {
       <PaymentModal
         isOpen={paymentModal.isOpen}
         order={paymentModal.order}
+        business={business}
         onClose={() => setPaymentModal({ isOpen: false, order: null })}
+        onPaymentSuccess={() => {
+          // Refresh orders after successful payment
+          setCurrentPage(1);
+          // Trigger re-fetch by causing useEffect to run
+          setPaymentModal({ isOpen: false, order: null });
+        }}
       />
     </div>
   );

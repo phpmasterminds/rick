@@ -106,6 +106,7 @@ interface Order {
     locs_phone?: string;
     locs_email?: string;
     full_name?: string;
+	pages_image_url?: string;
   };
   cart?: CartItem[];
 }
@@ -270,12 +271,17 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
     try {
       setPaymentsLoading(true);
       const response = await axios.get(
-        `/api/business/order-payments/?business=${business}&order_id=${orderId}`
+        `/api/business/payments/?business=${business}&order_id=${orderId}`
       );
-      if (response.data?.data?.payments) {
-        setOrderPayments(response.data.data.payments);
-        setTotalPaid(response.data.data.total_paid || '0');
-        setBalanceDue(response.data.data.balance_due || '0');
+      if (response.data && response.data.data) {
+        const paymentsData = response.data.data;
+        // Convert object with numeric keys to array, excluding 'summary'
+        const paymentsArray = Object.entries(paymentsData)
+          .filter(([key]) => key !== 'summary')
+          .map(([, payment]) => payment) as OrderPayment[];
+        setOrderPayments(paymentsArray);
+        setTotalPaid(paymentsData.summary?.total_paid || '0');
+        setBalanceDue(paymentsData.summary?.balance_due || '0');
       }
     } catch (err) {
       console.error('Failed to fetch payments:', err);
@@ -623,15 +629,15 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
           {/* Business Logo */}
           {order.to_address_detail_f_locs?.pages_image_url && (
             <img
-              src={order.to_address_detail_f_locs.pages_image_url}
-              alt={readableName}
+              src={order.from_address_detail_f_locs?.pages_image_url}
+              alt={order.from_address_detail_f_locs?.title}
               className="h-12 md:h-16 object-contain rounded"
             />
           )}
 
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Order #{order.order_id}</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">{readableName}</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">{order.from_address_detail_f_locs?.title ?? 'N/A'}</p>
           </div>
 
           {/* Dropdown Menu Button */}
@@ -939,10 +945,40 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
                       })()}
                     </span>
                   </div>
-                  <button className="w-full mt-6 px-4 py-3 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover shadow-md hover:shadow-lg flex items-center justify-center gap-2">
-                    <CreditCard size={20} />
-                    Apply Payment
-                  </button>
+                  
+                  {/* Payment Status Section */}
+                  <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3 space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Total Paid</span>
+                      <span className="font-semibold text-green-600 dark:text-green-400">
+                        ${parseFloat(totalPaid || '0').toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600 dark:text-gray-400">Balance Due</span>
+                      <span className={`font-semibold ${parseFloat(balanceDue || '0') <= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        ${parseFloat(balanceDue || '0').toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Apply Payment Button - Only show if balance is due */}
+                  {parseFloat(balanceDue || '0') > 0 && (
+                    <button className="w-full mt-6 px-4 py-3 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover shadow-md hover:shadow-lg flex items-center justify-center gap-2" onClick={() => {
+                      setShowPaymentModal(true);
+                    }}>
+                      <CreditCard size={20} />
+                      Apply Payment
+                    </button>
+                  )}
+                  
+                  {/* Fully Paid Badge */}
+                  {parseFloat(balanceDue || '0') <= 0 && (
+                    <div className="w-full mt-6 px-4 py-3 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center gap-2">
+                      <Check size={20} className="text-green-600 dark:text-green-400" />
+                      <span className="font-semibold text-green-600 dark:text-green-400">Fully Paid</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1027,17 +1063,17 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
                               <h4 className="font-bold text-gray-900 dark:text-gray-100">{payment.payment_method}</h4>
                             </div>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                              {formatDate(payment.payment_date)}
+                              {payment.payment_date}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-500">
-                              Transaction ID: {payment.transaction_id}
-                            </p>
+                            {/*<p className="text-xs text-gray-500 dark:text-gray-500">
+                              Transaction ID: {payment.payment_id}
+                            </p>*/}
                           </div>
                           <div className="text-right">
                             <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                               ${parseFloat(payment.amount).toFixed(2)}
                             </p>
-                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 ${
+                            {/*<span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mt-2 ${
                               payment.status === 'success' 
                                 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
                                 : payment.status === 'pending'
@@ -1045,7 +1081,7 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
                                 : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                             }`}>
                               {payment.status}
-                            </span>
+                            </span>*/}
                           </div>
                         </div>
                       </div>
@@ -1077,10 +1113,7 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
                   <CreditCard size={48} className="mx-auto mb-4 opacity-30" />
                   <p className="text-lg">No payments recorded</p>
                   <p className="text-sm mt-2">Payments will appear here when added</p>
-                  <button className="mt-6 px-6 py-2 text-white rounded-lg font-semibold transition-all duration-300 hover:scale-105 active:scale-95 accent-bg accent-hover">
-                    <CreditCard size={18} className="inline mr-2" />
-                    Add Payment
-                  </button>
+                  
                 </div>
               )}
             </div>
@@ -1670,12 +1703,12 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
               >
                 Cancel
               </button>
-              <button
+              {/*<button
                 onClick={handleApplyPayment}
                 className="px-4 py-2 text-white bg-teal-500 rounded-lg hover:bg-teal-600 transition font-medium"
               >
                 Apply
-              </button>
+	  </button>*/}
             </div>
           </div>
         </div>
