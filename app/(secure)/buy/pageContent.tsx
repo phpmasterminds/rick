@@ -580,7 +580,7 @@ export default function PageContent() {
                           e.stopPropagation();
                           handleAddToCart(product);
                         }}
-                        className="flex-1 bg-teal-500 text-white py-1 rounded text-sm font-medium hover:bg-teal-600 transition"
+                        className="flex-1 accent-bg accent-hover text-white py-1 rounded text-sm font-medium transition"
                       >
                         Add to Cart
                       </button>
@@ -716,7 +716,7 @@ export default function PageContent() {
                       handleAddToCart(selectedProduct);
                       handleCloseModal();
                     }}
-                    className="w-full bg-teal-500 text-white py-2 rounded-lg font-semibold hover:bg-teal-600 transition"
+                    className="w-full accent-bg accent-hover text-white py-2 rounded-lg font-semibold transition"
                   >
                     Add to Cart
                   </button>

@@ -217,7 +217,7 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
           <div class="company-info">
             ${businessLogo ? `<img src="${businessLogo}" style="max-width: 150px; margin-bottom: 10px;">` : ''}
             <h1>${businessName}</h1>
-            <p>Professional Order Invoice</p>
+            <p>Order Invoice</p>
           </div>
           <div class="invoice-meta">
             <div><label>Invoice #:</label> ${order.order_id}</div>
@@ -228,13 +228,15 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
 
         <!-- Customer Info -->
         <div>
-          <div class="address-block">
-            <h3>Bill To</h3>
-            <p><strong>${order.full_name || 'N/A'}</strong></p>
-            <p>${order.contact_email || ''}</p>
-            <p>${order.contact_phone || ''}</p>
-            <p>${order.contact_address || ''}</p>
-          </div>
+          ${order.to_address_detail_f_locs ? `
+            <div class="address-block">
+              <h3>Bill To</h3>
+              <p><strong>${order.from_address_detail_f_locs.full_name || order.full_name || 'N/A'}</strong></p>
+              ${order.from_address_detail_f_locs.locs_street ? `<p>${order.from_address_detail_f_locs.locs_street}</p>` : ''}
+              <p>${order.from_address_detail_f_locs.locs_city || ''}, ${order.from_address_detail_f_locs.locs_state || ''} ${order.from_address_detail_f_locs.locs_zip || ''}</p>
+              ${order.from_address_detail_f_locs.locs_phone ? `<p>${order.from_address_detail_f_locs.locs_phone}</p>` : ''}
+            </div>
+          ` : ''}
 
           ${order.to_address_detail_f_locs ? `
             <div class="address-block">

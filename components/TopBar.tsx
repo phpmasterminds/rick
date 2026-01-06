@@ -233,10 +233,16 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
 		}
 
         if (user.data.full_name?.trim() !== "") {
-          const nameParts = user.data.full_name.trim().split(" ");
+			
+          const nameParts = user.data.full_name.trim().split(/[,\s]+/).filter(Boolean);
+		  
           const firstInitial = nameParts[0]?.[0] || "";
           const secondInitial =
-            nameParts.length > 1 ? nameParts[1]?.[0] : nameParts[0]?.[1] || "";
+							  nameParts[2]?.[0] ??
+							  nameParts[1]?.[0] ??
+							  nameParts[0]?.[1] ??
+							  '';
+							  
           setInitials((firstInitial + secondInitial).toUpperCase());
         }
       } catch (err) {
@@ -244,6 +250,47 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
       }
     }
   }, []);
+
+  // ===== LISTEN FOR USER DATA CHANGES (from profile update) =====
+  useEffect(() => {
+    const handleUserDataChange = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail) {
+        const userData = customEvent.detail;
+        console.log('User data changed event received:', userData);
+
+        // Update user image if present
+        if (userData.data?.user_image) {
+          const image120 = userData.data.user_image.replace('%s', '_120_square');
+          const newImageUrl = `${apiUrl}user/${image120}`;
+          setuserImage(newImageUrl);
+          console.log('User image updated to:', newImageUrl);
+        }
+
+        // Update email if changed
+        if (userData.data?.email) {
+          setEmail(userData.data.email);
+        }
+
+        // Update fullname and initials if changed
+        if (userData.data?.full_name) {
+          setFullname(userData.data.full_name);
+          
+          const nameParts = userData.data.full_name.trim().split(" ");
+          const firstInitial = nameParts[0]?.[0] || "";
+          const secondInitial =
+            nameParts.length > 1 ? nameParts[2]?.[0] : nameParts[0]?.[1] || "";
+          setInitials((firstInitial + secondInitial).toUpperCase());
+        }
+      }
+    };
+
+    window.addEventListener('userDataChanged', handleUserDataChange);
+
+    return () => {
+      window.removeEventListener('userDataChanged', handleUserDataChange);
+    };
+  }, [apiUrl]);
 
   // ===== HANDLERS =====
   const handleLogout = () => {
@@ -379,8 +426,8 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   return (
     <div className="relative">
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+      <header className="sticky top-0 z-30 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
+        <div className="flex items-center justify-between h-16 px-4 ">
           {/* Left Section - Logo & Menu */}
           <div className="flex items-center gap-2">
             {/* Mobile Menu Button */}

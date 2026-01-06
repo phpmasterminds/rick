@@ -8,25 +8,24 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 
-// US Phone formatting utility
+// US Phone formatting utility - formats all phone fields as (XXX) XXX-XXXX
 const formatUSPhoneNumber = (value: string): string => {
   // Remove all non-digits
   const digits = value.replace(/\D/g, '');
   
-  // Limit to 11 digits (1 + 10 digit number)
-  const limited = digits.slice(0, 11);
+  // Remove leading 1 if present (country code)
+  const cleaned = digits.startsWith('1') ? digits.slice(1) : digits;
+  
+  // Limit to 10 digits
+  const limited = cleaned.slice(0, 10);
   
   // If less than 10 digits, just return the digits
   if (limited.length < 10) {
     return limited;
   }
   
-  // Format as (XXX) XXX-XXXX WITHOUT the +1 prefix
-  // The +1 is displayed as a static span, so we don't include it in the value
-  const hasCountryCode = limited.length === 11 && limited.startsWith('1');
-  const phoneDigits = hasCountryCode ? limited.slice(1) : limited.slice(0, 10);
-  
-  return `(${phoneDigits.slice(0, 3)}) ${phoneDigits.slice(3, 6)}-${phoneDigits.slice(6)}`;
+  // Format as (XXX) XXX-XXXX - no +1 prefix
+  return `(${limited.slice(0, 3)}) ${limited.slice(3, 6)}-${limited.slice(6)}`;
 };
 
 interface RegistrationFormData {
@@ -128,9 +127,10 @@ export default function RegistrationPage() {
       return newErrors;
     });
     
-    // Format mobile phone number
+    // Format all phone number fields with (XXX) XXX-XXXX format
     let finalValue = value;
-    if (name === 'contact_mobile') {
+    const phoneFields = ['contact_mobile', 'contact_office_phone', 'contact_fax', 'billing_phone'];
+    if (phoneFields.includes(name)) {
       finalValue = formatUSPhoneNumber(value);
     }
     
@@ -373,19 +373,28 @@ export default function RegistrationPage() {
 
     setSubmitting(true);
     try {
-      // Extract digits from contact_mobile and add +1 prefix for API
+      // Extract digits from all phone fields and add +1 prefix for API
       const mobileDigitsOnly = formData.contact_mobile.replace(/\D/g, '');
       const mobileWithCountryCode = '+1' + mobileDigitsOnly;
+      
+      const officePhoneDigitsOnly = formData.contact_office_phone.replace(/\D/g, '');
+      const officePhoneWithCountryCode = officePhoneDigitsOnly ? '+1' + officePhoneDigitsOnly : '';
+      
+      const faxDigitsOnly = formData.contact_fax.replace(/\D/g, '');
+      const faxWithCountryCode = faxDigitsOnly ? '+1' + faxDigitsOnly : '';
+      
+      const billingPhoneDigitsOnly = formData.billing_phone.replace(/\D/g, '');
+      const billingPhoneWithCountryCode = billingPhoneDigitsOnly ? '+1' + billingPhoneDigitsOnly : '';
 
       const payload = {
         contact_first_name: formData.contact_first_name,
         contact_last_name: formData.contact_last_name,
         contact_email: formData.contact_email,
-        contact_office_phone: formData.contact_office_phone,
+        contact_office_phone: officePhoneWithCountryCode,  // Send as: +12025551234 or empty
         contact_mobile: mobileWithCountryCode,  // Send as: +12025551234
         contact_job_title: formData.contact_job_title,
         contact_department: formData.contact_department,
-        contact_fax: formData.contact_fax,
+        contact_fax: faxWithCountryCode,  // Send as: +12025551234 or empty
         contact_company_name: formData.contact_company_name,
         account_name: formData.account_name,
         website: formData.website,
@@ -394,7 +403,7 @@ export default function RegistrationPage() {
         billing_city: formData.billing_city,
         billing_state: formData.billing_state,
         billing_postal_code: formData.billing_postal_code,
-        billing_phone: formData.billing_phone,
+        billing_phone: billingPhoneWithCountryCode,  // Send as: +12025551234 or empty
         license_type: formData.license_type,
         license_number: formData.license_number,
         expiration_date: formData.expiration_date,

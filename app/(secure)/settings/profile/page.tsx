@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import Image from 'next/image';
@@ -61,8 +61,7 @@ export default function ProfilePageWithoutHookForm() {
   const [changePasswordOption, setChangePasswordOption] = useState(false);
   const apiUrl = process.env.NEXT_PUBLIC_API_SITE_URL;
 
-
-  // Form state - notice we need separate state for each field
+  // Form state
   const [formData, setFormData] = useState<FormData>({
     fullName: '',
     email: '',
@@ -71,7 +70,16 @@ export default function ProfilePageWithoutHookForm() {
     confirmPassword: '',
   });
 
-  // Error state - notice we need separate error state for each field
+  // Track original values to detect changes
+  const originalDataRef = useRef<FormData>({
+    fullName: '',
+    email: '',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+
+  // Error state
   const [errors, setErrors] = useState<FormErrors>({});
 
   // Load user profile from localStorage on mount
@@ -92,26 +100,29 @@ export default function ProfilePageWithoutHookForm() {
 
       setProfileData(userData.data);
 
-      // Set form data - manually update each field
-      setFormData((prev) => ({
-        ...prev,
+      // Set form data and track original values
+      const initialFormData: FormData = {
         fullName: userData.data.full_name || '',
         email: userData.data.email || '',
-      }));
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      };
+
+      setFormData(initialFormData);
+      originalDataRef.current = { ...initialFormData };
 
       if (userData.data.user_image) {
-			const image120 = userData.data.user_image.replace('%s', '_120_square');
-
-			setPhotoPreview(`${apiUrl}user/${image120}`);
-
+        const image120 = userData.data.user_image.replace('%s', '_120_square');
+        setPhotoPreview(`${apiUrl}user/${image120}`);
       }
     } catch (error) {
       console.error('Failed to load profile from localStorage:', error);
       toast.error('Failed to load profile data');
     }
-  }, []);
+  }, [apiUrl]);
 
-  // Handle input change - need individual handler
+  // Handle input change
   const handleInputChange = (field: keyof FormData, value: string) => {
     setFormData((prev) => ({
       ...prev,
@@ -123,6 +134,24 @@ export default function ProfilePageWithoutHookForm() {
       ...prev,
       [field]: undefined,
     }));
+  };
+
+  // Detect which fields have changed
+  const getChangedFields = (): Partial<FormData> => {
+    const changedFields: Partial<FormData> = {};
+
+    (Object.keys(formData) as Array<keyof FormData>).forEach((field) => {
+      if (formData[field] !== originalDataRef.current[field]) {
+        changedFields[field] = formData[field];
+      }
+    });
+
+    return changedFields;
+  };
+
+  // Check if photo has changed
+  const hasPhotoChanged = (): boolean => {
+    return photoFile !== null;
   };
 
   const handlePhotoChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,45 +177,72 @@ export default function ProfilePageWithoutHookForm() {
     reader.readAsDataURL(file);
   }, []);
 
-  // Validate form - need to write all validation logic manually
-  const validateForm = (): boolean => {
+  // Validate form - only validate changed fields
+  const validateForm = (changedFields: Partial<FormData>): boolean => {
     const newErrors: FormErrors = {};
 
-    // Validate fullName
-    if (!formData.fullName.trim()) {
-      newErrors.fullName = 'Full name is required';
-    } else if (formData.fullName.length < 2) {
-      newErrors.fullName = 'Full name must be at least 2 characters';
-    } else if (formData.fullName.length > 100) {
-      newErrors.fullName = 'Full name must not exceed 100 characters';
-    }
-
-    // Validate email
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
-    } else {
-      const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
-      if (!emailRegex.test(formData.email)) {
-        newErrors.email = 'Invalid email address';
+    // Validate fullName if changed
+    if ('fullName' in changedFields) {
+      if (!changedFields.fullName!.trim()) {
+        newErrors.fullName = 'Full name is required';
+      } else if (changedFields.fullName!.length < 2) {
+        newErrors.fullName = 'Full name must be at least 2 characters';
+      } else if (changedFields.fullName!.length > 100) {
+        newErrors.fullName = 'Full name must not exceed 100 characters';
       }
     }
 
-    // Validate password fields if change password is checked
+    // Validate email if changed
+    if ('email' in changedFields) {
+      if (!changedFields.email!.trim()) {
+        newErrors.email = 'Email is required';
+      } else {
+        const emailRegex = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+        if (!emailRegex.test(changedFields.email!)) {
+          newErrors.email = 'Invalid email address';
+        }
+      }
+    }
+
+    // Validate password fields if change password is checked and passwords are being changed
     if (changePasswordOption) {
-      if (!formData.currentPassword.trim()) {
-        newErrors.currentPassword = 'Current password is required';
+      if ('currentPassword' in changedFields) {
+        if (!changedFields.currentPassword!.trim()) {
+          newErrors.currentPassword = 'Current password is required';
+        }
       }
 
-      if (!formData.newPassword.trim()) {
-        newErrors.newPassword = 'New password is required';
-      } else if (formData.newPassword.length < 6) {
-        newErrors.newPassword = 'Password must be at least 6 characters';
+      if ('newPassword' in changedFields) {
+        if (!changedFields.newPassword!.trim()) {
+          newErrors.newPassword = 'New password is required';
+        } else if (changedFields.newPassword!.length < 6) {
+          newErrors.newPassword = 'Password must be at least 6 characters';
+        }
       }
 
-      if (!formData.confirmPassword.trim()) {
-        newErrors.confirmPassword = 'Confirm password is required';
-      } else if (formData.confirmPassword !== formData.newPassword) {
-        newErrors.confirmPassword = 'Passwords do not match';
+      if ('confirmPassword' in changedFields) {
+        if (!changedFields.confirmPassword!.trim()) {
+          newErrors.confirmPassword = 'Confirm password is required';
+        } else if (changedFields.confirmPassword! !== formData.newPassword) {
+          newErrors.confirmPassword = 'Passwords do not match';
+        }
+      }
+
+      // If any password field is being changed, validate all password fields together
+      if ('currentPassword' in changedFields || 'newPassword' in changedFields || 'confirmPassword' in changedFields) {
+        if (!formData.currentPassword.trim()) {
+          newErrors.currentPassword = 'Current password is required';
+        }
+        if (!formData.newPassword.trim()) {
+          newErrors.newPassword = 'New password is required';
+        } else if (formData.newPassword.length < 6) {
+          newErrors.newPassword = 'Password must be at least 6 characters';
+        }
+        if (!formData.confirmPassword.trim()) {
+          newErrors.confirmPassword = 'Confirm password is required';
+        } else if (formData.confirmPassword !== formData.newPassword) {
+          newErrors.confirmPassword = 'Passwords do not match';
+        }
       }
     }
 
@@ -194,87 +250,155 @@ export default function ProfilePageWithoutHookForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Handle form submission - need to manually validate and handle
+  const handleCancel = () => {
+    // Reset form to original values
+    setFormData(originalDataRef.current);
+    setPhotoFile(null);
+    setErrors({});
+    setChangePasswordOption(false);
+
+    // Reload original photo
+    if (profileData?.user_image) {
+      const image120 = profileData.user_image.replace('%s', '_120_square');
+      setPhotoPreview(`${apiUrl}user/${image120}`);
+    }
+  };
+
+  // ===== EMIT CUSTOM EVENT TO NOTIFY OTHER COMPONENTS OF USER DATA CHANGES =====
+  const emitUserDataChangeEvent = (updatedUserData: UserProfile) => {
+    const event = new CustomEvent('userDataChanged', {
+      detail: updatedUserData,
+    });
+    window.dispatchEvent(event);
+  };
+
+  // Handle form submission with smart field detection
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate form first
-    if (!validateForm()) {
+    // Get changed fields
+    const changedFields = getChangedFields();
+    const photoChanged = hasPhotoChanged();
+
+    // If nothing changed, show message and return
+    if (Object.keys(changedFields).length === 0 && !photoChanged) {
+      toast.info('No changes to update');
+      return;
+    }
+
+    // Validate only changed fields
+    if (!validateForm(changedFields)) {
       return;
     }
 
     try {
       setLoading(true);
 
+      // Prepare FormData with only changed fields
       const formDataToSend = new FormData();
-      formDataToSend.append('full_name', formData.fullName);
-      formDataToSend.append('email', formData.email);
 
+      // Add changed text fields
+      if ('fullName' in changedFields) {
+        formDataToSend.append('full_name', changedFields.fullName || '');
+      }
+
+      if ('email' in changedFields) {
+        formDataToSend.append('email', changedFields.email || '');
+      }
+
+      // Add password fields if changed password option is enabled and password fields changed
       if (changePasswordOption) {
-        formDataToSend.append('current_password', formData.currentPassword);
-        formDataToSend.append('new_password', formData.newPassword);
+        if ('currentPassword' in changedFields) {
+          formDataToSend.append('old_password', changedFields.currentPassword || '');
+        }
+
+        if ('newPassword' in changedFields) {
+          formDataToSend.append('new_password', changedFields.newPassword || '');
+        }
+
+        if ('confirmPassword' in changedFields) {
+          formDataToSend.append('confirm_password', changedFields.confirmPassword || '');
+        }
       }
 
-      if (photoFile) {
-        formDataToSend.append('profile_photo', photoFile);
+      // Add photo if changed
+      if (photoChanged && photoFile) {
+        formDataToSend.append('user_image', photoFile);
       }
 
-      const response = await axios.post('/api/profile', formDataToSend, {
+      // Make API request
+      const response = await axios.post(`/api/user/profile`, formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data',
-        },
-        timeout: 30000,
+        }
       });
 
-      if (response.data.success) {
-        // Update localStorage
-        const updatedUser: UserProfileData = {
-          ...profileData!,
-          full_name: formData.fullName,
-          email: formData.email,
-          user_image:
-            response.data.data?.user_image ||
-            photoPreview ||
-            profileData?.user_image,
-        };
-
-        localStorage.setItem('user', JSON.stringify({ data: updatedUser }));
-        setProfileData(updatedUser);
-
-        toast.success('Profile updated successfully');
-
-        // Reset form state manually
-        setChangePasswordOption(false);
+      if (response.data?.status === 'success') {
+        // Update original data to current form data
+        originalDataRef.current = { ...formData };
         setPhotoFile(null);
-        setFormData({
-          fullName: formData.fullName,
-          email: formData.email,
+        setChangePasswordOption(false);
+
+        // Reset password fields
+        setFormData((prev) => ({
+          ...prev,
           currentPassword: '',
           newPassword: '',
           confirmPassword: '',
-        });
-        setErrors({});
+        }));
+
+        // Update localStorage with new data
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const userData = JSON.parse(userStr) as UserProfile;
+
+          // Update full name if changed
+          if ('fullName' in changedFields) {
+            userData.data.full_name = changedFields.fullName || '';
+          }
+
+          // Update email if changed
+          if ('email' in changedFields) {
+            userData.data.email = changedFields.email || '';
+          }
+
+          // Update user image if returned from API
+          const newUserImage = response.data?.data?.user_image;
+          if (newUserImage) {
+            userData.data.user_image = newUserImage;
+          }
+
+          // Save updated data to localStorage
+          localStorage.setItem('user', JSON.stringify(userData));
+
+          // ===== EMIT CUSTOM EVENT TO NOTIFY TOPBAR AND OTHER COMPONENTS =====
+          emitUserDataChangeEvent(userData);
+
+          console.log('User data updated and event emitted:', userData);
+        }
+
+        toast.success('Profile updated successfully');
+        console.log('API Response:', response.data);
       } else {
-        toast.error(response.data.message || 'Failed to update profile');
+			const errorMessage =
+			response.data?.error?.message ||
+			response.data?.message ||
+			'Failed to update profile';
+
+			toast.error(errorMessage);
       }
     } catch (error) {
-      console.error('Profile update error:', error);
+      console.error('Error updating profile:', error);
       if (axios.isAxiosError(error)) {
-        toast.error(error.response?.data?.message || 'Failed to update profile');
+        const errorMessage =
+          error.response?.data?.message || error.message || 'Failed to update profile';
+        toast.error(errorMessage);
       } else {
-        toast.error('An unexpected error occurred');
+        toast.error('Failed to update profile');
       }
     } finally {
       setLoading(false);
     }
-  };
-
-  // Handle cancel - need to manually reset all fields
-  const handleCancel = () => {
-    setChangePasswordOption(false);
-    setPhotoFile(null);
-    setErrors({});
-    loadProfileFromStorage();
   };
 
   if (!mounted) {
@@ -289,17 +413,6 @@ export default function ProfilePageWithoutHookForm() {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Profile Settings
           </h1>
-          <button
-            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="p-2 rounded-lg bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? (
-              <Sun className="w-5 h-5 text-yellow-500" />
-            ) : (
-              <Moon className="w-5 h-5 text-gray-600" />
-            )}
-          </button>
         </div>
 
         {/* Main Card */}
@@ -330,7 +443,7 @@ export default function ProfilePageWithoutHookForm() {
                   disabled={loading}
                   className="hidden"
                 />
-                <span className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium cursor-pointer">
+                <span className="px-4 py-2 accent-bg accent-hover text-white rounded-lg transition-colors text-sm font-medium cursor-pointer">
                   {photoFile ? 'Change Photo' : 'Upload Photo'}
                 </span>
               </label>
@@ -351,7 +464,7 @@ export default function ProfilePageWithoutHookForm() {
                 value={formData.fullName}
                 onChange={(e) => handleInputChange('fullName', e.target.value)}
                 disabled={loading}
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none dark:bg-gray-700 dark:text-white transition-all ${
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none dark:bg-gray-700 dark:text-white transition-all ${
                   errors.fullName ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 placeholder="Enter your full name"
@@ -373,7 +486,7 @@ export default function ProfilePageWithoutHookForm() {
                 value={formData.email}
                 onChange={(e) => handleInputChange('email', e.target.value)}
                 disabled={loading}
-                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none dark:bg-gray-700 dark:text-white transition-all ${
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none dark:bg-gray-700 dark:text-white transition-all ${
                   errors.email ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                 }`}
                 placeholder="Enter your email address"
@@ -393,7 +506,7 @@ export default function ProfilePageWithoutHookForm() {
                   checked={changePasswordOption}
                   onChange={(e) => setChangePasswordOption(e.target.checked)}
                   disabled={loading}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
+                  className="w-4 h-4 text-accent border-gray-300 rounded focus:ring-2 focus:ring-accent dark:border-gray-600 dark:bg-gray-700 cursor-pointer"
                 />
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                   Change Password
@@ -403,7 +516,7 @@ export default function ProfilePageWithoutHookForm() {
 
             {/* Password Fields - Conditional Render */}
             {changePasswordOption && (
-              <div className="space-y-4 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="space-y-4 bg-accent/5 dark:bg-accent/10 p-4 rounded-lg border border-accent/20 dark:border-accent/30">
                 {/* Current Password */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -416,7 +529,7 @@ export default function ProfilePageWithoutHookForm() {
                       handleInputChange('currentPassword', e.target.value)
                     }
                     disabled={loading}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none dark:bg-gray-700 dark:text-white transition-all ${
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none dark:bg-gray-700 dark:text-white transition-all ${
                       errors.currentPassword
                         ? 'border-red-500'
                         : 'border-gray-300 dark:border-gray-600'
@@ -440,7 +553,7 @@ export default function ProfilePageWithoutHookForm() {
                     value={formData.newPassword}
                     onChange={(e) => handleInputChange('newPassword', e.target.value)}
                     disabled={loading}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none dark:bg-gray-700 dark:text-white transition-all ${
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none dark:bg-gray-700 dark:text-white transition-all ${
                       errors.newPassword
                         ? 'border-red-500'
                         : 'border-gray-300 dark:border-gray-600'
@@ -466,7 +579,7 @@ export default function ProfilePageWithoutHookForm() {
                       handleInputChange('confirmPassword', e.target.value)
                     }
                     disabled={loading}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none dark:bg-gray-700 dark:text-white transition-all ${
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-accent focus:border-transparent outline-none dark:bg-gray-700 dark:text-white transition-all ${
                       errors.confirmPassword
                         ? 'border-red-500'
                         : 'border-gray-300 dark:border-gray-600'
@@ -487,7 +600,7 @@ export default function ProfilePageWithoutHookForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200"
+                className="flex-1 accent-bg accent-hover disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg  duration-200"
               >
                 {loading ? 'Updating...' : 'Update Profile'}
               </button>

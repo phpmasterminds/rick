@@ -423,7 +423,11 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 
   const handleGenerateInvoicePDF = () => {
     if (order) {
-      generateInvoicePDF(order, readableName, order.to_address_detail_f_locs?.pages_image_url);
+      generateInvoicePDF(
+        order, 
+        order.from_address_detail_f_locs?.title || '',
+        order.from_address_detail_f_locs?.pages_image_url || ''
+      );
       setShowDropdown(false);
       toast.success('Invoice PDF opened for printing');
     }
@@ -431,7 +435,8 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 
   const handleGenerateManifestPDF = () => {
     if (order) {
-      generateShippingManifestPDF(order, readableName, order.to_address_detail_f_locs?.pages_image_url);
+      generateShippingManifestPDF(order, order.from_address_detail_f_locs?.title || '',
+        order.from_address_detail_f_locs?.pages_image_url || '');
       setShowDropdown(false);
       toast.success('Shipping Manifest opened for printing');
     }
@@ -439,7 +444,8 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 
   const handleGeneratePackListPDF = () => {
     if (order) {
-      generatePackListPDF(order, readableName, order.to_address_detail_f_locs?.pages_image_url);
+      generatePackListPDF(order,  order.from_address_detail_f_locs?.title || '',
+        order.from_address_detail_f_locs?.pages_image_url || '');
       setShowDropdown(false);
       toast.success('Pack List opened for printing');
     }
@@ -447,7 +453,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 
   const handlePrintOrder = () => {
     if (order) {
-      printOrder(order, readableName);
+      printOrder(order, order.from_address_detail_f_locs?.title || '');
       setShowDropdown(false);
     }
   };

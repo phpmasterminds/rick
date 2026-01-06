@@ -126,7 +126,7 @@ export default function PageContent() {
 
       const result = response.data;
       
-      toast.success('Order placed successfully! You will be redirected to payment.', {
+      toast.success('Order placed successfully! You will be redirected to order page.', {
         position: 'top-right',
         autoClose: 3000,
       });
@@ -134,7 +134,7 @@ export default function PageContent() {
       clearCart();
       
       // Optional: Redirect to payment or order confirmation page
-      // window.location.href = result.redirectUrl || '/order-confirmation';
+       window.location.href = result.redirectUrl || '/open-orders';
     } catch (error) {
       console.error('❌ Checkout error:', error);
       toast.error('Failed to process checkout. Please try again.', {

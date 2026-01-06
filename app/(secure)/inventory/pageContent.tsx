@@ -38,6 +38,7 @@ interface Product {
   cbd: string;
   strain?: string;
   product_code?: string;
+  med_image?: string;
   batch_id?: string;
   cat_id?: string;
   cat_parent_id?: string; // Parent category ID
@@ -1160,6 +1161,20 @@ export default function PageContent() {
     try {
       const rowData = editingRows[product.product_id];
       if (!rowData) return;
+	  
+		const parValue = Number(rowData.i_par !== undefined ? rowData.i_par : product.i_par);
+		const onhandValue = Number(rowData.i_onhand !== undefined ? rowData.i_onhand : product.i_onhand);
+
+console.log(parValue);
+console.log(onhandValue);
+console.log(rowData);
+		if (rowData.i_par && parValue > onhandValue) {
+			toast.error('Par level cannot be greater than On Hand inventory!', {
+			position: 'bottom-center',
+			autoClose: 4000,
+			});
+			return; // Prevents API call and save
+		}
 
       const response = await axios.post('/api/business/update-product-weight', {
         product_id: product.product_id,
@@ -1527,9 +1542,34 @@ export default function PageContent() {
                   <tr key={product.product_id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
-                          <Package size={20} className="text-gray-400" />
-                        </div>
+                        <div className="relative group">
+						  <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden cursor-pointer">
+							{product.med_image ? (
+							  <img
+								src={product.med_image}
+								alt={product.name}
+								className="w-full h-full object-cover"
+								onError={(e) => (e.currentTarget.style.display = 'none')}
+							  />
+							) : (
+							  <Package size={20} className="text-gray-400" />
+							)}
+						  </div>
+
+						  {/* 🔍 Hover Preview */}
+						  {product.med_image && (
+							<div className="absolute left-14 top-1/2 z-50 hidden group-hover:block -translate-y-1/2">
+							  <div className="w-40 h-40 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+								<img
+								  src={product.med_image}
+								  alt={product.name}
+								  className="w-full h-full object-cover"
+								/>
+							  </div>
+							</div>
+						  )}
+						</div>
+
                         <div>
                           <div className="font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -1567,20 +1607,44 @@ export default function PageContent() {
                         className="w-16 text-center border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
                     </td>
-                    <td className="px-4 py-4 text-center font-semibold text-gray-900 dark:text-gray-100">
+                    <td className={`px-4 py-4 text-center font-semibold rounded transition-colors ${
+                      product.i_par && Number(product.i_par) > Number(product.i_onhand)
+                        ? 'bg-yellow-100 dark:bg-yellow-900/30 border-l-4 border-l-yellow-500'
+                        : product.i_par && Number(product.i_onhand) <= Number(product.i_par)
+                        ? 'bg-red-100 dark:bg-red-900/30 border-l-4 border-l-red-500'
+                        : 'text-gray-900 dark:text-gray-100'
+                    }`}>
 						 <input 
 							type="text" 
 							value={editingRows[product.product_id]?.i_par ?? product.i_par ?? ''}
 							onChange={(e) => handleEditFieldChange(product.product_id, 'i_par', e.target.value)}
-							className="w-16 text-center border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+							className={`w-16 text-center border rounded focus:outline-none focus:ring-2 ${
+                              product.i_par && Number(product.i_par) > Number(product.i_onhand)
+                                ? 'border-yellow-300 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-900 dark:text-yellow-100'
+                                : product.i_par && Number(product.i_onhand) <= Number(product.i_par)
+                                ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-100'
+                                : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-blue-500'
+                            }`}
 						  />
 					</td>
-                    <td className="px-4 py-4 text-center bg-gray-50 dark:bg-gray-800/50 rounded">
+                    <td className={`px-4 py-4 text-center rounded transition-colors ${
+                      product.i_par && Number(product.i_par) > Number(product.i_onhand)
+                        ? 'bg-yellow-100 dark:bg-yellow-900/30 border-l-4 border-l-yellow-500'
+                        : product.i_par && Number(product.i_onhand) <= Number(product.i_par)
+                        ? 'bg-red-100 dark:bg-red-900/30 border-l-4 border-l-red-500'
+                        : 'bg-gray-50 dark:bg-gray-800/50'
+                    }`}>
                       <input 
-							type="text" 
-							value={editingRows[product.product_id]?.i_onhand ?? product.i_onhand}
-						onChange={(e) => handleEditFieldChange(product.product_id, 'i_onhand', e.target.value)}
-							className="w-16 text-center border border-gray-300 dark:border-gray-700 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+						type="text" 
+						value={editingRows[product.product_id]?.i_onhand ?? product.i_onhand}
+					onChange={(e) => handleEditFieldChange(product.product_id, 'i_onhand', e.target.value)}
+							className={`w-16 text-center border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                              product.i_par && Number(product.i_par) > Number(product.i_onhand)
+                                ? 'border-yellow-300 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-900 dark:text-yellow-100 font-semibold'
+                                : product.i_par && Number(product.i_onhand) <= Number(product.i_par)
+                                ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/20 text-red-900 dark:text-red-100 font-semibold'
+                                : 'border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                            }`}
 						  />
                     </td>
                     <td className="px-4 py-4 text-center">

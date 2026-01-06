@@ -6,7 +6,7 @@ export async function PUT(request: NextRequest) {
   try {
     const axios = await createServerAxios();
     const body = await request.json();
-    const { product_id, i_weight, i_total_weight, i_price, i_onhand, i_deals } = body;
+    const { product_id, i_weight, i_total_weight, i_price, i_onhand, i_deals, i_par } = body;
 
     // Validate required fields || i_weight === undefined || i_total_weight === undefined
     if (!product_id ) {
@@ -56,7 +56,8 @@ export async function PUT(request: NextRequest) {
         i_onhand: i_onhand,
         i_deals: i_deals,
         i_weight: weight,
-        i_total_weight: totalWeight
+        i_total_weight: totalWeight,
+        i_par: i_par
       }
     );
 
