@@ -219,26 +219,55 @@ const sampleReviews: Review[] = [
   { id: 'r2', user_name: 'Sarah K.', user_avatar: '', rating: 4, comment: 'Nice staff.', created_at: '2024-01-12', helpful_count: 4 },
 ];
 
-// --- Helper: Convert numeric time format (e.g., "800" or "1700") to HH:MM format ---
+// --- Helper: Convert numeric time format (e.g., "8", "800", "1700") to HH:MM format ---
+
+const normalizeCloseTimePM = (time: string): string => {
+  const normalized = normalizeTimeFormat(time); // HH:MM
+
+  if (!normalized || !normalized.includes(':')) return normalized;
+
+  let [hour, minute] = normalized.split(':').map(Number);
+
+  // If hour is between 1–11, force PM
+  if (hour >= 1 && hour <= 11) {
+    hour += 12;
+  }
+
+  // 12 stays 12 (12 PM)
+  // 13–23 stays as-is (already 24-hour PM)
+
+  return `${hour.toString().padStart(2, '0')}:${minute
+    .toString()
+    .padStart(2, '0')}`;
+};
+
+
 const normalizeTimeFormat = (time: string): string => {
   if (!time || typeof time !== 'string') return '';
-  
+
   // If already in HH:MM format, return as-is
   if (time.includes(':')) return time;
-  
-  // If it's a numeric string, convert it
-  const num = parseInt(time, 10);
-  if (isNaN(num)) return time;
-  
-  // Pad to 4 digits (e.g., 800 -> 0800, 1700 -> 1700)
-  const padded = num.toString().padStart(4, '0');
-  
-  // Split into hours and minutes
-  const hours = padded.substring(0, 2);
-  const minutes = padded.substring(2, 4);
-  
-  return `${hours}:${minutes}`;
+
+  // Remove spaces
+  const clean = time.trim();
+
+  // If only hour is given (e.g., "8", "9")
+  if (/^\d{1,2}$/.test(clean)) {
+    const hour = clean.padStart(2, '0');
+    return `${hour}:00`;
+  }
+
+  // If numeric time like 800, 930, 1700
+  if (/^\d{3,4}$/.test(clean)) {
+    const padded = clean.padStart(4, '0');
+    const hours = padded.substring(0, 2);
+    const minutes = padded.substring(2, 4);
+    return `${hours}:${minutes}`;
+  }
+
+  return time;
 };
+
 
 // --- Helper: Convert 24-hour format to 12-hour format with AM/PM ---
 const convertTo12HourFormat = (time24: string): string => {
@@ -344,22 +373,6 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
       // Prefer pages_image_path if it's a relative path with %s placeholder
       // pages_image_path example: "2021/07/ae7e70ee9ec61e5ff82c4de20776d35f%s.png"
       try {
-        /*if (api.pages_image_path) {
-          // If contains %s, remove it to get base image (no size suffix)
-          const relative = api.pages_image_path.replace('%s', '');
-          return `https://www.api.natureshigh.com/PF.Base/file/pic/pages/${relative}`;
-        }*/
-
-        // If image_path is already a full URL, use it
-        /*if (api.image_path && typeof api.image_path === 'string' && api.image_path.startsWith('http')) {
-          return api.image_path;
-        }*/
-
-        // If an image server pattern exists (fallback)
-        /*if (api.image_path && api.image_path.indexOf('/file/pic/pages/') > -1) {
-          // If it's a relative path, try to prefix
-          return api.image_path.startsWith('http') ? api.image_path : `https://www.api.natureshigh.com/${api.image_path}`;
-        }*/
         // If cover_photo_id given, attempt to construct (best-effort)
         if (api.cover_photo_url) {
           // This is a best-effort guess; you said you'll update actual cover photo API later
@@ -383,14 +396,21 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
         const status = api[`locs_${d}_status`]; // '0' or '1'
         if ((op && op !== '0') || (cl && cl !== '0')) hasHrFields = true;
 
-        return {
+        /*return {
           day: dayNames[idx],
           open: op && op !== '0' ? normalizeTimeFormat(op) : null,
-          close: cl && cl !== '0' ? normalizeTimeFormat(cl) : null,
-          is_closed: status !== undefined ? status !== '1' : !(op && op !== '0'),
-        };
+          close: cl && cl !== '0' ? normalizeCloseTimePM(cl) : null,
+          is_closed: status !== undefined ? status !== '2' : !(op && op !== '0'),
+        };*/
+		
+		return {
+			day: dayNames[idx],
+			open: status !== '2' && op && op !== '0' ? normalizeTimeFormat(op) : null,
+			close: status !== '2' && cl && cl !== '0' ? normalizeCloseTimePM(cl) : null,
+			is_closed: status === '2',
+		  };
       });
-
+	  
       // If no hr fields populated, handle store_hours like "Open 24hours"
       if (!hasHrFields) {
         const sh = api.store_hours ? String(api.store_hours).toLowerCase() : '';
@@ -419,7 +439,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
       id: String(api.page_id ?? api.locs_id ?? api.claim_id ?? Math.random().toString(36).slice(2, 9)),
       name: api.title ?? api.full_name ?? api.locs_name ?? 'Unknown',
       slug: api.vanity_url ?? (api.title ? String(api.title).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '') : undefined),
-      logo: api.image_path && String(api.image_path).startsWith('http') ? api.image_path : (api.owner_user_image ? `https://www.api.natureshigh.com/PF.Base/file/pic/pages/${api.owner_user_image.replace('%s', '')}` : null),
+      logo: api.pages_image_path && String(api.pages_image_path).startsWith('https') ? api.pages_image_path : (api.owner_user_image ? `https://www.api.natureshigh.com/PF.Base/file/pic/pages/${api.owner_user_image.replace('%s', '')}` : null),
       cover_image: tryResolveCover(),
       description: sanitizeDescription(api.text_parsed || api.text_parsed || ''),
       address: api.locs_street || null,
@@ -862,13 +882,13 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 
         {/* Action Buttons */}
         <div className="absolute top-4 right-4 flex items-center gap-2">
-          <button
+		{/*<button
             onClick={() => setIsDarkMode(!isDarkMode)}
             className="p-2 bg-white/90 rounded-lg hover:bg-white transition-colors"
             title={isDarkMode ? 'Light mode' : 'Dark mode'}
           >
             {isDarkMode ? <Sun className="w-5 h-5 text-gray-700" /> : <Moon className="w-5 h-5 text-gray-700" />}
-          </button>
+		</button>*/}
           <button
             onClick={handleShare}
             className="p-2 bg-white/90 rounded-lg hover:bg-white transition-colors"
@@ -898,7 +918,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-teal-500 to-teal-600">
-                  <Leaf className="w-12 h-12 text-white" />
+                 {dispensary.logo} <Leaf className="w-12 h-12 text-white" />
                 </div>
               )}
             </div>

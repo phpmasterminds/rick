@@ -2,7 +2,7 @@
 const nextConfig = {
   reactStrictMode: true,
   images: {
-    domains: ['localhost','images.unsplash.com','www.okcannashop.com'],
+    domains: ['localhost','images.unsplash.com','www.api.natureshigh.com'],
   },
 };
 

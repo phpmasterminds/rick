@@ -316,7 +316,7 @@ const CompanyEditPage = () => {
       formDataUpload.append('businessId', businessId || '');
       formDataUpload.append('photoType', photoType);
 
-      const response = await axios.post('/api/company/upload-photo', formDataUpload, {
+      const response = await axios.post('/api/business/settings/company/upload-photo', formDataUpload, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -389,7 +389,6 @@ const CompanyEditPage = () => {
         mobile: unformatPhoneNumber(formData.mobile),
         fax: unformatPhoneNumber(formData.fax),
       };
-
       const response = await axios.put(`/api/business/settings/company?business=${businessId}`, dataToSave, {
         timeout: 10000,
       });
