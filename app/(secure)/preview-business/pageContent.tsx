@@ -174,7 +174,6 @@ interface Customer {
 /**
  * API Product response from PHPFox (new flat structure)
  */
- 
 interface APIProduct {
   product_id: string;
   page_id: string;
@@ -186,7 +185,6 @@ interface APIProduct {
   med_value: string;
   med_image: string;
   med_image_path?: string;
-  med_type?: string;
   text: string;
   text_parsed?: string;
   thc: string;
@@ -668,7 +666,6 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 						  })) as MedicineProduct[];
 
 						// Store medicine products separately for modal display
-						console.log(allProducts);
 						setMedicineProducts(allProducts);
 
 						// Convert products to display-friendly format
@@ -1339,10 +1336,10 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                           )}
                         </div>
                         <div className={`flex items-center justify-between mt-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>
-                          <div>
+							{/*<div>
                             <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>${product.value2}</span>
                           </div>
-                          <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{product.value1}</span>
+							<span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{product.value1}</span>*/}
                         </div>
                       </div>
                     </div>
@@ -1376,8 +1373,8 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                             )}
                           </div>
                           <div className="text-right">
-                            <span className="font-bold text-gray-900">${product.value2}</span>
-                            <span className="text-sm text-gray-500 ml-1">/ {product.value1}</span>
+						  {/*<span className="font-bold text-gray-900">${product.value2}</span>
+						  <span className="text-sm text-gray-500 ml-1">/ {product.value1}</span>*/}
                           </div>
                         </div>
                         <div className="flex items-center gap-3 mt-2">
@@ -1586,7 +1583,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
       address: dispensary.address || '',
     }}
     medicineProducts={filteredMedicineProducts}
-	isPreview='0'
+	isPreview='1'
     selectedProductIndex={selectedProductIndex}
     onClose={closeProductModal}
     onNext={goToNextProduct}

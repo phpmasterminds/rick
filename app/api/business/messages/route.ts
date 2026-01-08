@@ -26,7 +26,7 @@ export async function GET(req: Request) {
     const status = searchParams.get("status");
     const search = searchParams.get("search");
     const page = searchParams.get("page") || "1";
-    const limit = searchParams.get("limit") || "30";
+    const limit = searchParams.get("limit") || "200";
 
     // Build params object
     const params: any = {

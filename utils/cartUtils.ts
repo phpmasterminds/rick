@@ -68,7 +68,7 @@ export const saveCart = (items: CartItem[]): void => {
  */
 export const addToCart = (
   product: {
-    med_id: string;
+    product_id: string;
     name: string;
     value2: string;
     value1?: string;
@@ -86,7 +86,7 @@ export const addToCart = (
   const price = parseFloat(product.value2);
   
   // Create unique ID based on product and dispensary
-  const itemId = `${dispensary.id}_${product.med_id}`;
+  const itemId = `${dispensary.id}_${product.product_id}`;
   
   // Check if item already exists in this dispensary
   const existingItemIndex = cart.findIndex(item => item.id === itemId);
@@ -188,7 +188,7 @@ export const checkDispensaryConflict = (newDispensaryId: string): { canAdd: bool
  */
 export const replaceCartWithNewDispensary = (
   product: {
-    med_id: string;
+    product_id: string;
     name: string;
     value2: string;
     value1?: string;

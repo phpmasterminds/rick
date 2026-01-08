@@ -222,6 +222,7 @@ export default function Sidebar({
       "admin",
       "pos",
 	  "preview-catalog",
+	  "preview-business",
 	  "place-order",
 	  "new-orders",
 	  "order-history",
@@ -501,6 +502,7 @@ export default function Sidebar({
 	  { id: "customers", icon: Users, label: "My Customers", path: "/customers" },
       { id: "metrc", icon: Folder, label: "Metrc", path: "/metrc" },
       { id: "reports", icon: BarChart, label: "Reports & Analytics", path: "/reports" },
+      { id: "preview-business", icon: Briefcase, label: "Preview Business", path: "/preview-business" },
       {
         id: "settings",
         icon: Settings,

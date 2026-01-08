@@ -29,7 +29,7 @@ import Cookies from 'js-cookie';
 // ============================================================================
 
 interface MedicineProduct {
-  med_id: string;
+  product_id: string;
   name: string;
   cat_name: string;
   value1: string;
@@ -57,6 +57,7 @@ interface ProductModalProps {
   dispensary: Dispensary;
   medicineProducts: MedicineProduct[];
   selectedProductIndex: number;
+  isPreview: string;
   onClose: () => void;
   onNext: () => void;
   onPrevious: () => void;
@@ -71,6 +72,7 @@ export default function ProductModal({
   dispensary,
   medicineProducts,
   selectedProductIndex,
+  isPreview,
   onClose,
   onPrevious,
   onNext,
@@ -133,7 +135,7 @@ export default function ProductModal({
       
       setCurrentCartDispensary(currentDispensaryName);
       setPendingProduct({
-        med_id: selectedProduct.med_id,
+        product_id: selectedProduct.product_id,
         name: selectedProduct.name,
         value2: selectedProduct.value2,
         value1: selectedProduct.value1,
@@ -158,7 +160,7 @@ export default function ProductModal({
     try {
       const cartItem = addToCart(
         {
-          med_id: selectedProduct.med_id,
+          product_id: selectedProduct.product_id,
           name: selectedProduct.name,
           value2: selectedProduct.value2,
           value1: selectedProduct.value1,
@@ -352,7 +354,7 @@ export default function ProductModal({
 
                 {/* Dispensary */}
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                  <strong>Dispensary:</strong> {dispensary.name}
+                  <strong></strong> {dispensary.name}
                 </p>
               </div>
 
@@ -362,15 +364,21 @@ export default function ProductModal({
               {/* Price & Quantity */}
               <div className="space-y-4">
                 {/* Price */}
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl font-bold text-teal-600 dark:text-teal-400">
-                    ${price.toFixed(2)}
-                  </span>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">per {selectedProduct.value1}</span>
-                </div>
+				{isPreview !== '1' && (
+				  <div className="flex items-baseline gap-2">
+					<span className="text-4xl font-bold text-teal-600 dark:text-teal-400">
+					  ${price.toFixed(2)}
+					</span>
+					<span className="text-sm text-gray-600 dark:text-gray-400">
+					  per {selectedProduct.value1}
+					</span>
+				  </div>
+				)}
+
 
                 {/* Quantity Selector */}
-                <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
+                {isPreview !== '1' && (
+				<div className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
                   <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Quantity</span>
                   <div className="flex items-center gap-3">
                     <button
@@ -403,10 +411,12 @@ export default function ProductModal({
                     </span>
                   </div>
                 </div>
+				)}
               </div>
 
               {/* Add to Cart Button */}
-              <button
+              {isPreview !== '1' && (
+			  <button
                 onClick={handleAddToCart}
                 disabled={isAdding}
                 className="w-full bg-teal-600 hover:bg-teal-700 disabled:bg-teal-400 dark:bg-teal-700 dark:hover:bg-teal-600 text-white font-semibold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2"
@@ -423,6 +433,7 @@ export default function ProductModal({
                   </>
                 )}
               </button>
+			  )}
             </div>
           </div>
         </div>

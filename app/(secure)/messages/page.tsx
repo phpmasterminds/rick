@@ -266,7 +266,7 @@ export default function MessagesPage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Messages</h1>
           </div>
 
-          {isBuyer && (
+          
             <button
               onClick={() => setShowCreateModal(true)}
               className="inline-flex items-center gap-2 rounded-lg accent-bg px-6 py-3 font-semibold text-white transition-colors accent-hover"
@@ -286,7 +286,7 @@ export default function MessagesPage() {
               </svg>
               Create New Message
             </button>
-          )}
+          
         </div>
 
         {/* Main Content */}
@@ -344,13 +344,13 @@ export default function MessagesPage() {
       </div>
 
       {/* Create Message Modal */}
-      {isBuyer && (
+      
         <CreateMessageModal
           isOpen={showCreateModal}
           onClose={() => setShowCreateModal(false)}
           onSuccess={handleMessageCreated}
         />
-      )}
+     
     </div>
   );
 }
