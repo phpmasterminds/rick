@@ -11,6 +11,17 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "Nature's High",
   description: "Nature's High",
+  icons: {
+    icon: [
+      { url: '/images/favicon.ico', sizes: 'any' },
+    ]
+},
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: 'https://natureshigh.com',
+    siteName: "Nature's High",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <ThemeProvider>
             {children}
             <ToastContainer
-              position="top-center"
+              position="bottom-center"
               autoClose={3000}
               hideProgressBar={false}
               newestOnTop={false}

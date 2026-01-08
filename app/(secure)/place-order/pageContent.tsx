@@ -8,6 +8,7 @@ import { toast } from 'react-toastify';
 interface Customer {
   customer_id: string;
   account_name: string;
+  contact_name: string;
   contact_first_name: string;
   contact_last_name: string;
   contact_email: string;
@@ -16,6 +17,12 @@ interface Customer {
   billing_city: string;
   billing_state: string;
   billing_postal_code: string;
+  detail: {
+	  contact_address: string;
+	  contact_city: string;
+	  contact_state: string;
+	  contact_zip_code: string;
+  };
   account_details: {
     account_name: string;
     contact_email: string;
@@ -27,6 +34,7 @@ interface Customer {
     billing_state: string;
     billing_postal_code: string;
   };
+  
 }
 
 interface Product {
@@ -492,7 +500,7 @@ export default function WholesaleOrderPage() {
                 >
                   <span>
                     {selectedCustomer
-                      ? `${selectedCustomer.account_details.account_name} (${selectedCustomer.contact_email})`
+                      ? `${selectedCustomer.contact_name} (${selectedCustomer.contact_email})`
                       : 'Select a customer...'}
                   </span>
                   <ChevronDown size={20} />
@@ -516,10 +524,10 @@ export default function WholesaleOrderPage() {
                           className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0 text-gray-900 dark:text-gray-100 transition"
                         >
                           <div className="font-medium">
-                            {customer.account_details.account_name}
+                            {customer.contact_name}
                           </div>
                           <div className="text-sm text-gray-600 dark:text-gray-400">
-                            {customer.account_details.account_name} - {customer.contact_email}
+                            {customer.contact_name} - {customer.contact_email}
                           </div>
                         </button>
                       ))
@@ -532,8 +540,8 @@ export default function WholesaleOrderPage() {
                 <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
                   <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">Shipping To:</p>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
-                    {selectedCustomer.account_details.billing_street}<br />
-                    {selectedCustomer.account_details.billing_city}, {selectedCustomer.account_details.billing_state} {selectedCustomer.account_details.billing_postal_code}
+                    {selectedCustomer.detail.contact_address}<br />
+                    {selectedCustomer.detail.contact_city}, {selectedCustomer.detail.contact_state} {selectedCustomer.detail.contact_zip_code}
                   </p>
                 </div>
               )}

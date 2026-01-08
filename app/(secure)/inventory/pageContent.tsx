@@ -373,10 +373,10 @@ export default function PageContent() {
   const strainCatOptions = ['Indica', 'Sativa', 'Hybrid', 'Indica Hybrid', 'Sativa Hybrid'];
   
   // Measurement options
-  const measurementOptions = ['unit', 'Pounds', 'bulk', 'prepackage'];
+  const measurementOptions = ['Unit',  'Pre Package', 'Pound', 'Ounce', 'Kilogram', 'Milligram', 'Gram', 'Milliliter', 'Liter'];
   
   // Each value options
-  const eachValueOptions = ['Each', '1/2 Doz', '1 Doz', '1/2 Gram', 'Gram'];
+  const eachValueOptions = ['1/10',  '1/8',  '1/6',  '1/5', '1/4', '1/3', '1/2', '3/4', '1', '1 1/4', '1 1/2', '2', '2 1/2','3', '3 1/2', '3 3/4', '4', '5', '6', '7', '8', '10', '14', '28'];
   
   // API data state
   const [products, setProducts] = useState<Product[]>([]);
@@ -2120,85 +2120,24 @@ console.log(rowData);
                   </div>
 
                   {/* Measurements */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Measurements</label>
-                    <select
-                      value={editFormData.medMeasurements}
-                      onChange={(e) => setEditFormData({...editFormData, medMeasurements: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                    >
-                      {measurementOptions.map(option => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  
 
-                  {/* Conditional Price Fields Based on Measurements */}
-                  {editFormData.medMeasurements === 'bulk' || editFormData.medMeasurements === 'Pounds' ? (
-                    // Bulk/Pounds - Show Gram Prices and Shake Tiers
-                    <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg space-y-4">
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Medicine Values: Price</h3>
-                      
-                      {/* Gram Price Inputs */}
-                      <div className="grid grid-cols-4 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium mb-2 text-gray-700 dark:text-gray-300">Gram</label>
-                          <input type="number" step="0.01" value={editFormData.value1} onChange={(e) => {setEditFormData({ ...editFormData, value1: e.target.value })}} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="$" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2 text-gray-700 dark:text-gray-300">1/8</label>
-                          <input type="number" step="0.01" value={editFormData.value2} onChange={(e) => {setEditFormData({ ...editFormData, value2: e.target.value })}} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="$" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2 text-gray-700 dark:text-gray-300">1/4</label>
-                          <input type="number" step="0.01" value={editFormData.value3} onChange={(e) => {setEditFormData({ ...editFormData, value3: e.target.value })}} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="$" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2 text-gray-700 dark:text-gray-300">1/2</label>
-                          <input type="number" step="0.01" value={editFormData.value4} onChange={(e) => {setEditFormData({ ...editFormData, value4: e.target.value })}} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="$" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2 text-gray-700 dark:text-gray-300">OZ.</label>
-                          <input type="number" step="0.01" value={editFormData.value5} onChange={(e) => {setEditFormData({ ...editFormData, value5: e.target.value })}} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="$" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2 text-gray-700 dark:text-gray-300">1/2 Gram</label>
-                          <input type="number" step="0.01" value={editFormData.value6} onChange={(e) => {setEditFormData({ ...editFormData, value6: e.target.value })}} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="$" />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2 text-gray-700 dark:text-gray-300">2 Gram</label>
-                          <input type="number" step="0.01" value={editFormData.value7} onChange={(e) => {setEditFormData({ ...editFormData, value7: e.target.value })}} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" placeholder="$" />
-                        </div>
-                      </div>
-
-                      {/* Shake Sale Tier Selection */}
-                      {editModalFlowerTier.length > 0 && (
-                        <div className="border-t border-gray-300 dark:border-gray-700 pt-4 mt-4">
-                          <label className="block text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">Shake Sale Tiers - Click to Apply Prices</label>
-                          <div className="flex gap-2 flex-wrap">
-                            {editModalFlowerTier.map(tier => (
-                              <button
-                                key={tier.tire_id}
-                                onClick={() => handleSelectShakeTier(tier.tire_id)}
-                                className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                                  selectedShakeTier === tier.tire_id
-                                    ? 'bg-green-600 text-white shadow-lg'
-                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                                }`}
-                              >
-                                {tier.c_name}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    // Unit/Prepackage - Show Each Price
                     <div className="grid grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                      <div>
+						<div>
+							<label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Units of Measure</label>
+							<select
+							  value={editFormData.medMeasurements}
+							  onChange={(e) => setEditFormData({...editFormData, medMeasurements: e.target.value})}
+							  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+							>
+							  {measurementOptions.map(option => (
+								<option key={option} value={option}>
+								  {option}
+								</option>
+							  ))}
+							</select>
+						</div>
+						<div>
                         <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">* Quantity</label>
                         <select
                           value={editFormData.medEachValue}
@@ -2213,7 +2152,7 @@ console.log(rowData);
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">$ Price</label>
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Price</label>
                         <input
                           type="number"
                           step="0.01"
@@ -2224,7 +2163,7 @@ console.log(rowData);
                         />
                       </div>
                     </div>
-                  )}
+					
 
                   {/* Select Room */}
 <div>

@@ -1586,7 +1586,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
       address: dispensary.address || '',
     }}
     medicineProducts={filteredMedicineProducts}
-	isPreview='0'
+	isPreview={businessTypeId === 20 ? '0' : '1'}
     selectedProductIndex={selectedProductIndex}
     onClose={closeProductModal}
     onNext={goToNextProduct}

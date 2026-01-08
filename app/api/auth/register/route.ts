@@ -1,11 +1,24 @@
-import { NextResponse } from "next/server";
+import { NextResponse,NextRequest } from "next/server";
 import axiosClient from "@/lib/axiosClient";
+import axios from "axios";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await req.formData();
 
     // 1️⃣ Fetch PHPFox access token
+	
+	/*const uploadResponse = await axios.post(
+	"https://www.api.natureshigh.com/upload.php",body
+	,
+	{
+	headers: {
+	  "Content-Type": "multipart/form-data",
+	},
+	}
+	);
+	console.log(uploadResponse);*/
+
     const tokenResponse = await axiosClient.post(
       "/token",
       "grant_type=client_credentials",
@@ -28,6 +41,7 @@ export async function POST(req: Request) {
     const response = await axiosClient.post("/business/register", body, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
+		"Content-Type": "multipart/form-data"
       },
     });
 

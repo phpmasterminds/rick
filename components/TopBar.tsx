@@ -426,7 +426,10 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   return (
     <div className="relative">
       {/* Header */}
-      <header className="sticky top-0 z-30 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
+      <header className="sticky top-0 z-30 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm"
+	  style={{
+          background: `linear-gradient(to bottom, #eefdf6, #f8fdfc)`,
+        }}>
         <div className="flex items-center justify-between h-16 px-4 ">
           {/* Left Section - Logo & Menu */}
           <div className="flex items-center gap-2">

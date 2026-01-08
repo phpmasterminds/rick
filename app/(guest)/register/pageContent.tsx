@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import {
-  ChevronDown, AlertCircle, Eye, EyeOff, Mail, Phone, MapPin, Loader2, X
+  ChevronDown, AlertCircle, Eye, EyeOff, Mail, Phone, MapPin, Loader2, X, Upload, FileText
 } from 'lucide-react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -39,6 +39,7 @@ interface RegistrationFormData {
   contact_fax: string;
   contact_company_name: string;
   account_name: string;
+  trade_name: string;
   website: string;
   annual_revenue: string;
   billing_street: string;
@@ -90,6 +91,8 @@ export default function RegistrationPage() {
   const [mobileVerified, setMobileVerified] = useState(false);
   const [registrationComplete, setRegistrationComplete] = useState(false);
   const [registrationData, setRegistrationData] = useState<any>(null);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [licenseFileName, setLicenseFileName] = useState<string>('');
 
   const [formData, setFormData] = useState<RegistrationFormData>({
     contact_first_name: '',
@@ -102,6 +105,7 @@ export default function RegistrationPage() {
     contact_fax: '',
     contact_company_name: '',
     account_name: '',
+    trade_name: '',
     website: '',
     annual_revenue: '',
     billing_street: '',
@@ -224,6 +228,44 @@ export default function RegistrationPage() {
     setVerificationCode('');
   };
 
+  const handleLicenseFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    
+    if (file) {
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      
+      if (!allowedTypes.includes(file.type)) {
+        setFieldErrors(prev => ({
+          ...prev,
+          license_file: 'Please upload a PDF, image (JPG/PNG), or Word document'
+        }));
+        return;
+      }
+      
+      if (file.size > 10 * 1024 * 1024) {
+        setFieldErrors(prev => ({
+          ...prev,
+          license_file: 'File size must be less than 10MB'
+        }));
+        return;
+      }
+      
+      setLicenseFile(file);
+      setLicenseFileName(file.name);
+      
+      setFieldErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors.license_file;
+        return newErrors;
+      });
+    }
+  };
+
+  const removeLicenseFile = () => {
+    setLicenseFile(null);
+    setLicenseFileName('');
+  };
+
   const validateContactTab = (): boolean => {
     const errors: FieldErrors = {};
     let isValid = true;
@@ -274,6 +316,10 @@ export default function RegistrationPage() {
       errors.account_name = 'Account name is required';
       isValid = false;
     }
+    /*if (!formData.trade_name.trim()) {
+      errors.trade_name = 'Trade name is required';
+      isValid = false;
+    }*/
     if (!formData.billing_street.trim()) {
       errors.billing_street = 'Business address is required';
       isValid = false;
@@ -324,6 +370,10 @@ export default function RegistrationPage() {
         errors.expiration_date = 'License expiration date must be in the future';
         isValid = false;
       }
+    }
+    if (!licenseFile) {
+      errors.license_file = 'License document is required';
+      isValid = false;
     }
 
     setFieldErrors(errors);
@@ -386,32 +436,40 @@ export default function RegistrationPage() {
       const billingPhoneDigitsOnly = formData.billing_phone.replace(/\D/g, '');
       const billingPhoneWithCountryCode = billingPhoneDigitsOnly ? '+1' + billingPhoneDigitsOnly : '';
 
-      const payload = {
-        contact_first_name: formData.contact_first_name,
-        contact_last_name: formData.contact_last_name,
-        contact_email: formData.contact_email,
-        contact_office_phone: officePhoneWithCountryCode,  // Send as: +12025551234 or empty
-        contact_mobile: mobileWithCountryCode,  // Send as: +12025551234
-        contact_job_title: formData.contact_job_title,
-        contact_department: formData.contact_department,
-        contact_fax: faxWithCountryCode,  // Send as: +12025551234 or empty
-        contact_company_name: formData.contact_company_name,
-        account_name: formData.account_name,
-        website: formData.website,
-        annual_revenue: formData.annual_revenue,
-        billing_street: formData.billing_street,
-        billing_city: formData.billing_city,
-        billing_state: formData.billing_state,
-        billing_postal_code: formData.billing_postal_code,
-        billing_phone: billingPhoneWithCountryCode,  // Send as: +12025551234 or empty
-        license_type: formData.license_type,
-        license_number: formData.license_number,
-        expiration_date: formData.expiration_date,
-        email: formData.email,
-        password: formData.password,
-      };
+      const payload = new FormData();
+      payload.append('contact_first_name', formData.contact_first_name);
+      payload.append('contact_last_name', formData.contact_last_name);
+      payload.append('contact_email', formData.contact_email);
+      payload.append('contact_office_phone', officePhoneWithCountryCode);
+      payload.append('contact_mobile', mobileWithCountryCode);
+      payload.append('contact_job_title', formData.contact_job_title);
+      payload.append('contact_department', formData.contact_department);
+      payload.append('contact_fax', faxWithCountryCode);
+      payload.append('contact_company_name', formData.contact_company_name);
+      payload.append('account_name', formData.account_name);
+      payload.append('trade_name', formData.trade_name);
+      payload.append('website', formData.website);
+      payload.append('annual_revenue', formData.annual_revenue);
+      payload.append('billing_street', formData.billing_street);
+      payload.append('billing_city', formData.billing_city);
+      payload.append('billing_state', formData.billing_state);
+      payload.append('billing_postal_code', formData.billing_postal_code);
+      payload.append('billing_phone', billingPhoneWithCountryCode);
+      payload.append('license_type', formData.license_type);
+      payload.append('license_number', formData.license_number);
+      payload.append('expiration_date', formData.expiration_date);
+      payload.append('email', formData.email);
+      payload.append('password', formData.password);
+      if (licenseFile) {
+        payload.append('license_document', licenseFile);
+      }
 
-      const response = await axios.post('/api/auth/register', payload);
+
+      const response = await axios.post('/api/auth/register', payload, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
 
       if (response.data.status === 'success') {
         // Registration successful - auto-send OTP
@@ -687,6 +745,22 @@ export default function RegistrationPage() {
               </div>
 
               <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700">Trade Name</label>
+                <input
+                  type="text"
+                  name="trade_name"
+                  value={formData.trade_name}
+                  onChange={handleInputChange}
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    fieldErrors.trade_name ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-teal-500'
+                  }`}
+                />
+                {fieldErrors.trade_name && (
+                  <p className="text-red-600 text-sm mt-1">⚠ {fieldErrors.trade_name}</p>
+                )}
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium mb-2 text-gray-700">Website</label>
                 <input
                   type="url"
@@ -841,7 +915,7 @@ export default function RegistrationPage() {
                   name="license_number"
                   value={formData.license_number}
                   onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                  className={`uppercase w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
                     fieldErrors.license_number ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-teal-500'
                   }`}
                 />
@@ -863,6 +937,46 @@ export default function RegistrationPage() {
                 />
                 {fieldErrors.expiration_date && (
                   <p className="text-red-600 text-sm mt-1">⚠ {fieldErrors.expiration_date}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-gray-700">License Document *</label>
+                {!licenseFile ? (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-teal-500 hover:bg-teal-50 transition-colors cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                      onChange={handleLicenseFileChange}
+                      className="hidden"
+                      id="license-file-input"
+                    />
+                    <label htmlFor="license-file-input" className="cursor-pointer block">
+                      <Upload className="w-10 h-10 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-700 font-medium">Click to upload or drag and drop</p>
+                      <p className="text-sm text-gray-500">PDF, JPG, PNG, DOC, or DOCX</p>
+                    </label>
+                  </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <FileText className="w-6 h-6 text-green-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-green-900">{licenseFileName}</p>
+                        <p className="text-sm text-green-700">File uploaded successfully</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={removeLicenseFile}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
+                {fieldErrors.license_file && (
+                  <p className="text-red-600 text-sm mt-1">⚠ {fieldErrors.license_file}</p>
                 )}
               </div>
 

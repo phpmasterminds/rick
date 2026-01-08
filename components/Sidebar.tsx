@@ -919,6 +919,9 @@ export default function Sidebar({
         } bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col py-4 transition-all duration-300 ease-in-out fixed md:relative h-full z-40 ${
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
+        style={{
+          background: `linear-gradient(to bottom, #eefdf6, #f8fdfc)`,
+        }}
       >
       {/* Header */}
       <div className="px-4 mb-4 flex items-center justify-between">
@@ -978,8 +981,8 @@ export default function Sidebar({
             onClick={handleMenuToggle}
             className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 
               ${showAdminMenu 
-                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800" 
-                : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                ? "text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800" 
+                : "text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400"
               }
               ${isCollapsed ? "justify-center" : "justify-start"}
             `}
@@ -987,8 +990,8 @@ export default function Sidebar({
           >
             <div className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-300 
               ${showAdminMenu 
-                ? "bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-400" 
-                : "bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                ? "text-blue-600 dark:text-blue-400" 
+                : "text-gray-600 dark:text-gray-400"
               }`}
             >
               {showAdminMenu ? <ArrowLeft size={16} /> : <Shield size={16} />}
@@ -1024,10 +1027,10 @@ export default function Sidebar({
             onClick={() => setShowModeDropdown(!showModeDropdown)}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg transition-all duration-200 border
               ${currentMode === "business"
-                ? "accent-bg text-white border-accent"
+                ? "border-accent text-accent"
                 : currentMode === "pos"
-                ? "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
-                : "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800"
+                ? "text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800"
+                : "text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800"
               }
             `}
             title={isCollapsed ? `Mode: ${currentMode.toUpperCase()}` : ""}
@@ -1121,7 +1124,7 @@ export default function Sidebar({
                     className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 ${
                       isItemActive
                         ? "accent-bg text-white shadow-md scale-105"
-                        : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:bg-accent/10 hover:text-accent"
+                        : "text-gray-600 dark:text-gray-400 hover:text-accent"
                     }`}
                   >
                     <item.icon size={20} />
@@ -1161,7 +1164,7 @@ export default function Sidebar({
                       className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all duration-200 ${
                         isActive(subitem.path || "")
                           ? "accent-bg text-white shadow-md"
-                          : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                          : "text-gray-600 dark:text-gray-400 hover:text-accent"
                       }`}
                     >
                       {subitem.label}
