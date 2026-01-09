@@ -4,7 +4,7 @@ import {
   Bell, Home, Megaphone, Package, CreditCard, Settings, HelpCircle,
   Plus, X, Upload, Target, DollarSign, MousePointer, Eye, CheckCircle,
   ChevronDown, ChevronRight, Menu, User, LogOut, Users, Folder, Edit, 
-  Loader2, AlertCircle, ChevronLeft
+  Loader2, AlertCircle, ChevronLeft, Copy
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import StatCard from "@/components/StatCard";
@@ -231,6 +231,7 @@ export default function PageContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
+  const [isCloneMode, setIsCloneMode] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showDealsModal, setShowDealsModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -268,6 +269,8 @@ export default function PageContent() {
   
   // Form state for edit modal
   const [editFormData, setEditFormData] = useState({
+    med_image: '',
+    product_id: '',
     page_id: '',
     productName: '',
     description: '',
@@ -422,126 +425,138 @@ export default function PageContent() {
   
   const [hasInitialized, setHasInitialized] = useState(false);
 
+  // Helper function to get cookie
+  const getCookie = (name: string) => {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+    return '';
+  };
+
+  // Define fetchAllInventory outside useEffect so it can be called from handleAddProduct
+  const fetchAllInventory = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const vanityUrl = getCookie('vanity_url');
+      let allLoadedProducts: Product[] = [];
+      let totalProdCount = 0;
+      
+      // Load first page to get total count and metadata
+      const firstResponse = await axios.get(
+        `/api/business/posinventory?business=${vanityUrl}&page=1&is_from=product`
+      );
+      
+      if (firstResponse.data.status !== 'success') {
+        throw new Error(
+          firstResponse.data.error?.message || 
+          firstResponse.data.message || 
+          'Failed to load inventory'
+        );
+      }
+      
+      // Extract metadata from first page
+      if (firstResponse.data.data.page_id) {
+        setGlobalPageId(firstResponse.data.data.page_id);
+      }
+      
+      const roomsData = firstResponse.data.data.aRooms || [];
+      setRooms(roomsData);
+      
+      // Transform categories data
+      const categoriesData = firstResponse.data.data.categories || {};
+      const transformedCategories = [
+        { name: 'All', subcategories: [] },
+        ...Object.values(categoriesData).map((cat: any) => ({
+          name: cat.cat_name,
+          subcategories: cat.sub?.map((s: any) => s.cat_name) || []
+        }))
+      ];
+      setCategories(transformedCategories);
+      
+      totalProdCount = firstResponse.data.data.total || 0;
+      const productsPerPage = firstResponse.data.data.products?.length || 10;
+      
+      // Transform and add products from first page
+      const firstPageProducts = transformProductsData(firstResponse.data.data.products || []);
+      allLoadedProducts = [...firstPageProducts];
+      
+      // Calculate total pages needed (this prevents infinite pagination)
+      const totalPages = Math.ceil(totalProdCount / productsPerPage);
+      
+      // Load remaining pages only if there are more than 1 page
+      if (totalPages > 1) {
+        for (let page = 2; page <= totalPages; page++) {
+          const response = await axios.get(
+            `/api/business/posinventory?business=${vanityUrl}&page=${page}&is_from=product`
+          );
+          
+          if (response.data.status !== 'success') {
+            console.warn(`Failed to load page ${page}, continuing with loaded products`);
+            break;
+          }
+          
+          const productsData = response.data.data.products || [];
+          const transformedProducts = transformProductsData(productsData);
+          allLoadedProducts = [...allLoadedProducts, ...transformedProducts];
+          
+          // Stop if no more products
+          if (productsData.length === 0) {
+            break;
+          }
+        }
+      }
+      
+      // Set all state at once after loading is complete
+      setAllProducts(allLoadedProducts);
+      setProducts(allLoadedProducts);
+      setTotalProducts(totalProdCount);
+      
+      // Show success message
+      if (allLoadedProducts.length > 0) {
+        toast.success(`Loaded ${allLoadedProducts.length} products successfully`);
+      }
+      
+      // Mark as initialized to prevent re-runs
+      setHasInitialized(true);
+      
+    } catch (error: any) {
+      let errorMessage = 'Failed to fetch inventory';
+      
+      // Extract error message from various sources
+      if (error.response?.data?.error?.message) {
+        errorMessage = error.response.data.error.message;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      // Strip HTML tags if present
+      errorMessage = errorMessage.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, '');
+      
+      setError(errorMessage);
+      toast.error(errorMessage, {
+        position: 'bottom-center',
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     // Guard: only run once on mount
     if (hasInitialized) return;
     
-    const fetchAllInventory = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Helper to get cookie
-        const getCookie = (name: string) => {
-          const value = `; ${document.cookie}`;
-          const parts = value.split(`; ${name}=`);
-          if (parts.length === 2) return parts.pop()?.split(';').shift();
-          return '';
-        };
-        
-        const vanityUrl = getCookie('vanity_url');
-        let currentPage = 1;
-        let allLoadedProducts: Product[] = [];
-        let totalProdCount = 0;
-        let isFirstPageLoaded = false;
-        
-        // Load all pages sequentially in a single loop
-        while (true) {
-          const response = await axios.get(
-            `/api/business/posinventory?business=${vanityUrl}&page=${currentPage}&is_from=product`
-          );
-          
-          if (response.data.status !== 'success') {
-            throw new Error(
-              response.data.error?.message || 
-              response.data.message || 
-              'Failed to load inventory'
-            );
-          }
-          
-          const productsData = response.data.data.products || [];
-          
-          // On first page, extract metadata and categories
-          if (!isFirstPageLoaded) {
-            if (response.data.data.page_id) {
-              setGlobalPageId(response.data.data.page_id);
-            }
-            
-            const roomsData = response.data.data.aRooms || [];
-            setRooms(roomsData);
-            
-            // Transform categories data
-            const categoriesData = response.data.data.categories || {};
-            const transformedCategories = [
-              { name: 'All', subcategories: [] },
-              ...Object.values(categoriesData).map((cat: any) => ({
-                name: cat.cat_name,
-                subcategories: cat.sub?.map((s: any) => s.cat_name) || []
-              }))
-            ];
-            setCategories(transformedCategories);
-            
-            totalProdCount = response.data.data.total || 0;
-            isFirstPageLoaded = true;
-          }
-          
-          // Transform and add products
-          const transformedProducts = transformProductsData(productsData);
-          allLoadedProducts = [...allLoadedProducts, ...transformedProducts];
-          
-          // Check if we've loaded all products
-          if (allLoadedProducts.length >= totalProdCount || productsData.length === 0) {
-            break;
-          }
-          
-          currentPage++;
-        }
-        
-        // Set all state at once after loading is complete
-        setAllProducts(allLoadedProducts);
-        setProducts(allLoadedProducts);
-        setTotalProducts(totalProdCount);
-        
-        // Show success message
-        if (allLoadedProducts.length > 0) {
-          toast.success(`Loaded ${allLoadedProducts.length} products successfully`);
-        }
-        
-        // Mark as initialized to prevent re-runs
-        setHasInitialized(true);
-        
-      } catch (error: any) {
-        let errorMessage = 'Failed to fetch inventory';
-        
-        // Extract error message from various sources
-        if (error.response?.data?.error?.message) {
-          errorMessage = error.response.data.error.message;
-        } else if (error.response?.data?.message) {
-          errorMessage = error.response.data.message;
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-        
-        // Strip HTML tags if present
-        errorMessage = errorMessage.replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, '');
-        
-        setError(errorMessage);
-        toast.error(errorMessage, {
-          position: 'bottom-center',
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchAllInventory();
     
-  }, []); // Empty dependency array: only run once on component mount
+  }, [hasInitialized]); // Run when hasInitialized changes
 
   // ============================================================
   // REMOVED: The following problematic effects that caused
@@ -657,9 +672,12 @@ export default function PageContent() {
   const handleEditClick = (product: Product) => {
     setEditingProduct(product);
     setShowEditModal(true);
-    console.log(product);
+    setIsCloneMode(false); // Ensure clone mode is off when editing
+    
     // Initialize form data with product values
     setEditFormData({
+      product_id: product.product_id || '',
+	  med_image: product.med_image || '',
       page_id: product.page_id || '',
       productName: product.name || '',
       description: product.text_parsed || '',
@@ -670,7 +688,7 @@ export default function PageContent() {
       sku: product.product_code || '',
       batchId: product.batch_id || '',
       tagNo: product.tag_no || '',
-      category: String(product.cat_parent_id || ''),
+      category: String(product.cat_id || ''),
       // Try to get subcategory - could be from multiple sources
       //subcategory: String(product.bne_cat_id || product.fla_sub_cat_id || product.fle_sub_cat_id || ''),
       subcategory: String(product.cat_id),
@@ -704,6 +722,65 @@ export default function PageContent() {
     });
     
     fetchEditModalDropdowns(product);
+  };
+
+  const handleCloneProduct = (product: Product) => {
+    // Set clone mode
+    setIsCloneMode(true);
+    setIsAddMode(true); // Treat clone like add mode
+    setEditingProduct(null); // No editing product in clone mode
+    
+    // Initialize form data with cloned product values
+    // Copy all fields, but clear the product name and SKU for uniqueness
+    setEditFormData({
+      product_id: product.product_id || '',
+      med_image: product.med_image || '',
+      page_id: product.page_id || '',
+      productName: `${product.name} (Clone)`, // Append clone suffix
+      description: product.text_parsed || '',
+      variantName: product.variant_name || '',
+      strainName: product.strain || '',
+      quantityOnHand: product.i_onhand || '',
+      weight: product.i_weight || '',
+      sku: '', // Clear SKU to let system generate new one
+      batchId: product.batch_id || '',
+      tagNo: '', // Clear tag_no for new product
+      category: String(product.cat_parent_id || ''),
+      subcategory: String(product.cat_id),
+      strainCat: product.strain_cat || '',
+      flavor: product.fla_cat_id || '',
+      addedFlavors: product.flavors ? product.flavors.split(',').map(f => f.trim()) : [],
+      newFlavorInput: '',
+      feeling: product.fle_cat_id || '',
+      medMeasurements: product.med_measurements || 'unit',
+      medEachValue: String(product.value1 || ''),
+      medEachPrice: String(product.value2 || ''),
+      medGramPrice: '',
+      medValue: ['', '', '', '', '', '', ''], // For bulk/pounds gram prices
+      price1: '',
+      price2: product.p_offer_price || '',
+      price3: '',
+	  value1: String(product.value1 || ''),
+	  value2: String(product.value2 || ''),
+	  value3: String(product.value3 || ''),
+	  value4: String(product.value4 || ''),
+	  value5: String(product.value5 || ''),
+	  value6: String(product.value6 || ''),
+	  value7: String(product.value7 || ''),
+	  thc: product.thc || '',
+	  cbd: product.cbd || '',
+      selectedRoom: product.selected_rooms || [],
+      catalog: product.enable_catalog === '1',
+      page: product.enable_product === '1',
+      enable_catalog: product.enable_catalog === '1',
+      is_sample: product.is_sample === '1'
+    });
+    
+    // Fetch dropdown data for clone mode
+    fetchEditModalDropdowns(product);
+    
+    // Open modal
+    setShowEditModal(true);
   };
 
   const fetchEditModalDropdowns = async (product: Product) => {
@@ -928,7 +1005,9 @@ export default function PageContent() {
       // Add image if uploaded
       if (uploadedImage) {
         formData.append('product_image', uploadedImage);
-      }
+      }else{
+		formData.append('med_image',editFormData.med_image);
+	  }
       
       // API call to update product
       const response = await axios.post('/api/business/update-product', formData, {
@@ -940,39 +1019,10 @@ export default function PageContent() {
       if (response.data.status === 'success') {
         toast.success('Product updated successfully!');
 		
-		// After successful save
-		setProducts(prev =>
-		  prev.map(p =>
-			p.product_id === productToSave.product_id
-			  ? {
-				  ...p,
-				  s_rooms: editFormData.selectedRoom?.join(',') || p.s_rooms, // update rooms
-				  i_weight: editFormData.weight,                               // update weight
-				  enable_catalog: '1',                        // update POS status
-				  enable_product: '0',               // update enable status
-				  p_offer_price: editFormData.price2 || p.p_offer_price,       // update price
-				  i_onhand: editFormData.quantityOnHand || p.i_onhand          // update on-hand qty
-				}
-			  : p
-		  )
-		);
-
-		setAllProducts(prev =>
-		  prev.map(p =>
-			p.product_id === productToSave.product_id
-			  ? {
-				  ...p,
-				  s_rooms: editFormData.selectedRoom?.join(',') || p.s_rooms,
-				  i_weight: editFormData.weight,
-				  enable_catalog: '1',
-				  enable_product: '0',
-				  p_offer_price: editFormData.price2 || p.p_offer_price,
-				  i_onhand: editFormData.quantityOnHand || p.i_onhand
-				}
-			  : p
-		  )
-		);
-
+		// Refresh inventory by reloading all products
+        // Call fetchAllInventory immediately to reload products
+        await fetchAllInventory();
+		
 		
         setShowEditModal(false);
         setEditingProduct(null);
@@ -1032,6 +1082,7 @@ export default function PageContent() {
       const formData = new FormData();
       
       // Add all product data
+      formData.append('clone_product_id', editFormData.product_id);
       formData.append('product_name', editFormData.productName);
       formData.append('description', editFormData.description);
       formData.append('variant_name', editFormData.variantName);
@@ -1084,8 +1135,10 @@ export default function PageContent() {
       // Add image if uploaded
       if (uploadedImage) {
         formData.append('product_image', uploadedImage);
-      }
-      
+      }else{
+		formData.append('med_image',editFormData.med_image);
+	  }
+	  
       // API call to create product
       const response = await axios.post('/api/business/update-product', formData, {
         headers: {
@@ -1094,18 +1147,23 @@ export default function PageContent() {
       });
       
       if (response.data.status === 'success') {
+		  
+		
         toast.success('Product created successfully!', {
           position: 'bottom-center',
           autoClose: 3000,
         });
         
         // Refresh inventory by reloading all products
-        setHasInitialized(false);
+        // Call fetchAllInventory immediately to reload products
+        await fetchAllInventory();
         
         // Reset form and close modal
         setShowEditModal(false);
         setIsAddMode(false);
         setEditFormData({
+          med_image: '',
+          product_id: '',
           page_id: '',
           productName: '',
           description: '',
@@ -1466,6 +1524,8 @@ console.log(rowData);
               setEditingProduct(null);
               // Reset form data for add mode
               setEditFormData({
+                med_image: '',
+                product_id: '',
                 page_id: globalPageId,
                 productName: '',
                 description: '',
@@ -1665,9 +1725,22 @@ console.log(rowData);
                             </button>
                           </>
                         ) : (
-                          <button onClick={() => handleEditClick(product)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                            <Edit size={16} className="text-gray-600 dark:text-gray-400" />
-                          </button>
+                          <>
+                            <button 
+                              onClick={() => handleEditClick(product)} 
+                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              title="Edit product"
+                            >
+                              <Edit size={16} className="text-gray-600 dark:text-gray-400" />
+                            </button>
+                            <button 
+                              onClick={() => handleCloneProduct(product)} 
+                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              title="Clone product"
+                            >
+                              <Copy size={16} className="text-gray-600 dark:text-gray-400" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>
@@ -1752,12 +1825,13 @@ console.log(rowData);
           <div className="bg-white dark:bg-gray-900 rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-900">
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                {isAddMode ? 'Add New Product' : 'Edit Product'}
+                {isCloneMode ? 'Clone Product' : isAddMode ? 'Add New Product' : 'Edit Product'}
               </h2>
               <button
                 onClick={() => {
                   setShowEditModal(false);
                   setIsAddMode(false);
+                  setIsCloneMode(false);
                   setUploadedImage(null);
                   setUploadedImagePreview('');
                   setSelectedShakeTier('');
@@ -1851,6 +1925,7 @@ console.log(rowData);
                       <input
                         type="text"
                         value={editFormData.sku}
+						onChange={(e) => setEditFormData({...editFormData, sku: e.target.value})}
                         className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 font-mono text-sm"
                       />
                     </div>
@@ -2122,7 +2197,7 @@ console.log(rowData);
                   {/* Measurements */}
                   
 
-                    <div className="grid grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                    <div className="grid grid-cols-3 gap-4 bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
 						<div>
 							<label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Units of Measure</label>
 							<select
@@ -2138,7 +2213,7 @@ console.log(rowData);
 							</select>
 						</div>
 						<div>
-                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">* Quantity</label>
+                        <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Value</label>
                         <select
                           value={editFormData.medEachValue}
                           onChange={(e) => setEditFormData({...editFormData, medEachValue: e.target.value})}
@@ -2286,6 +2361,7 @@ console.log(rowData);
                     onClick={() => {
                       setShowEditModal(false);
                       setIsAddMode(false);
+                      setIsCloneMode(false);
                       setUploadedImage(null);
                       setUploadedImagePreview('');
                       setSelectedShakeTier('');
@@ -2304,7 +2380,7 @@ console.log(rowData);
                     }}
                     className="px-6 py-3 text-white rounded-lg transition-all duration-300 hover:scale-105 accent-bg accent-hover"
                   >
-                    {isAddMode ? 'Create Product' : 'Update'}
+                    {isCloneMode ? 'Clone Product' : isAddMode ? 'Create Product' : 'Update'}
                   </button>
                 </div>
               </>

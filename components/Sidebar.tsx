@@ -278,8 +278,20 @@ export default function Sidebar({
       // If no vanity URL in path, load from cookies
       if (!vanityUrl) {
         const vanityUrlFromCookie = Cookies.get("vanity_url");
-        const businessTitleFromCookie = Cookies.get("business_title");
+        //const businessTitleFromCookie = Cookies.get("business_title");
         const businessLogoFromCookie = Cookies.get("business_logo");
+		
+		const tradeName = Cookies.get("trade_name");
+		const businessTitle = Cookies.get("business_title");
+
+		const businessTitleFromCookie =
+									  tradeName &&
+									  tradeName !== "null" &&
+									  tradeName !== "undefined" &&
+									  tradeName.trim() !== ""
+										? tradeName.trim()
+										: businessTitle;
+
 
         // Set business data from cookies if available
         if (!isAdmin && (vanityUrlFromCookie || businessTitleFromCookie)) {
@@ -309,8 +321,12 @@ export default function Sidebar({
         setLoading(true);
         // Use vanity_url from path to fetch business data
         const response = await axios.get(`/api/business/?business=${vanityUrl}`);
-        
+
         if (response.data?.data) {
+			if(response.data?.error?.message === "Business not found"){
+				router.replace(`/${vanityUrl}`);
+			}
+
           const data = response.data.data;
           const fetchedTypeId = data.type_id?.toString() || null;
           
@@ -332,7 +348,7 @@ export default function Sidebar({
             image_path: data.image_path || "/images/natures-high-logo.png",
             ...data,
           });
-        } else {
+        }else {
           // No business found for this vanity URL
           setBusinessData(null);
           setTypeId(null);

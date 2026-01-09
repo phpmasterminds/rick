@@ -47,8 +47,8 @@ export default function LoginPage() {
 
 		  // 2️⃣ Store user details in localStorage and cookie
 		  localStorage.setItem("user", JSON.stringify(aUserDetails.data));
-		  Cookies.set("user_id", aUserDetails.data.data.user_id, { expires: 1 });
-		  Cookies.set("user_group_id", aUserDetails.data.data.user_group_id, { expires: 1 });
+		  Cookies.set("user_id", aUserDetails.data.data.user_id);
+		  Cookies.set("user_group_id", aUserDetails.data.data.user_group_id);
 		  // 3️⃣ Fetch business details only after user_id is available
 		  if (aUserDetails.data.data?.user_id) {
 			const aUserBusinessDetails = await axios.get(
@@ -56,18 +56,21 @@ export default function LoginPage() {
 			);
 			
 			localStorage.setItem("business_variants", JSON.stringify(
-    aUserBusinessDetails.data.data.business_variants,
-    null,
-    2
-  ));
+			aUserBusinessDetails.data.data.business_variants,null,2
+			));
+			
+			localStorage.setItem("business", JSON.stringify(
+			aUserBusinessDetails.data.data.business,null,2
+			));
+			
 			const business = aUserBusinessDetails.data.data.business[0];
-
 			if (business?.page_id) {
-			  Cookies.set("page_id", business.page_id, { expires: 1 });
-			  Cookies.set("vanity_url", business.vanity_url, { expires: 1 });
-			  Cookies.set("type_id", business.type_id, { expires: 1 });
-			  Cookies.set("business_title", business.title, { expires: 1 });
-			  Cookies.set("business_logo", business.image_path, { expires: 1 });
+			  Cookies.set("page_id", business.page_id);
+			  Cookies.set("vanity_url", business.vanity_url);
+			  Cookies.set("type_id", business.type_id);
+			  Cookies.set("business_title", business.title);
+			  Cookies.set("trade_name", business.trade_name);
+			  Cookies.set("business_logo", business.image_path);
 			}
 		  } else {
 			console.error("User ID not found in user details response");

@@ -175,7 +175,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
   const [loadingSalesPersons, setLoadingSalesPersons] = useState(false);
   const [changingStatus, setChangingStatus] = useState(false);
   const [changingSalesPerson, setChangingSalesPerson] = useState(false);
-  const [taxPercentage, setTaxPercentage] = useState('4.5');
+  const [taxPercentage, setTaxPercentage] = useState('0');
   
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -466,7 +466,8 @@ export default function PageContent({ business, orderId }: PageContentProps) {
         });
       }
 
-      const taxCost = (4.5 / 100) * subtotal;
+      //const taxCost = (4.5 / 100) * subtotal;
+      const taxCost = 0;
       const shippingCost = parseFloat(editFormData.shipping_cost || order.shipping_cost || '0');
       const totalCost = subtotal + taxCost + shippingCost;
 
@@ -936,7 +937,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between">
+                  {/*<div className="flex justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Tax (4.5%)</span>
                     <span className="font-semibold text-gray-900 dark:text-gray-100">
                       ${(() => {
@@ -945,7 +946,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                         return tax.toFixed(2);
                       })()}
                     </span>
-                  </div>
+                  </div>*/}
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-between items-center">
                     <span className="font-bold text-gray-900 dark:text-gray-100">Total</span>
                     <span className="font-bold text-2xl text-gray-900 dark:text-gray-100">
@@ -953,7 +954,8 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                         const subtotal = parseFloat(order.cart_cost || '0');
                         const shipping = parseFloat(order.shipping_cost || '0');
                         const commission = parseFloat(order.total_commission || '0');
-                        const tax = (4.5 / 100) * subtotal;
+                        //const tax = (4.5 / 100) * subtotal;
+                        const tax = 0;
                         const total = subtotal + shipping + commission + tax;
                         return total.toFixed(2);
                       })()}
@@ -1535,7 +1537,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       </span>
                     </div>
 
-                    {/* Tax (Display Only) */}
+                    {/* Tax (Display Only) 
                     <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
                       <span className="text-gray-700 dark:text-gray-300 font-medium">Estimated Excise Tax (4.5%):</span>
                       <span className="font-bold text-gray-900 dark:text-gray-100">
@@ -1552,7 +1554,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                           return tax.toFixed(2);
                         })()}
                       </span>
-                    </div>
+                    </div>*/}
 
                     {/* Shipping */}
                     <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">

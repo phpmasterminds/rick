@@ -638,7 +638,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 						  if (b.cat_id === 'uncategorized') return 1;
 						  return a.cat_name.localeCompare(b.cat_name);
 						});
-
+console.log(apiProducts);
 						// Convert API products to MedicineProduct interface
 						const allProducts = apiProducts
 						  .filter((prod) => prod.enable_product === '1' && prod.name)
@@ -660,7 +660,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 							strain_cat: prod.strain_cat ?? '',
 							org_value1: String(prod.value1 ?? 'Each'),
 							org_value2: String(prod.value2 ?? prod.i_price ?? '0'),
-							business_name: dispensary?.name ?? '',
+							business_name: prod?.bus_title ?? '',
 							brand_name: null,
 							flavors: prod.flavors ?? [],
 							quantity: prod.quantity ?? prod.i_onhand ?? '0',
@@ -754,15 +754,15 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
         }
       } else {
         // unexpected response; fallback to sample
-        setDispensary(sampleDispensary);
+        //setDispensary(sampleDispensary);
         //setProducts(sampleProducts);
-        setReviews(sampleReviews);
+        //setReviews(sampleReviews);
       }
     } catch (error) {
       console.error('Error fetching dispensary:', error);
-      setDispensary(sampleDispensary);
-      setProducts(sampleProducts);
-      setReviews(sampleReviews);
+      //setDispensary(sampleDispensary);
+      //setProducts(sampleProducts);
+      //setReviews(sampleReviews);
     } finally {
       setLoading(false);
     }

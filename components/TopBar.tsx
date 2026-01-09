@@ -13,6 +13,9 @@ import {
   Minus,
   Plus,
   ArrowRight,
+  Moon,
+  Sun,
+  ChevronDown,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -20,6 +23,7 @@ import Cookies from "js-cookie";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useShopCart } from "@/app/contexts/ShopCartContext";
+import { useTheme } from "next-themes";
 
 interface TopBarProps {
   // Optional: allow parent to control mobile menu if needed
@@ -68,6 +72,8 @@ interface BusinessData {
   vanity_url: string;
   title: string;
   image_path?: string;
+  page_id?: string;
+  trade_name?: string;
   [key: string]: any;
 }
 
@@ -96,6 +102,11 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   const [loading, setLoading] = useState(false);
   const [currentBusiness, setCurrentBusiness] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState(false);
+  
+  // Business switching and theme
+  const [businesses, setBusinesses] = useState<BusinessData[]>([]);
+  const [showBusinessDropdown, setShowBusinessDropdown] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
 
   // ===== SHOP CART (CART PANEL) =====
   const [shopCartItems, setShopCartItems] = useState<ShopCartItem[]>([]);
@@ -116,6 +127,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   // ===== ROUTING & PATHNAME =====
   const pathname = usePathname();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
 
   // ===== EXTRACT VANITY URL =====
   const getVanityUrl = useCallback(() => {
@@ -168,7 +180,73 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     fetchBusinessData();
   }, [vanityUrl, currentBusiness, businessData]);
 
-  // ===== GET USER ID FROM COOKIES FOR DYNAMIC CART KEY =====
+  // ===== LOAD BUSINESSES FROM LOCALSTORAGE =====
+  useEffect(() => {
+    try {
+      const businessStr = localStorage.getItem("business");
+      if (businessStr) {
+        const businessList = JSON.parse(businessStr);
+        if (Array.isArray(businessList)) {
+          setBusinesses(businessList);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to load businesses from localStorage:", error);
+    }
+  }, []);
+
+  // Get current type_id from cookie
+  const currentTypeId = Cookies.get("type_id");
+
+  // ===== SAVE THEME TO API =====
+  const saveThemeToApi = useCallback(async (newTheme: string) => {
+    try {
+      const userId = Cookies.get("user_id");
+      if (userId) {
+        await axios.post("/api/user/theme", {
+          theme: newTheme,
+          user_id: userId,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to save theme preference:", error);
+    }
+  }, []);
+
+  // ===== HANDLE THEME CHANGE =====
+  const handleThemeChange = useCallback((newTheme: string) => {
+    setTheme(newTheme);
+    setShowThemeMenu(false);
+    saveThemeToApi(newTheme);
+  }, [setTheme, saveThemeToApi]);
+
+  // ===== HANDLE BUSINESS SWITCH =====
+  const handleBusinessSwitch = useCallback(async (business: BusinessData) => {
+    try {
+      // Set all the required cookies
+      Cookies.set("page_id", business.page_id || "");
+      Cookies.set("vanity_url", business.vanity_url || "");
+      Cookies.set("type_id", business.type_id || "");
+      Cookies.set("business_title", business.title || "");
+      Cookies.set("trade_name", business.trade_name || "");
+      Cookies.set("business_logo", business.image_path || "");
+
+      // Update state
+      setBusinessData(business);
+      setCurrentBusiness(business.vanity_url || null);
+      setShowBusinessDropdown(false);
+
+      // Navigate to business vanity URL
+      if (business.vanity_url) {
+        router.push(`/dashboard`);
+      }
+
+      toast.success(`Switched to ${business.title}`);
+    } catch (error) {
+      console.error("Failed to switch business:", error);
+      toast.error("Failed to switch business");
+    }
+  }, [router]);
   const getCartStorageKey = useCallback(() => {
     const userId = Cookies.get("user_id");
     return userId ? `cart_${userId}` : "cart";
@@ -298,6 +376,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("shopCart");
+    localStorage.removeItem("business_variants");
     const cartKey = getCartStorageKey();
     //localStorage.removeItem(cartKey);
     Cookies.remove("access_token", { path: "/" });
@@ -306,6 +385,9 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     Cookies.remove("page_id", { path: "/" });
     Cookies.remove("vanity_url", { path: "/" });
     Cookies.remove("type_id", { path: "/" });
+    Cookies.remove("trade_name", { path: "/" });
+    Cookies.remove("business_logo", { path: "/" });
+    Cookies.remove("business_title", { path: "/" });
     router.push("/");
   };
 
@@ -514,47 +596,120 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
                   )}
                 </div>
 
-                {/* Cart Drawer Button (Checkout Cart) */}
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      setShowCartDrawer(!showCartDrawer);
-                      setShowUserMenu(false);
-                      setShowNotifications(false);
-                      setShowCartPanel(false);
-                    }}
-                    className="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                    aria-label="Cart drawer"
-                  >
-                    <ShoppingCart size={20} className="text-gray-900 dark:text-white" />
-                    {totalCheckoutCartItems > 0 && (
-                      <span className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        {totalCheckoutCartItems}
-                      </span>
-                    )}
-                  </button>
-                </div>
+                {/* Business Switcher - Show if more than one business */}
+                {businesses.length > 1 && (
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowBusinessDropdown(!showBusinessDropdown);
+                        setShowNotifications(false);
+                        setShowUserMenu(false);
+                        setShowCartDrawer(false);
+                        setShowCartPanel(false);
+                      }}
+                      className="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                      title="Switch Business"
+                    >
+                      <div className="flex items-center gap-2">
+                        {Cookies.get("business_logo") && (
+                          <img 
+                            src={Cookies.get("business_logo")} 
+                            alt="Business Logo"
+                            className="w-6 h-6 rounded object-cover"
+                          />
+                        )}
+                        <span className="text-sm font-medium text-gray-900 dark:text-white max-w-xs truncate">
+                          {Cookies.get("business_title") || "Switch Business"}
+                        </span>
+                        <ChevronDown size={16} className="text-gray-900 dark:text-white" />
+                      </div>
+                    </button>
 
-                {/* Cart Panel Button (Shop Cart) */}
-                <div className="relative">
-                  <button
-                    onClick={() => {
-                      setShowCartPanel(!showCartPanel);
-                      setShowUserMenu(false);
-                      setShowNotifications(false);
-                      setShowCartDrawer(false);
-                    }}
-                    className="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                    aria-label="Shop cart"
-                  >
-                    <ShoppingCart size={20} className="text-gray-900 dark:text-white" />
-                    {shopTotalItems > 0 && (
-                      <span className="absolute top-0 right-0 bg-teal-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
-                        {shopTotalItems}
-                      </span>
+                    {showBusinessDropdown && (
+                      <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-50">
+                        <div className="px-4 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">
+                          Switch Business
+                        </div>
+                        <div className="max-h-80 overflow-y-auto">
+                          {businesses.map((business) => (
+                            <button
+                              key={business.page_id}
+                              onClick={() => handleBusinessSwitch(business)}
+                              className={`w-full flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left ${
+                                currentBusiness === business.vanity_url
+                                  ? "bg-teal-50 dark:bg-teal-900/20 border-l-2 border-teal-600"
+                                  : ""
+                              }`}
+                            >
+                              {business.image_path && (
+                                <img
+                                  src={business.image_path}
+                                  alt={business.title}
+                                  className="w-10 h-10 rounded object-cover flex-shrink-0"
+                                />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                  {business.title}
+                                </p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                                  {business.vanity_url}
+                                </p>
+                              </div>
+                              {currentBusiness === business.vanity_url && (
+                                <div className="w-2 h-2 bg-teal-600 rounded-full flex-shrink-0 mt-1.5" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     )}
-                  </button>
-                </div>
+                  </div>
+                )}
+                {currentTypeId !== "36" && (
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowCartDrawer(!showCartDrawer);
+                        setShowUserMenu(false);
+                        setShowNotifications(false);
+                        setShowCartPanel(false);
+                      }}
+                      className="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                      aria-label="Cart drawer"
+                    >
+                      <ShoppingCart size={20} className="text-gray-900 dark:text-white" />
+                      {totalCheckoutCartItems > 0 && (
+                        <span className="absolute top-0 right-0 bg-blue-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {totalCheckoutCartItems}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                )}
+
+                {/* Cart Panel Button (Shop Cart) - Hide if processor (type_id 36) */}
+                {currentTypeId !== "36" && (
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        setShowCartPanel(!showCartPanel);
+                        setShowUserMenu(false);
+                        setShowNotifications(false);
+                        setShowCartDrawer(false);
+                      }}
+                      className="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                      aria-label="Shop cart"
+                    >
+                      <ShoppingCart size={20} className="text-gray-900 dark:text-white" />
+                      {shopTotalItems > 0 && (
+                        <span className="absolute top-0 right-0 bg-teal-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+                          {shopTotalItems}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                )}
 
                 {/* User Menu */}
                 <div className="relative">
@@ -598,13 +753,40 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
                   </button>
                   </Link>
 
-                  {/*<button
-                    onClick={() => setShowUserMenu(false)}
-                    className="w-full flex items-center space-x-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left text-gray-900 dark:text-white"
-                  >
-                    <Settings size={18} />
-                    <span className="text-sm font-medium">Settings</span>
-                  </button>*/}
+                  {/* Theme Toggle */}
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-2 pt-2">
+                    <div className="px-4 py-2">
+                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+                        Appearance
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleThemeChange("light")}
+                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                            theme === "light"
+                              ? "bg-teal-100 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
+                              : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                          }`}
+                          title="Light mode"
+                        >
+                          <Sun size={16} />
+                          <span className="text-xs font-medium">Light</span>
+                        </button>
+                        <button
+                          onClick={() => handleThemeChange("dark")}
+                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                            theme === "dark"
+                              ? "bg-teal-100 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
+                              : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                          }`}
+                          title="Dark mode"
+                        >
+                          <Moon size={16} />
+                          <span className="text-xs font-medium">Dark</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
 

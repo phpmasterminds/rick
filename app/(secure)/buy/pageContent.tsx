@@ -536,11 +536,11 @@ export default function PageContent() {
                   onClick={() => handleSelectProduct(product)}
                 >
                   {/* Product Image */}
-                  <div className="relative h-48 bg-gray-200 dark:bg-slate-800 overflow-hidden">
+                  <div className="relative aspect-[1/1] overflow-hidden">
                     <img
                       src={getProductImageUrl(product)}
                       alt={product.name}
-                      className="w-full h-full object-cover hover:scale-105 transition"
+                      className="w-full h-full object-contain"
                       onError={(e) => {
                         e.currentTarget.src =
                           'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
@@ -662,7 +662,7 @@ export default function PageContent() {
                   <img
                     src={getProductImageUrl(selectedProduct)}
                     alt={selectedProduct.name}
-                    className="w-full h-64 object-cover rounded-lg"
+                    className="w-full h-full object-contain"
                     onError={(e) => {
                       e.currentTarget.src =
                         'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';

@@ -49,10 +49,6 @@ export default function PageContent() {
   const itemCount = getCartItemsCount();
   const businessCount = Object.keys(itemsByBusiness).length;
 
-  // ✨ Log page IDs from cart for debugging
-  console.log('🔍 Page IDs from cart items:', pageIds);
-  console.log('📦 Cart items for reference:', cartItems);
-
   const handleCheckout = async () => {
     // ✨ Validation: Ensure all cart items have page_id
     if (!pageIds || pageIds.length === 0) {
@@ -117,10 +113,7 @@ export default function PageContent() {
         timestamp: new Date().toISOString(),
       };
 
-      console.log('📤 Checkout payload:', checkoutPayload);
-      console.log('🎯 Business User ID Map:', Object.fromEntries(businessUserIdMap));
-      console.log('🏪 Vanity URL (Business):', vanityUrl);
-
+      
       // Send checkout request to your API
       const response = await axios.post('/api/business/master-catalog-cart', checkoutPayload);
 
