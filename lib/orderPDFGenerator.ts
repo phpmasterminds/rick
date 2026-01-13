@@ -14,7 +14,8 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
 
   const orderStatus = getOrderStatus(order.order_status);
   const subtotal = parseFloat(order.cart_cost || '0');
-  const tax = parseFloat(order.cart_tax_cost || '0');
+  //const tax = parseFloat(order.cart_tax_cost || '0');
+  const tax = 0;
   const shipping = parseFloat(order.shipping_cost || '0');
   const commission = parseFloat(order.total_commission || '0');
   const total = subtotal + tax + shipping + commission;

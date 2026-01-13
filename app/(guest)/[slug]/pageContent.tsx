@@ -1338,12 +1338,32 @@ console.log(apiProducts);
                             <span className="text-xs">CBD: {product.cbd}%</span>
                           )}
                         </div>
-                        <div className={`flex items-center justify-between mt-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-900'}`}>
-                          <div>
-                            <span className={`font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>${product.value2}</span>
-                          </div>
-                          <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>{product.value1}</span>
-                        </div>
+						{Number(businessTypeId) === 20 && (
+						  <div
+							className={`flex items-center justify-between mt-2 ${
+							  isDarkMode ? "text-gray-300" : "text-gray-900"
+							}`}
+						  >
+							<div>
+							  <span
+								className={`font-bold ${
+								  isDarkMode ? "text-white" : "text-gray-900"
+								}`}
+							  >
+								${product.value2}
+							  </span>
+							</div>
+
+							<span
+							  className={`text-xs ${
+								isDarkMode ? "text-gray-500" : "text-gray-500"
+							  }`}
+							>
+							  {product.value1}
+							</span>
+						  </div>
+						)}
+
                       </div>
                     </div>
                   ))}
