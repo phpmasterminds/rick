@@ -227,6 +227,7 @@ interface HoursOfOperation {
 
 interface CompanyDataResponse {
   id: string;
+  type_id: string;
   name: string;
   country: string;
   state: string;
@@ -290,6 +291,7 @@ export async function GET(req: Request) {
     // Transform PHPFox response to match frontend schema
     const companyData: CompanyDataResponse = {
       id: response.data.data.page_id,
+      type_id: response.data.data.type_id,
       name: response.data.data.title || '',
       country: response.data.data.country || 'United States',
       state: response.data.data.country_child_id || '',

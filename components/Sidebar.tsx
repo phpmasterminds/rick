@@ -37,6 +37,7 @@ import axios from "axios";
 import { toast } from 'react-toastify';
 import { useBusinessData } from "../app/contexts/BusinessContext";
 import Cookies from "js-cookie";
+import { useTheme } from "next-themes";
 
 // Sidebar Props
 interface SidebarProps {
@@ -525,6 +526,7 @@ export default function Sidebar({
         label: "Settings",
         submenu: [
           { id: "company_profile", label: "Company Profile", path: "/settings/company-profile" },
+          { id: "license_information", label: "License Information", path: "/settings/license-information" },
           { id: "business_info", label: "Business Info", path: "/settings/business-info" },
           { id: "payment-methods", label: "Payment Methods", path: "/settings/payment-methods" },
           { id: "notification", label: "Notifications", path: "/settings/notifications" },
@@ -892,7 +894,11 @@ export default function Sidebar({
     },
     [getSectionRoutes, router, setIsMobileOpen]
   );
-
+  
+  
+  
+  const theme = Cookies.get("user_theme");
+console.log(theme+'theme');
   // Don't render until hydrated to prevent mismatch
   if (!isHydrated || loading) {
     return (
@@ -935,9 +941,13 @@ export default function Sidebar({
         } bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col py-4 transition-all duration-300 ease-in-out fixed md:relative h-full z-40 ${
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
-        style={{
-          background: `linear-gradient(to bottom, #eefdf6, #f8fdfc)`,
-        }}
+		
+		style={theme === 'light' ? {
+		background: `linear-gradient(to bottom, #eefdf6, #f8fdfc)`,
+	  } : {
+	  }}
+	  
+      
       >
       {/* Header */}
       <div className="px-4 mb-4 flex items-center justify-between">

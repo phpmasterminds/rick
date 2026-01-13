@@ -48,6 +48,7 @@ export default function LoginPage() {
 		  // 2️⃣ Store user details in localStorage and cookie
 		  localStorage.setItem("user", JSON.stringify(aUserDetails.data));
 		  Cookies.set("user_id", aUserDetails.data.data.user_id);
+		  Cookies.set("user_theme", aUserDetails.data.data.theme);
 		  Cookies.set("user_group_id", aUserDetails.data.data.user_group_id);
 		  // 3️⃣ Fetch business details only after user_id is available
 		  if (aUserDetails.data.data?.user_id) {

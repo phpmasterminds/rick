@@ -42,6 +42,7 @@ interface HoursOfOperation {
 
 interface CompanyData {
   id: string;
+  type_id: string;
   name: string;
   country: string;
   state: string;
@@ -141,6 +142,7 @@ const CompanyEditPage = () => {
 
   const [formData, setFormData] = useState<CompanyData>({
     id: '',
+    type_id: '',
     name: '',
     country: 'United States',
     state: '',
@@ -193,6 +195,7 @@ const CompanyEditPage = () => {
       const response = await axios.get(`/api/business/settings/company?business=${id}`);
       if (response.data.success) {
         const data = response.data.data;
+		console.log(data);
         setFormData({
           ...data,
           phone: formatPhoneNumber(data.phone || ''),
@@ -775,7 +778,8 @@ const CompanyEditPage = () => {
               </div>
 
               <hr className="border-gray-200 dark:border-gray-700" />
-
+			  {formData.type_id === '20' && (
+			  <>
               {/* Amenities Section */}
               <div className="space-y-3">
                 {[
@@ -799,7 +803,8 @@ const CompanyEditPage = () => {
                   </label>
                 ))}
               </div>
-
+			    </>		
+			  )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Provides:

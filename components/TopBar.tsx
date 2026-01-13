@@ -107,6 +107,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   const [businesses, setBusinesses] = useState<BusinessData[]>([]);
   const [showBusinessDropdown, setShowBusinessDropdown] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+	const [accentColor, setAccentColor] = useState("teal");	
 
   // ===== SHOP CART (CART PANEL) =====
   const [shopCartItems, setShopCartItems] = useState<ShopCartItem[]>([]);
@@ -127,7 +128,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   // ===== ROUTING & PATHNAME =====
   const pathname = usePathname();
   const router = useRouter();
-  const { theme, setTheme } = useTheme();
+  //const { theme, setTheme } = useTheme();
 
   // ===== EXTRACT VANITY URL =====
   const getVanityUrl = useCallback(() => {
@@ -194,6 +195,24 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
       console.error("Failed to load businesses from localStorage:", error);
     }
   }, []);
+  
+	// ✅ ADD: Load theme and accent color from cookies on mount
+	/*useEffect(() => {
+	  const savedTheme = Cookies.get("user_theme");
+	  const savedAccent = Cookies.get("accent_color");
+console.log(savedTheme+'cookie-->');
+	  if (savedTheme) {
+		setTheme(savedTheme);
+	  }
+
+	  if (savedAccent) {
+		setAccentColor(savedAccent);
+	  }
+	}, [setTheme, setAccentColor]);*/
+	
+	const theme = Cookies.get("user_theme");
+	console.log(theme+'theme');
+
 
   // Get current type_id from cookie
   const currentTypeId = Cookies.get("type_id");
@@ -207,18 +226,44 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
           theme: newTheme,
           user_id: userId,
         });
+		Cookies.set("user_theme", newTheme);
       }
     } catch (error) {
       console.error("Failed to save theme preference:", error);
     }
   }, []);
+  
+	// ✅ ADD: Save accent color to API and cookie
+	const saveAccentColorToApi = useCallback(async (colorName: string) => {
+		try {
+		const userId = Cookies.get("user_id");
+		if (userId) {
+		  await axios.post("/api/user/theme", {
+			accent_color: colorName,
+			user_id: userId,
+		  });
+		  // Save to cookie immediately
+		  Cookies.set("accent_color", colorName);
+		}
+		} catch (error) {
+		// Still update cookie even if API fails
+		Cookies.set("accent_color", colorName);
+		}
+	}, []);
+
 
   // ===== HANDLE THEME CHANGE =====
   const handleThemeChange = useCallback((newTheme: string) => {
-    setTheme(newTheme);
+    //setTheme(newTheme);
     setShowThemeMenu(false);
     saveThemeToApi(newTheme);
-  }, [setTheme, saveThemeToApi]);
+  }, [ setShowThemeMenu, saveThemeToApi]);
+  //setTheme
+  // ✅ ADD: Handle accent color change
+	const handleColorChange = useCallback((colorName: string) => {
+	  setAccentColor(colorName);
+	  saveAccentColorToApi(colorName);
+	}, [setAccentColor, saveAccentColorToApi]);
 
   // ===== HANDLE BUSINESS SWITCH =====
   const handleBusinessSwitch = useCallback(async (business: BusinessData) => {
@@ -496,6 +541,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   const shopCartGroups = groupShopCartByDispensary();
   const totalCheckoutCartItems = cartItemsCount;
 
+
   // Don't render until hydrated
   if (!isHydrated || loading) {
     return (
@@ -509,9 +555,11 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     <div className="relative">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm"
-	  style={{
-          background: `linear-gradient(to bottom, #eefdf6, #f8fdfc)`,
-        }}>
+	  style={theme === 'light' ? {
+		background: `linear-gradient(to bottom, #eefdf6, #f8fdfc)`,
+	  } : {
+	  }}
+	 >
         <div className="flex items-center justify-between h-16 px-4 ">
           {/* Left Section - Logo & Menu */}
           <div className="flex items-center gap-2">
@@ -753,40 +801,71 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
                   </button>
                   </Link>
 
-                  {/* Theme Toggle */}
-                  <div className="border-t border-gray-200 dark:border-gray-700 my-2 pt-2">
-                    <div className="px-4 py-2">
-                      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
-                        Appearance
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleThemeChange("light")}
-                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                            theme === "light"
-                              ? "bg-teal-100 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
-                              : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
-                          }`}
-                          title="Light mode"
-                        >
-                          <Sun size={16} />
-                          <span className="text-xs font-medium">Light</span>
-                        </button>
-                        <button
-                          onClick={() => handleThemeChange("dark")}
-                          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-                            theme === "dark"
-                              ? "bg-teal-100 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
-                              : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
-                          }`}
-                          title="Dark mode"
-                        >
-                          <Moon size={16} />
-                          <span className="text-xs font-medium">Dark</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  {/* ✅ UPDATED: Theme Toggle Section with Cookie Persistence */}
+					<div className="px-4 py-3 space-y-3 border-t border-gray-200 dark:border-gray-700">
+					  <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+						Appearance
+					  </p>
+
+					  {/* Light/Dark Toggle */}
+					  <div className="flex items-center gap-2">
+						<button
+						  onClick={() => handleThemeChange("light")}
+						  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+							theme === "light"
+							  ? "bg-teal-100 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
+							  : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+						  }`}
+						  title="Light mode"
+						>
+						  <Sun size={16} />
+						  <span className="text-xs font-medium">Light</span>
+						</button>
+						<button
+						  onClick={() => handleThemeChange("dark")}
+						  className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+							theme === "dark"
+							  ? "bg-teal-100 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300"
+							  : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+						  }`}
+						  title="Dark mode"
+						>
+						  <Moon size={16} />
+						  <span className="text-xs font-medium">Dark</span>
+						</button>
+					  </div>
+
+					  {/* ✅ ADD: Accent Color Selector */}
+					  <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
+						<p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase mb-2">
+						  Accent Color
+						</p>
+						<div className="grid grid-cols-4 gap-2">
+						  {[
+							{ name: "teal", color: "#14B8A6" },
+							{ name: "blue", color: "#3B82F6" },
+							{ name: "purple", color: "#A855F7" },
+							{ name: "pink", color: "#EC4899" },
+							{ name: "green", color: "#10B981" },
+							{ name: "orange", color: "#F97316" },
+							{ name: "red", color: "#EF4444" },
+							{ name: "indigo", color: "#6366F1" },
+						  ].map((color) => (
+							<button
+							  key={color.name}
+							  onClick={() => handleColorChange(color.name)}
+							  className={`w-8 h-8 rounded-lg transition-all hover:scale-110 ${
+								accentColor === color.name
+								  ? "ring-2 ring-gray-900 dark:ring-gray-100 ring-offset-2"
+								  : ""
+							  }`}
+							  style={{ backgroundColor: color.color }}
+							  title={color.name}
+							/>
+						  ))}
+						</div>
+					  </div>
+					</div>
 
                   <div className="border-t border-gray-200 dark:border-gray-700 my-2"></div>
 

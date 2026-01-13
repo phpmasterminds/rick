@@ -1,11 +1,13 @@
 'use client';
 import React, { useState, useEffect } from "react";
 import { Sun, Moon } from "lucide-react";
+import Cookies from "js-cookie";
 
 function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState("light");
   const [accentColor, setAccentColor] = useState("teal");
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false); // Track if theme is loaded
 
   const colors = [
     { name: "teal", color: "#14B8A6", label: "Teal" },
@@ -18,14 +20,53 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
     { name: "indigo", color: "#6366F1", label: "Indigo" },
   ];
 
+  // ===== LOAD THEME FROM COOKIE ON MOUNT =====
   useEffect(() => {
+    // Get theme from cookie (set on login)
+    const savedTheme = Cookies.get("user_theme");
+    const accentColorCookie = Cookies.get("accent_color");
+    if (savedTheme) {
+      setTheme(savedTheme);
+    } else {
+      // Fallback to system preference if no cookie
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      setTheme(prefersDark ? "dark" : "light");
+    }
+
+    if (accentColorCookie && colors.find(c => c.name === accentColorCookie)) {
+      setAccentColor(accentColorCookie);
+    }
+
+    setIsLoaded(true);
+  }, []);
+
+  // ===== APPLY THEME TO DOM =====
+  useEffect(() => {
+    if (!isLoaded) return; // Wait for cookie to load
+
     const root = window.document.documentElement;
     root.classList.remove("light", "dark");
     root.classList.add(theme);
     root.setAttribute("data-accent", accentColor);
-  }, [theme, accentColor]);
 
-  const toggleTheme = () => setTheme(theme === "light" ? "dark" : "light");
+    // Also set data attribute on body for better compatibility
+    document.body.classList.remove("light", "dark");
+    document.body.classList.add(theme);
+  }, [theme, accentColor, isLoaded]);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "light" ? "dark" : "light";
+    setTheme(newTheme);
+    // Save to cookie immediately
+    Cookies.set("user_theme", newTheme, { expires: 365 });
+  };
+
+  const handleColorChange = (colorName: string) => {
+    setAccentColor(colorName);
+    setShowThemeMenu(false);
+    // Save accent color to cookie
+    Cookies.set("accent_color", colorName, { expires: 365 });
+  };
 
   return (
     <div className={theme} data-accent={accentColor}>
@@ -47,11 +88,12 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
       <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-300">
         {children}
 
-        {/* Floating Theme Buttons */}
+        {/* Floating Theme Buttons 
         <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
           <button
             onClick={toggleTheme}
             className="p-3 accent-bg accent-hover text-white rounded-full shadow-lg transition-all duration-300 hover:scale-110"
+            title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
           >
             {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
           </button>
@@ -60,6 +102,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
             <button
               onClick={() => setShowThemeMenu(!showThemeMenu)}
               className="p-3 accent-bg accent-hover text-white rounded-full shadow-lg transition-all duration-300 hover:scale-110"
+              title="Change Accent Color"
             >
               <div
                 className="w-5 h-5 rounded-full border-2 border-white"
@@ -74,10 +117,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
                   {colors.map((c) => (
                     <button
                       key={c.name}
-                      onClick={() => {
-                        setAccentColor(c.name);
-                        setShowThemeMenu(false);
-                      }}
+                      onClick={() => handleColorChange(c.name)}
                       className={`w-10 h-10 rounded-lg transition-all duration-300 hover:scale-110 ${
                         accentColor === c.name ? 'ring-2 ring-gray-900 dark:ring-gray-100 ring-offset-2' : ''
                       }`}
@@ -89,7 +129,7 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
               </div>
             )}
           </div>
-        </div>
+        </div>*/}
       </div>
     </div>
   );

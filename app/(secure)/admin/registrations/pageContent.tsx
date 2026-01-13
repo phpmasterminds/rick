@@ -17,6 +17,8 @@ interface RegistrationItem {
   business_id: string | number;
   user_id: string | number;
   contact_name: string;
+  business_name: string;
+  business_type: string;
   company_name: string;
   license_type: string;
   email: string;
@@ -432,15 +434,15 @@ export default function AdminRegistrationsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredRegistrations.map((registration) => (
-                    <tr key={registration.user_id} className="hover:bg-gray-50 transition-colors">
+                    <tr key={registration.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <p className="text-sm font-medium text-gray-800">{registration.contact_name || '-'}</p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="text-sm text-gray-600">{registration.company_name || '-'}</p>
+                        <p className="text-sm text-gray-600">{registration.business_name || '-'}</p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <p className="text-sm text-gray-600">{registration.license_type || '-'}</p>
+                        <p className="text-sm text-gray-600">{registration.business_type || '-'}</p>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <p className="text-sm text-gray-600 break-all">{registration.email || '-'}</p>
@@ -459,7 +461,7 @@ export default function AdminRegistrationsPage() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={() => router.push(`/admin/registrations/${registration.user_id}`)}
+                            onClick={() => router.push(`/admin/registrations/${registration.id}`)}
                             className="p-2 hover:bg-teal-50 rounded-lg transition-colors"
                             title="View details"
                           >
@@ -478,7 +480,7 @@ export default function AdminRegistrationsPage() {
                             )}
                           </button>
                           <button
-                            onClick={() => router.push(`/admin/registrations/${registration.user_id}`)}
+                            onClick={() => router.push(`/admin/registrations/${registration.id}`)}
                             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                             title="More details"
                           >
