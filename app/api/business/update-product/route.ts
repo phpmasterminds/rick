@@ -50,3 +50,21 @@ console.log(formData);*/
     );
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const axios = await createServerAxios();
+    const { id,business } = await req.json(); // get from body
+    if (!id) return NextResponse.json({ message: "Missing id" }, { status: 400 });
+
+    const response = await axios.delete(`/business/pos-inventory/update-product-full?id=${id}&business=${business}`);
+	console.log(response);
+    return NextResponse.json(response.data);
+  } catch (error: any) {
+    console.error("DELETE Error:", error.response?.data || error.message);
+    return NextResponse.json(
+      { message: error.response?.data?.message || "Failed to delete" },
+      { status: error.response?.status || 500 }
+    );
+  }
+}

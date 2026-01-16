@@ -12,6 +12,7 @@ interface License {
   id: string;
   license_id: string;
   account_name: string;
+  trade_name: string;
   license_type: string;
   license_number: string;
   expiration_date: string;
@@ -22,6 +23,7 @@ interface License {
 
 interface LicenseFormData {
   account_name: string;
+  trade_name: string;
   license_type: string;
   license_number: string;
   expiration_date: string;
@@ -73,6 +75,7 @@ export default function LicenseInformationPage() {
 
   const [formData, setFormData] = useState<LicenseFormData>({
     account_name: '',
+    trade_name: '',
     license_type: '',
     license_number: '',
     expiration_date: '',
@@ -113,6 +116,7 @@ export default function LicenseInformationPage() {
           id: '1',
           license_id: '1',
           account_name: 'Dispensary',
+          trade_name: 'Dispensary',
           license_type: 'Dispensary',
           license_number: 'DISP-2023-001',
           expiration_date: '2025-12-31',
@@ -177,6 +181,10 @@ export default function LicenseInformationPage() {
 	if (!formData.account_name) {
       errors.account_name = 'Name is required';
     }
+	
+	/*if (!formData.trade_name) {
+      errors.trade_name = 'Trade Name is required';
+    }*/
     if (!formData.license_number) {
       errors.license_number = 'License Number is required';
     }
@@ -212,6 +220,7 @@ export default function LicenseInformationPage() {
       const formDataToSend = new FormData();
       formDataToSend.append('user_id', userId);
       formDataToSend.append('account_name', formData.account_name);
+      formDataToSend.append('trade_name', formData.trade_name);
       formDataToSend.append('license_type', formData.license_type);
       formDataToSend.append('license_number', formData.license_number.toUpperCase());
       formDataToSend.append('expiration_date', formData.expiration_date);
@@ -254,6 +263,7 @@ export default function LicenseInformationPage() {
     setEditingId(license.id);
     setFormData({
       account_name: license.account_name,
+      trade_name: license.trade_name,
       license_type: license.license_type,
       license_number: license.license_number,
       expiration_date: license.expiration_date,
@@ -294,6 +304,7 @@ export default function LicenseInformationPage() {
     setEditingId(null);
     setFormData({
       account_name: '',
+      trade_name: '',
       license_type: '',
       license_number: '',
       expiration_date: '',
@@ -345,7 +356,7 @@ export default function LicenseInformationPage() {
           <button
             onClick={() => {
               setEditingId(null);
-              setFormData({ account_name: '', license_type: '', license_number: '', expiration_date: '' });
+              setFormData({ account_name: '', trade_name: '', license_type: '', license_number: '', expiration_date: '' });
               setLicenseFile(null);
               setLicenseFileName('');
               setFieldErrors({});
@@ -555,6 +566,31 @@ export default function LicenseInformationPage() {
                 />
                 {fieldErrors.account_name && (
                   <p className="text-red-600 text-sm mt-1">⚠ {fieldErrors.account_name}</p>
+                )}
+              </div>
+			  
+			  <div>
+                <label className={`block text-sm font-medium mb-2 ${isDark ? 'text-gray-200' : 'text-gray-700'}`}>
+                  Trade Name
+                </label>
+                <input
+                  type="text"
+                  name="trade_name"
+                  value={formData.trade_name}
+                  onChange={handleInputChange}
+                  placeholder=""
+                  className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                    fieldErrors.trade_name
+                      ? 'border-red-500 focus:ring-red-500'
+                      : 'focus:ring-teal-500'
+                  } ${
+                    isDark
+                      ? 'bg-gray-700 border-gray-600 text-gray-100'
+                      : 'bg-white border-gray-300 text-gray-900'
+                  }`}
+                />
+                {fieldErrors.trade_name && (
+                  <p className="text-red-600 text-sm mt-1">⚠ {fieldErrors.trade_name}</p>
                 )}
               </div>
 			  

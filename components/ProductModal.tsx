@@ -100,7 +100,6 @@ export default function ProductModal({
   if (!selectedProduct) return null;
 
   // ========== HANDLERS ==========
-
   /**
    * Main add to cart handler
    * Checks: login, quantity, dispensary conflict
@@ -246,7 +245,6 @@ export default function ProductModal({
   // ========== CALCULATIONS ==========
   
   const price = parseFloat(selectedProduct.value2);
-
   // ========== RENDER ==========
 
   return (
@@ -356,11 +354,31 @@ export default function ProductModal({
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                   <strong></strong> {dispensary.name}
                 </p>
+				{/* Description */}
+				  {selectedProduct.text_parsed && (
+					<div className="mt-2 pt-2 dark:border-slate-700">
+					  <h3 className="font-semibold mb-2 dark:text-white">Description</h3>
+					  <p className="text-gray-600 dark:text-gray-300 text-sm">
+						{selectedProduct.text_parsed}
+					  </p>
+					</div>
+				  )}
+				  
+				  {selectedProduct.description && (
+					<div className="mt-2 pt-2 dark:border-slate-700">
+					  <h3 className="font-semibold mb-2 dark:text-white">Description</h3>
+					  <p className="text-gray-600 dark:text-gray-300 text-sm">
+						{selectedProduct.description}
+					  </p>
+					</div>
+				  )}
               </div>
 
               {/* Divider */}
               <div className="border-t border-gray-200 dark:border-gray-700" />
-
+			  
+			  
+			  
               {/* Price & Quantity */}
               <div className="space-y-4">
                 {/* Price */}

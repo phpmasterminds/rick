@@ -26,6 +26,7 @@ interface Product {
   image?: string;
   category?: string;
   subcategory?: string;
+  text_parsed?: string;
   strain_type?: 'indica' | 'sativa' | 'hybrid';
   thc_percentage?: number;
   cbd_percentage?: number;
@@ -654,6 +655,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 							thc: String(prod.thc ?? ''),
 							cbd: String(prod.cbd ?? ''),
 							terepenes: String(prod.terepenes ?? ''),
+							text_parsed: String(prod.text_parsed ?? ''),
 							strain: prod.strain ?? '',
 							strain_cat: prod.strain_cat ?? '',
 							org_value1: String(prod.value1 ?? 'Each'),
@@ -887,6 +889,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 
   // Product modal handlers
   const openProductModal = (product: MedicineProduct, index: number) => {
+	  console.log(product);
     setSelectedProduct(product);
     setSelectedProductIndex(index);
   };
@@ -1031,7 +1034,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
           <img
             src={dispensary.cover_image}
             alt={dispensary.name}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-teal-500 to-teal-700" />
@@ -1080,7 +1083,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                 <img
                   src={dispensary.logo}
                   alt={dispensary.name}
-                  className="object-cover w-full h-full"
+                  className="object-cover w-full h-full hover:scale-105 transition"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-teal-500 to-teal-600">
@@ -1300,7 +1303,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                     >
                       <div className="relative aspect-square bg-gray-100">
                         {product.image ? (
-                          <img src={product.image} alt={product.name} className="absolute inset-0 w-full h-full object-cover" />
+                          <img src={product.image} alt={product.name} className="w-full h-full object-contain hover:scale-105 transition" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <Leaf className="w-12 h-12 text-gray-300" />
@@ -1355,7 +1358,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                     >
                       <div className="relative w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden">
                         {product.image ? (
-                          <img src={product.image} alt={product.name} className="absolute inset-0 w-full h-full object-cover" />
+                          <img src={product.image} alt={product.name} className="w-full h-full object-contain hover:scale-105 transition" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <Leaf className="w-8 h-8 text-gray-300" />

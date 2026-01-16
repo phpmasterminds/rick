@@ -540,7 +540,7 @@ export default function PageContent() {
                     <img
                       src={getProductImageUrl(product)}
                       alt={product.name}
-                      className="w-full h-full object-contain"
+                      className="w-full h-full object-contain hover:scale-105 transition"
                       onError={(e) => {
                         e.currentTarget.src =
                           'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
@@ -662,7 +662,7 @@ export default function PageContent() {
                   <img
                     src={getProductImageUrl(selectedProduct)}
                     alt={selectedProduct.name}
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-contain hover:scale-105 transition"
                     onError={(e) => {
                       e.currentTarget.src =
                         'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';

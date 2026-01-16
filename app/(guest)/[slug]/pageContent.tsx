@@ -25,6 +25,7 @@ interface Product {
   slug?: string;
   image?: string;
   category?: string;
+  text_parsed?: string;
   subcategory?: string;
   strain_type?: 'indica' | 'sativa' | 'hybrid';
   thc_percentage?: number;
@@ -238,7 +239,7 @@ const mapAPIProductToProduct = (apiProduct: APIProduct): Product => {
   // Parse med_value to extract unit (format: "Each,10.00,,,")
   const medValueParts = apiProduct.med_value?.split(',') || [];
   const unit = medValueParts[0] || 'unit';
-  console.log(apiProduct);
+  
   return {
     id: apiProduct.product_id,
     name: apiProduct.name,
@@ -638,7 +639,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 						  if (b.cat_id === 'uncategorized') return 1;
 						  return a.cat_name.localeCompare(b.cat_name);
 						});
-console.log(apiProducts);
+
 						// Convert API products to MedicineProduct interface
 						const allProducts = apiProducts
 						  .filter((prod) => prod.enable_product === '1' && prod.name)
@@ -661,6 +662,7 @@ console.log(apiProducts);
 							org_value1: String(prod.value1 ?? 'Each'),
 							org_value2: String(prod.value2 ?? prod.i_price ?? '0'),
 							business_name: prod?.bus_title ?? '',
+							text_parsed: prod?.text_parsed ?? '',
 							brand_name: null,
 							flavors: prod.flavors ?? [],
 							quantity: prod.quantity ?? prod.i_onhand ?? '0',
@@ -668,7 +670,7 @@ console.log(apiProducts);
 						  })) as MedicineProduct[];
 
 						// Store medicine products separately for modal display
-						console.log(allProducts);
+						
 						setMedicineProducts(allProducts);
 
 						// Convert products to display-friendly format
@@ -683,6 +685,7 @@ console.log(apiProducts);
 						  image: prod.med_image_url ?? prod.med_img ?? null,
 						  unit: prod.value1 ?? 'Each',
 						  in_stock: prod.in_stock ?? true,
+						  text_parsed: prod?.text_parsed ?? '',
 						  is_deal: false,
 						  brand: prod.brand_name ?? undefined,
 						}));
@@ -717,6 +720,7 @@ console.log(apiProducts);
             unit: p.unit ?? p.size ?? undefined,
             in_stock: p.in_stock === false ? false : true,
             is_deal: !!p.is_deal,
+			text_parsed: p?.text_parsed ?? '',
             brand: p.brand ?? p.vendor ?? undefined,
           }));
           setProducts(mappedProducts);
@@ -1303,7 +1307,7 @@ console.log(apiProducts);
                     >
                       <div className="relative aspect-square bg-gray-100">
                         {product.image ? (
-                          <img src={product.image} alt={product.name} className="absolute inset-0 w-full h-full object-cover" />
+                          <img src={product.image} alt={product.name} className="w-full h-full object-contain" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <Leaf className="w-12 h-12 text-gray-300" />
@@ -1378,7 +1382,7 @@ console.log(apiProducts);
                     >
                       <div className="relative w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden">
                         {product.image ? (
-                          <img src={product.image} alt={product.name} className="absolute inset-0 w-full h-full object-cover" />
+                          <img src={product.image} alt={product.name} className="w-full h-full object-contain" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center">
                             <Leaf className="w-8 h-8 text-gray-300" />

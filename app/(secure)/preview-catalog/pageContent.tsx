@@ -482,12 +482,12 @@ export default function PageContent() {
                   className="bg-gray-50 dark:bg-slate-900 rounded-lg overflow-hidden hover:shadow-lg transition cursor-pointer"
                   onClick={() => handleSelectProduct(product)}
                 >
-                  {/* Product Image */}
-                  <div className="relative h-48 bg-gray-200 dark:bg-slate-800 overflow-hidden">
+                  {/* Product Image relative h-48 bg-gray-200 dark:bg-slate-800 overflow-hidden*/}
+                  <div className="relative aspect-square bg-gray-100">
                     <img
                       src={getProductImageUrl(product)}
                       alt={product.name}
-                      className="w-full h-full object-cover hover:scale-105 transition"
+                      className="w-full h-full object-contain hover:scale-105 transition"
                       onError={(e) => {
                         e.currentTarget.src =
                           'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
@@ -604,7 +604,7 @@ export default function PageContent() {
                   <img
                     src={getProductImageUrl(selectedProduct)}
                     alt={selectedProduct.name}
-                    className="w-full h-80 object-cover rounded-lg"
+                    className="w-full h-80 object-contain rounded-lg hover:scale-105 transition"
                     onError={(e) => {
                       e.currentTarget.src =
                         'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';

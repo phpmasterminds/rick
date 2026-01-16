@@ -4,13 +4,33 @@ import {
   Bell, Home, Megaphone, Package, CreditCard, Settings, HelpCircle,
   Plus, X, Upload, Target, DollarSign, MousePointer, Eye, CheckCircle,
   ChevronDown, ChevronRight, Menu, User, LogOut, Users, Folder, Edit, 
-  Loader2, AlertCircle, ChevronLeft, Copy
+  Loader2, AlertCircle, ChevronLeft, Copy, Trash2
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import StatCard from "@/components/StatCard";
 import Link from "next/link";
 import axios from "axios";
 import { toast } from 'react-toastify';
+
+// Helper function to get product image URL
+const getProductImageUrl = (product: any): string => {
+  // Try med_image_path first (from API)
+  if (product.med_image && typeof product.med_image === 'string') {
+    if (product.med_image.trim()) {
+      return product.med_image;
+    }
+  }
+  
+  // Try image_url
+  if (product.image_url && typeof product.image_url === 'string') {
+    if (product.image_url.trim()) {
+      return product.image_url;
+    }
+  }
+  
+  // Default fallback
+  return 'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
+};
 
 interface Product {
   product_id: string;
@@ -36,6 +56,7 @@ interface Product {
   text_parsed: string;
   thc: string;
   cbd: string;
+  bus_title: string;
   strain?: string;
   product_code?: string;
   med_image?: string;
@@ -406,6 +427,11 @@ export default function PageContent() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(30);
+
+  // Delete confirmation state
+  const [showDeleteConfirmModal, setShowDeleteConfirmModal] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Transform API data: convert selected_rooms array to s_rooms string
   const transformProductsData = (productsData: any[]) => {
@@ -781,6 +807,54 @@ export default function PageContent() {
     
     // Open modal
     setShowEditModal(true);
+  };
+
+  const handleDeleteClick = (product: Product) => {
+    setProductToDelete(product);
+    setShowDeleteConfirmModal(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+
+    try {
+      setIsDeleting(true);
+      const vanityUrl = getCookie('vanity_url');
+      
+      // Call delete API with business and product_id
+	  
+	  const response = await axios.delete(`/api/business/update-product`, {
+			data: { id: productToDelete.product_id,business: vanityUrl},
+		});
+		
+	 
+      if (response.data.status === 'success') {
+        // Remove product from state
+        setProducts(products.filter(p => p.product_id !== productToDelete.product_id));
+        setAllProducts(allProducts.filter(p => p.product_id !== productToDelete.product_id));
+        
+        // Close modal and reset
+        setShowDeleteConfirmModal(false);
+        setProductToDelete(null);
+        
+        // Show success toast
+        toast.success(`Product "${productToDelete.name}" deleted successfully!`, {
+          position: 'bottom-center',
+          autoClose: 3000,
+        });
+      } else {
+        throw new Error(response.data.message || 'Failed to delete product');
+      }
+    } catch (error: any) {
+      showErrorToast(error, 'Failed to delete product');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCancelDelete = () => {
+    setShowDeleteConfirmModal(false);
+    setProductToDelete(null);
   };
 
   const fetchEditModalDropdowns = async (product: Product) => {
@@ -1355,6 +1429,23 @@ console.log(rowData);
     
     return pages;
   };
+  
+  // Modal state
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  
+   // Handle product selection
+  const handleSelectProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setIsModalOpen(true);
+  };
+
+  // Handle modal close
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setSelectedProduct(null);
+  };
 
   // Loading state
   if (loading && allProducts.length === 0) {
@@ -1603,7 +1694,7 @@ console.log(rowData);
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <div className="relative group">
-						  <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden cursor-pointer">
+						  <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden cursor-pointer" onMouseOver={() => handleSelectProduct(product)}>
 							{product.med_image ? (
 							  <img
 								src={product.med_image}
@@ -1739,6 +1830,13 @@ console.log(rowData);
                               title="Clone product"
                             >
                               <Copy size={16} className="text-gray-600 dark:text-gray-400" />
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteClick(product)} 
+                              className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                              title="Delete product"
+                            >
+                              <Trash2 size={16} className="text-red-600 dark:text-red-400" />
                             </button>
                           </>
                         )}
@@ -2439,6 +2537,198 @@ console.log(rowData);
           </div>
         </div>
       )}
+	  
+	  {/* Product Detail Modal */}
+      {isModalOpen && selectedProduct && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          onClick={handleCloseModal}
+        >
+          <div
+            className="bg-white dark:bg-slate-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="sticky top-0 flex items-center justify-between p-6 border-b dark:border-slate-700 bg-white dark:bg-slate-900">
+              <h2 className="text-2xl font-bold dark:text-white">{selectedProduct.name}</h2>
+              <button
+                onClick={handleCloseModal}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6">
+              <div className="grid grid-cols-2 gap-6">
+                {/* Image */}
+                <div>
+                  <img
+                    src={getProductImageUrl(selectedProduct)}
+                    alt={selectedProduct.name}
+                    className="w-full h-80 object-contain rounded-lg hover:scale-105 transition"
+                    onError={(e) => {
+                      e.currentTarget.src =
+                        'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
+                    }}
+                  />
+                </div>
+
+                {/* Details */}
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Category</p>
+                    <p className="text-lg font-semibold dark:text-white">{selectedProduct.cat_name}</p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Price</p>
+                    <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">
+                      ${selectedProduct.p_offer_price}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">In Stock</p>
+                    <p className="text-lg font-semibold dark:text-white">{selectedProduct.i_onhand} units</p>
+                  </div>
+
+                  {selectedProduct.thc && (
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">THC</p>
+                      <p className="text-lg font-semibold dark:text-white">{selectedProduct.thc}%</p>
+                    </div>
+                  )}
+
+                  {selectedProduct.cbd && (
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">CBD</p>
+                      <p className="text-lg font-semibold dark:text-white">{selectedProduct.cbd}%</p>
+                    </div>
+                  )}
+
+                  {selectedProduct.bus_title && (
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Seller</p>
+                      <p className="text-lg font-semibold dark:text-white">{selectedProduct.bus_title}</p>
+                    </div>
+                  )}
+
+                  {/* Add to Cart Button 
+                  <button
+                    onClick={() => {
+                      handleAddToCart(selectedProduct);
+                      handleCloseModal();
+                    }}
+                    className="w-full bg-teal-500 text-white py-3 rounded-lg font-semibold hover:bg-teal-600 transition mt-6"
+                  >
+                    Add to Cart
+                  </button>*/}
+                </div>
+              </div>
+
+              {/* Description */}
+              {selectedProduct.text_parsed && (
+                <div className="mt-6 pt-6 border-t dark:border-slate-700">
+                  <h3 className="font-semibold mb-2 dark:text-white">Description</h3>
+                  <p className="text-gray-600 dark:text-gray-300 text-sm">
+                    {selectedProduct.text_parsed}
+                  </p>
+                </div>
+              )}
+
+              {/* Previous/Next Navigation Buttons */}
+              <div className="flex items-center justify-between mt-8 pt-6 border-t dark:border-slate-700">
+                <button
+                  onClick={() => {
+                    const currentIndex = filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id);
+                    if (currentIndex > 0) {
+                      setSelectedProduct(filteredProducts[currentIndex - 1]);
+                    }
+                  }}
+                  disabled={filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) === 0}
+                  className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  <ChevronLeft size={20} />
+                  Previous
+                </button>
+
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) + 1} of {filteredProducts.length}
+                </span>
+
+                <button
+                  onClick={() => {
+                    const currentIndex = filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id);
+                    if (currentIndex < filteredProducts.length - 1) {
+                      setSelectedProduct(filteredProducts[currentIndex + 1]);
+                    }
+                  }}
+                  disabled={filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) === filteredProducts.length - 1}
+                  className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  Next
+                  <ChevronRight size={20} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+	  
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirmModal && productToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl max-w-md w-full">
+            <div className="p-6 flex flex-col items-center text-center">
+              {/* Warning Icon */}
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+                <AlertCircle size={32} className="text-red-600 dark:text-red-400" />
+              </div>
+
+              {/* Title */}
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Delete Product</h2>
+
+              {/* Message */}
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Are you sure you want to delete this product? This action cannot be undone.
+              </p>
+
+              {/* Product Name */}
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-6 break-words max-w-xs">
+                {productToDelete.name}
+              </p>
+
+              {/* Buttons */}
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={handleCancelDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-6 py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  disabled={isDeleting}
+                  className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    'Delete'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+	  
     </div>
   );
 }

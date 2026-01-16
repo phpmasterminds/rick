@@ -37,6 +37,7 @@ export function middleware(request: NextRequest) {
     "/learn",
     "/dispensary",
     "/coming-soon",
+    "/set-password",
   ];
 
   // 🆕 Approval-pending route is always accessible for pending users
