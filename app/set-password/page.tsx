@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, Suspense } from 'react';
+import { useRouter } from "next/navigation";
 import { useSearchParams } from 'next/navigation';
 import { useTheme } from '@/hooks/useTheme';
 import axios from 'axios';
@@ -20,6 +21,7 @@ interface ApiResponse {
 }
 
 function SetPasswordContent() {
+	const router = useRouter();
   const searchParams = useSearchParams();
   const { isDark } = useTheme();
   const [isLoading, setIsLoading] = useState(false);
@@ -40,6 +42,15 @@ function SetPasswordContent() {
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
 
+	// ✅ Redirect to dashboard if already logged in
+	useEffect(() => {
+		
+		const token = localStorage.getItem("token");
+		if (token) {
+		router.replace("/dashboard");
+		}
+	}, [router]);
+	
   // Decrypt token on mount
   useEffect(() => {
     const decryptToken = async () => {
@@ -158,19 +169,15 @@ console.log(tokenAge+"tokenAge");
     setConfirmPasswordError('');
 
     try {
-      const response = await axios.post<ApiResponse>(
-        '/api/auth/reset-password',
-        {
-          user_id: tokenData.user_id,
+		
+		// Call backend API to verify OTP
+      const response = await axios.post('/api/auth/reset-password', {
+        user_id: tokenData.user_id,
           email: tokenData.email,
           password: password,
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      });
+	  
+      
 
       if (response.data.success) {
         setIsSuccess(true);
@@ -263,7 +270,7 @@ console.log(tokenAge+"tokenAge");
           >
             {decryptError}
           </p>
-          <a
+          {/*<a
             href="/forgot-password"
             className={`w-full py-2 px-4 rounded-lg font-medium text-center transition ${
               isDark
@@ -272,7 +279,7 @@ console.log(tokenAge+"tokenAge");
             }`}
           >
             Request New Reset Link
-          </a>
+          </a>*/}
         </div>
       </div>
     );
