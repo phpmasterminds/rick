@@ -37,7 +37,7 @@ import axios from "axios";
 import { toast } from 'react-toastify';
 import { useBusinessData } from "../app/contexts/BusinessContext";
 import Cookies from "js-cookie";
-import { useTheme } from "next-themes";
+import { useThemeContext } from "@/components/ThemeProvider";
 
 // Sidebar Props
 interface SidebarProps {
@@ -509,14 +509,14 @@ export default function Sidebar({
     return [
       // General seller menus
       { id: "dashboard", icon: Home, label: "Dashboard", path: "/dashboard" },
+	  { id: "customers", icon: Users, label: "My Customers", path: "/customers" },
       { id: "messages", icon: Megaphone, label: "Messages", path: "/messages" },
       { id: "inventory", icon: Package, label: "Inventory", path: "/inventory" },
+	  { id: "pricing", icon: CreditCard, label: "Pricing & Discounts", path: "/pricing" },
       { id: "preview-catalog", icon: Box, label: "Preview Catalog", path: "/preview-catalog" },
       { id: "place-order", icon: ShoppingCart, label: "Place Order", path: "/place-order" },
       { id: "new-orders", icon: ClipboardList, label: "New Orders", path: "/new-orders" },
       { id: "order-history", icon: FileText, label: "Order History", path: "/order-history" },      
-      { id: "pricing", icon: CreditCard, label: "Pricing & Discounts", path: "/pricing" },
-	  { id: "customers", icon: Users, label: "My Customers", path: "/customers" },
       { id: "metrc", icon: Folder, label: "Metrc", path: "/metrc" },
       { id: "reports", icon: BarChart, label: "Reports & Analytics", path: "/reports" },
       { id: "preview-business", icon: Briefcase, label: "Preview Business", path: "/preview-business" },
@@ -527,6 +527,7 @@ export default function Sidebar({
         submenu: [
           { id: "company_profile", label: "Company Profile", path: "/settings/company-profile" },
           { id: "license_information", label: "License Information", path: "/settings/license-information" },
+          { id: "users_permissions", label: "Users Permissions", path: "/settings/users-permissions" },
           { id: "business_info", label: "Business Info", path: "/settings/business-info" },
           { id: "payment-methods", label: "Payment Methods", path: "/settings/payment-methods" },
           { id: "notification", label: "Notifications", path: "/settings/notifications" },
@@ -895,10 +896,8 @@ export default function Sidebar({
     [getSectionRoutes, router, setIsMobileOpen]
   );
   
+  const { theme } = useThemeContext();
   
-  
-  const theme = Cookies.get("user_theme");
-console.log(theme+'theme');
   // Don't render until hydrated to prevent mismatch
   if (!isHydrated || loading) {
     return (

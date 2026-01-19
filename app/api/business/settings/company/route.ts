@@ -239,6 +239,7 @@ interface CompanyDataResponse {
   fax: string;
   email: string;
   website: string;
+  invoiceLogo?: string;
   companyPhoto?: string;
   coverPhoto?: string;
   allowReviews: boolean;
@@ -303,6 +304,7 @@ export async function GET(req: Request) {
       fax: formatPhoneNumber(response.data.data.locs_fax || ''),
       email: response.data.data.locs_email || '',
       website: response.data.data.info_website || '',
+      invoiceLogo: response.data.data.invoice_logo || '',
       companyPhoto: response.data.data.pages_image_path || '',
       coverPhoto: response.data.data.cover_photo_url || '',
       allowReviews: toBool(response.data.data.locs_enable_rating),

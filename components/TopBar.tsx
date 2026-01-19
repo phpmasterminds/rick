@@ -23,7 +23,7 @@ import Cookies from "js-cookie";
 import axios from "axios";
 import { toast } from "react-toastify";
 import { useShopCart } from "@/app/contexts/ShopCartContext";
-import { useTheme } from "next-themes";
+import { useThemeContext } from "@/components/ThemeProvider";
 
 interface TopBarProps {
   // Optional: allow parent to control mobile menu if needed
@@ -107,7 +107,6 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   const [businesses, setBusinesses] = useState<BusinessData[]>([]);
   const [showBusinessDropdown, setShowBusinessDropdown] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
-	const [accentColor, setAccentColor] = useState("teal");	
 
   // ===== SHOP CART (CART PANEL) =====
   const [shopCartItems, setShopCartItems] = useState<ShopCartItem[]>([]);
@@ -128,8 +127,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   // ===== ROUTING & PATHNAME =====
   const pathname = usePathname();
   const router = useRouter();
-  //const { theme, setTheme } = useTheme();
-
+  
   // ===== EXTRACT VANITY URL =====
   const getVanityUrl = useCallback(() => {
     const pathSegments = pathname.split("/").filter(Boolean);
@@ -196,22 +194,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     }
   }, []);
   
-	// ✅ ADD: Load theme and accent color from cookies on mount
-	/*useEffect(() => {
-	  const savedTheme = Cookies.get("user_theme");
-	  const savedAccent = Cookies.get("accent_color");
-console.log(savedTheme+'cookie-->');
-	  if (savedTheme) {
-		setTheme(savedTheme);
-	  }
-
-	  if (savedAccent) {
-		setAccentColor(savedAccent);
-	  }
-	}, [setTheme, setAccentColor]);*/
-	
-	const theme = Cookies.get("user_theme");
-	console.log(theme+'theme');
+	const { theme, setTheme, accentColor, setAccentColor } = useThemeContext();
 
 
   // Get current type_id from cookie
@@ -253,17 +236,18 @@ console.log(savedTheme+'cookie-->');
 
 
   // ===== HANDLE THEME CHANGE =====
-  const handleThemeChange = useCallback((newTheme: string) => {
-    //setTheme(newTheme);
-    setShowThemeMenu(false);
-    saveThemeToApi(newTheme);
-  }, [ setShowThemeMenu, saveThemeToApi]);
+	const handleThemeChange = (newTheme: string) => {
+		setTheme(newTheme);           // ✅ instant UI update
+		setShowThemeMenu(false);
+		saveThemeToApi(newTheme);     // API + cookie
+	};
   //setTheme
   // ✅ ADD: Handle accent color change
-	const handleColorChange = useCallback((colorName: string) => {
-	  setAccentColor(colorName);
-	  saveAccentColorToApi(colorName);
-	}, [setAccentColor, saveAccentColorToApi]);
+	const handleColorChange = (colorName: string) => {
+		setAccentColor(colorName);    // ✅ instant UI update
+		saveAccentColorToApi(colorName);
+	};
+
 
   // ===== HANDLE BUSINESS SWITCH =====
   const handleBusinessSwitch = useCallback(async (business: BusinessData) => {

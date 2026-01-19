@@ -217,7 +217,7 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
         <div class="header">
           <div class="company-info">
             ${businessLogo ? `<img src="${businessLogo}" style="max-width: 150px; margin-bottom: 10px;">` : ''}
-            <h1>${businessName}</h1>
+            <h1 style="text-transform:capitalize">${businessName}</h1>
             <p>Order Invoice</p>
           </div>
           <div class="invoice-meta">
@@ -229,23 +229,25 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
 
         <!-- Customer Info -->
         <div>
-          ${order.to_address_detail_f_locs ? `
+          ${order.from_address_detail_f_locs ? `
             <div class="address-block">
               <h3>Bill To</h3>
-              <p><strong>${order.from_address_detail_f_locs.full_name || order.full_name || 'N/A'}</strong></p>
+              <p><strong>${order.from_address_detail_f_locs.trade_name || order.from_address_detail_f_locs.title || order.full_name || 'N/A'}</strong></p>
               ${order.from_address_detail_f_locs.locs_street ? `<p>${order.from_address_detail_f_locs.locs_street}</p>` : ''}
               <p>${order.from_address_detail_f_locs.locs_city || ''}, ${order.from_address_detail_f_locs.locs_state || ''} ${order.from_address_detail_f_locs.locs_zip || ''}</p>
               ${order.from_address_detail_f_locs.locs_phone ? `<p>${order.from_address_detail_f_locs.locs_phone}</p>` : ''}
+              ${order.from_address_detail_f_locs.license_number ? `<p>${order.from_address_detail_f_locs.license_number}</p>` : ''}
             </div>
           ` : ''}
 
           ${order.to_address_detail_f_locs ? `
             <div class="address-block">
               <h3>Ship To</h3>
-              <p><strong>${order.to_address_detail_f_locs.full_name || order.full_name || 'N/A'}</strong></p>
+              <p><strong>${order.to_address_detail_f_locs.trade_name || order.to_address_detail_f_locs.title || order.full_name || 'N/A'}</strong></p>
               ${order.to_address_detail_f_locs.locs_street ? `<p>${order.to_address_detail_f_locs.locs_street}</p>` : ''}
               <p>${order.to_address_detail_f_locs.locs_city || ''}, ${order.to_address_detail_f_locs.locs_state || ''} ${order.to_address_detail_f_locs.locs_zip || ''}</p>
               ${order.to_address_detail_f_locs.locs_phone ? `<p>${order.to_address_detail_f_locs.locs_phone}</p>` : ''}
+              ${order.to_address_detail_f_locs.license_number ? `<p>${order.to_address_detail_f_locs.license_number}</p>` : ''}
             </div>
           ` : ''}
         </div>

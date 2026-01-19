@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
   }
 );
 
-      if (response.data.success) {
+      if (response.data.status === 'success') {
         return NextResponse.json(
           {
             success: true,

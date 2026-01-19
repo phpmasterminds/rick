@@ -3,8 +3,67 @@
 @tailwind utilities;
 
 :root {
-  --primary-color: #14B8A6;
+	--primary-color: #14B8A6;
+  --accent-color: #14B8A6;
+  --accent-hover: #0D9488;
 }
+
+[data-accent="teal"] {
+  --accent-color: #14B8A6;
+  --accent-hover: #0D9488;
+}
+
+[data-accent="blue"] {
+  --accent-color: #3B82F6;
+  --accent-hover: #2563EB;
+}
+
+[data-accent="purple"] {
+  --accent-color: #A855F7;
+  --accent-hover: #9333EA;
+}
+
+[data-accent="pink"] {
+  --accent-color: #EC4899;
+  --accent-hover: #DB2777;
+}
+
+[data-accent="green"] {
+  --accent-color: #10B981;
+  --accent-hover: #059669;
+}
+
+[data-accent="orange"] {
+  --accent-color: #F97316;
+  --accent-hover: #EA580C;
+}
+
+[data-accent="red"] {
+  --accent-color: #EF4444;
+  --accent-hover: #DC2626;
+}
+
+[data-accent="indigo"] {
+  --accent-color: #6366F1;
+  --accent-hover: #4F46E5;
+}
+
+.accent-bg {
+  background-color: var(--accent-color);
+}
+
+.accent-text {
+  color: var(--accent-color);
+}
+
+.accent-border {
+  border-color: var(--accent-color);
+}
+
+.accent-hover:hover {
+  background-color: var(--accent-hover);
+}
+
 
 .dark {
   color-scheme: dark;

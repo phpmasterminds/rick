@@ -1722,7 +1722,9 @@ console.log(rowData);
 						</div>
 
                         <div>
-                          <div className="font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
+                          <div className="font-medium text-gray-900 dark:text-gray-100">
+						  <a onClick={() => handleSelectProduct(product)}>
+						  {product.name}</a></div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
                             {product.tag_no} 
                           </div>

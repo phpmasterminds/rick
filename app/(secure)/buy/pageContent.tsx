@@ -671,7 +671,11 @@ export default function PageContent() {
                 </div>
 
                 {/* Details */}
+				
+				
                 <div className="space-y-4">
+					
+				
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Category</p>
                     <p className="text-lg font-semibold dark:text-white">{selectedProduct.cat_name}</p>
@@ -683,17 +687,47 @@ export default function PageContent() {
                       ${selectedProduct.p_offer_price}
                     </p>
                   </div>
+				  
+				  {/* Details Grid */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  {selectedProduct.strain && (
+                    <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
+                      <p className="text-xs text-green-600 dark:text-green-400 font-semibold">Strain</p>
+                      <p className="text-sm font-medium text-green-900 dark:text-green-200">{selectedProduct.strain}</p>
+                    </div>
+                  )}
 
+                  {selectedProduct.thc && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">THC</p>
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-200">{selectedProduct.thc}%</p>
+                    </div>
+                  )}
+
+                  {selectedProduct.cbd && (
+                    <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg">
+                      <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold">CBD</p>
+                      <p className="text-sm font-medium text-purple-900 dark:text-purple-200">{selectedProduct.cbd}%</p>
+                    </div>
+                  )}
+
+                  <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg">
+                    <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold">In Stock</p>
+                    <p className="text-sm font-medium text-orange-900 dark:text-orange-200">{selectedProduct.i_onhand}</p>
+                  </div>
+                </div>
+				{/*
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">In Stock</p>
                     <p className="text-lg font-semibold dark:text-white">{selectedProduct.i_onhand} units</p>
                   </div>
 
                   {selectedProduct.thc && (
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">THC</p>
-                      <p className="text-lg font-semibold dark:text-white">{selectedProduct.thc}%</p>
+					<div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                      <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">THC</p>
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-200">{selectedProduct.thc}%</p>
                     </div>
+					
                   )}
 
                   {selectedProduct.cbd && (
@@ -701,8 +735,7 @@ export default function PageContent() {
                       <p className="text-sm text-gray-500 dark:text-gray-400">CBD</p>
                       <p className="text-lg font-semibold dark:text-white">{selectedProduct.cbd}%</p>
                     </div>
-                  )}
-
+				)}*/}
                   {selectedProduct.bus_title && (
                     <div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Seller</p>

@@ -56,6 +56,7 @@ interface CompanyData {
   website: string;
   companyPhoto?: string;
   coverPhoto?: string;
+  invoiceLogo?: string;
   allowReviews: boolean;
   offersVeteranDiscounts: boolean;
   wheelchairAccessible: boolean;
@@ -71,10 +72,13 @@ interface CompanyData {
 interface PhotoUploadState {
   companyPhoto: File | null;
   coverPhoto: File | null;
+  invoiceLogo: File | null;
   companyPhotoPreview: string | null;
   coverPhotoPreview: string | null;
+  invoiceLogoPreview: string | null;
   companyPhotoLoading: boolean;
   coverPhotoLoading: boolean;
+  invoiceLogoLoading: boolean;
 }
 
 // Get vanity URL from cookie
@@ -139,6 +143,7 @@ const CompanyEditPage = () => {
 
   const companyPhotoRef = useRef<HTMLInputElement>(null);
   const coverPhotoRef = useRef<HTMLInputElement>(null);
+  const invoiceLogoRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState<CompanyData>({
     id: '',
@@ -171,10 +176,13 @@ const CompanyEditPage = () => {
   const [photoState, setPhotoState] = useState<PhotoUploadState>({
     companyPhoto: null,
     coverPhoto: null,
+    invoiceLogo: null,
     companyPhotoPreview: null,
     coverPhotoPreview: null,
+    invoiceLogoPreview: null,
     companyPhotoLoading: false,
     coverPhotoLoading: false,
+    invoiceLogoLoading: false,
   });
 
   useEffect(() => {
@@ -213,6 +221,12 @@ const CompanyEditPage = () => {
           setPhotoState((prev) => ({
             ...prev,
             coverPhotoPreview: data.coverPhoto,
+          }));
+        }
+        if (data.invoiceLogo) {
+          setPhotoState((prev) => ({
+            ...prev,
+            invoiceLogoPreview: data.invoiceLogo,
           }));
         }
       }
@@ -262,7 +276,7 @@ const CompanyEditPage = () => {
 
   const handlePhotoSelect = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    photoType: 'company' | 'cover'
+    photoType: 'company' | 'cover' | 'invoiceLogo'
   ) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -288,19 +302,32 @@ const CompanyEditPage = () => {
           companyPhoto: file,
           companyPhotoPreview: preview,
         }));
-      } else {
+      } else if (photoType === 'cover') {
         setPhotoState((prev) => ({
           ...prev,
           coverPhoto: file,
           coverPhotoPreview: preview,
+        }));
+      } else if (photoType === 'invoiceLogo') {
+        setPhotoState((prev) => ({
+          ...prev,
+          invoiceLogo: file,
+          invoiceLogoPreview: preview,
         }));
       }
     };
     reader.readAsDataURL(file);
   };
 
-  const uploadPhoto = async (photoType: 'company' | 'cover') => {
-    const photoFile = photoType === 'company' ? photoState.companyPhoto : photoState.coverPhoto;
+  const uploadPhoto = async (photoType: 'company' | 'cover' | 'invoiceLogo') => {
+    let photoFile: File | null;
+    if (photoType === 'company') {
+      photoFile = photoState.companyPhoto;
+    } else if (photoType === 'cover') {
+      photoFile = photoState.coverPhoto;
+    } else {
+      photoFile = photoState.invoiceLogo;
+    }
 
     if (!photoFile) {
       toast.error(`Please select a ${photoType} photo`);
@@ -308,7 +335,15 @@ const CompanyEditPage = () => {
     }
 
     try {
-      const loadingKey = photoType === 'company' ? 'companyPhotoLoading' : 'coverPhotoLoading';
+      let loadingKey: keyof PhotoUploadState;
+      if (photoType === 'company') {
+        loadingKey = 'companyPhotoLoading';
+      } else if (photoType === 'cover') {
+        loadingKey = 'coverPhotoLoading';
+      } else {
+        loadingKey = 'invoiceLogoLoading';
+      }
+      
       setPhotoState((prev) => ({
         ...prev,
         [loadingKey]: true,
@@ -327,14 +362,16 @@ const CompanyEditPage = () => {
       });
 
       if (response.data.success) {
+        const photoField = photoType === 'company' ? 'companyPhoto' : photoType === 'cover' ? 'coverPhoto' : 'invoiceLogo';
         setFormData((prev) => ({
           ...prev,
-          [photoType === 'company' ? 'companyPhoto' : 'coverPhoto']: response.data.photoUrl,
+          [photoField]: response.data.photoUrl,
         }));
 
+        const fileField = photoType === 'company' ? 'companyPhoto' : photoType === 'cover' ? 'coverPhoto' : 'invoiceLogo';
         setPhotoState((prev) => ({
           ...prev,
-          [photoType === 'company' ? 'companyPhoto' : 'coverPhoto']: null,
+          [fileField]: null,
         }));
 
         toast.success(`${photoType} photo uploaded successfully`);
@@ -347,14 +384,23 @@ const CompanyEditPage = () => {
       toast.error(errorMsg);
       console.error(error);
     } finally {
+      let loadingKey: keyof PhotoUploadState;
+      if (photoType === 'company') {
+        loadingKey = 'companyPhotoLoading';
+      } else if (photoType === 'cover') {
+        loadingKey = 'coverPhotoLoading';
+      } else {
+        loadingKey = 'invoiceLogoLoading';
+      }
+      
       setPhotoState((prev) => ({
         ...prev,
-        [photoType === 'company' ? 'companyPhotoLoading' : 'coverPhotoLoading']: false,
+        [loadingKey]: false,
       }));
     }
   };
 
-  const removePhoto = (photoType: 'company' | 'cover') => {
+  const removePhoto = (photoType: 'company' | 'cover' | 'invoiceLogo') => {
     if (photoType === 'company') {
       setPhotoState((prev) => ({
         ...prev,
@@ -364,7 +410,7 @@ const CompanyEditPage = () => {
       if (companyPhotoRef.current) {
         companyPhotoRef.current.value = '';
       }
-    } else {
+    } else if (photoType === 'cover') {
       setPhotoState((prev) => ({
         ...prev,
         coverPhoto: null,
@@ -372,6 +418,15 @@ const CompanyEditPage = () => {
       }));
       if (coverPhotoRef.current) {
         coverPhotoRef.current.value = '';
+      }
+    } else if (photoType === 'invoiceLogo') {
+      setPhotoState((prev) => ({
+        ...prev,
+        invoiceLogo: null,
+        invoiceLogoPreview: null,
+      }));
+      if (invoiceLogoRef.current) {
+        invoiceLogoRef.current.value = '';
       }
     }
   };
@@ -963,6 +1018,76 @@ const CompanyEditPage = () => {
                   type="file"
                   accept="image/*"
                   onChange={(e) => handlePhotoSelect(e, 'company')}
+                  className="hidden"
+                />
+              </div>
+
+              {/* Invoice Logo */}
+              <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 bg-gray-50 dark:bg-gray-700 dark:bg-opacity-50">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Invoice Logo
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Recommended size: 300x300px (5MB max)
+                  </p>
+                </div>
+
+                {photoState.invoiceLogoPreview ? (
+                  <div className="relative mb-4">
+                    <div className="relative w-48 h-48 rounded-lg overflow-hidden bg-gray-200 dark:bg-gray-600 mx-auto">
+                      <Image
+                        src={photoState.invoiceLogoPreview}
+                        alt="Invoice Logo Preview"
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
+                    <button
+                      onClick={() => removePhoto('invoiceLogo')}
+                      className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full hover:bg-red-700 transition-colors"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : null}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => invoiceLogoRef.current?.click()}
+                    disabled={photoState.invoiceLogoLoading}
+                    className="inline-flex items-center gap-2 px-4 py-2 accent-bg text-white rounded-lg accent-hover disabled:opacity-50 transition-colors"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Choose Logo
+                  </button>
+
+                  {photoState.invoiceLogo && (
+                    <button
+                      onClick={() => uploadPhoto('invoiceLogo')}
+                      disabled={photoState.invoiceLogoLoading}
+                      className="inline-flex items-center gap-2 px-4 py-2 accent-bg text-white rounded-lg accent-hover disabled:opacity-50 transition-colors"
+                    >
+                      {photoState.invoiceLogoLoading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4" />
+                          Upload
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                <input
+                  ref={invoiceLogoRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handlePhotoSelect(e, 'invoiceLogo')}
                   className="hidden"
                 />
               </div>

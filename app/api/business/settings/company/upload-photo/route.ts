@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const businessId = formData.get('businessId') as string;
-    const photoType = formData.get('photoType') as 'company' | 'cover';
+    const photoType = formData.get('photoType') as 'company' | 'cover' | 'invoiceLogo';
 
     // Validate inputs
     if (!file) {
@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!photoType || !['company', 'cover'].includes(photoType)) {
+    if (!photoType || !['company', 'cover', 'invoiceLogo'].includes(photoType)) {
       return NextResponse.json(
         {
           success: false,

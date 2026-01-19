@@ -88,6 +88,7 @@ interface Order {
   wholesale_order?: string | number;
   sample_order?: string | number;
   to_address_detail_f_locs?: {
+    trade_name?: string;
     title?: string;
     locs_city?: string;
     locs_zip?: string;
@@ -95,13 +96,17 @@ interface Order {
     locs_phone?: string;
     locs_email?: string;
     locs_state?: string;
+    license_number?: string;
     full_name?: string;
     pages_image_url?: string;
   };
   from_address_detail_f_locs?: {
+	  trade_name?: string;
     title?: string;
     locs_city?: string;
     locs_zip?: string;
+    locs_state?: string;
+    license_number?: string;
     locs_street?: string;
     locs_phone?: string;
     locs_email?: string;
@@ -662,7 +667,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Order #{order.order_id}</h1>
 			
-            <p className="text-gray-500 dark:text-gray-400 mt-1">  {order.to_address_detail_f_locs?.title ?? '—'}
+            <p className="text-gray-500 dark:text-gray-400 mt-1">  {order.to_address_detail_f_locs?.trade_name || order.to_address_detail_f_locs?.title || '—'}
 </p>
           </div>
 
@@ -883,10 +888,23 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                 </h3>
                 <div className="space-y-4">
                   <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                    <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Name</p>
-                    <p className="text-gray-900 dark:text-gray-100 font-medium">
-                      {order.full_name || `${order.contact_fname || ''} ${order.contact_lname || ''}`.trim() || 'N/A'}
-                    </p>
+                   
+					{order.from_address_detail_f_locs ? (
+  <>
+    <p className="text-gray-900 dark:text-gray-100 font-medium">
+      {order.from_address_detail_f_locs.trade_name || order.from_address_detail_f_locs.title || 'N/A'}
+    </p>
+    <p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_street}</p>
+    <p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_city}</p>
+    <p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_state || ''}</p>
+    <p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_zip}</p>
+	<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.license_number}</p>
+  </>
+) : (
+  <p className="text-gray-900 dark:text-gray-100 font-medium">No address details available</p>
+)}
+
+						
                   </div>
                   {order.account_name && (
                     <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
@@ -898,7 +916,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                     <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
                       <Mail size={16} /> Email
                     </p>
-                    <p className="text-blue-600 dark:text-blue-400 font-medium">{order.contact_email}</p>
+                    <p className="text-blue-600 dark:text-blue-400 font-medium">{order.from_address_detail_f_locs?.locs_email || ''}</p>
                   </div>
                   {order.contact_phone && (
                     <div>
@@ -929,7 +947,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       ${parseFloat(order.shipping_cost || '0').toFixed(2)}
                     </span>
                   </div>
-                  {order.total_commission && (
+                  {/*{order.total_commission && (
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Commission</span>
                       <span className="font-semibold text-gray-900 dark:text-gray-100">
@@ -937,7 +955,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       </span>
                     </div>
                   )}
-                  {/*<div className="flex justify-between">
+                  <div className="flex justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Tax (4.5%)</span>
                     <span className="font-semibold text-gray-900 dark:text-gray-100">
                       ${(() => {
@@ -1396,9 +1414,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
           <MapPin size={20} /> Shipping Address
         </h3>
         <div className="space-y-2">
-          {order.contact_address && (
-            <p className="text-gray-900 dark:text-gray-100 font-medium">{order.contact_address}</p>
-          )}
+          <p className="text-gray-900 dark:text-gray-100 font-medium">{order.to_address_detail_f_locs?.trade_name || order.to_address_detail_f_locs?.title || ''}</p>
           {order.to_address_detail_f_locs && (
             <>
               {order.to_address_detail_f_locs.locs_street && (
@@ -1564,7 +1580,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       </span>
                     </div>
 
-                    {/* Commission */}
+                    {/* Commission 
                     {(editFormData.total_commission || order?.total_commission) && (
                       <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
                         <span className="text-gray-700 dark:text-gray-300 font-medium">Commission:</span>
@@ -1572,7 +1588,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                           ${(parseFloat(editFormData.total_commission || order?.total_commission || '0')).toFixed(2)}
                         </span>
                       </div>
-                    )}
+                    )}*/}
 
                     {/* Total */}
                     <div className="flex justify-between items-center py-3 bg-blue-50 dark:bg-blue-900/20 px-3 rounded-lg border-2 border-blue-200 dark:border-blue-800">
@@ -1609,7 +1625,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
               </button>
               <button
                 onClick={handleSaveEdit}
-                className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
+                className="px-4 py-2 text-white accent-bg accent-hover rounded-lg transition"
               >
                 Save Changes
               </button>
