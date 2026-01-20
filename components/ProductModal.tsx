@@ -266,7 +266,8 @@ console.log(selectedProduct.cbd);
               </button>
             </div>
           {/* Modal Content */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+          <div className="p-6">
+			<div className="grid grid-cols-1 md:grid-cols-2 gap-6 ">
             {/* ===== LEFT: PRODUCT IMAGE & NAVIGATION ===== */}
             <div className="flex flex-col gap-4">
               {/* Product Image */}
@@ -409,6 +410,7 @@ console.log(selectedProduct.cbd);
                 )}
                 
               </div>              
+            </div>
             </div>
               {/* Description */}
               {selectedProduct.text_parsed && (

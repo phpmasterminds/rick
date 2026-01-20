@@ -88,6 +88,7 @@ interface Order {
   wholesale_order?: string | number;
   sample_order?: string | number;
   to_address_detail_f_locs?: {
+	trade_name?: string;
     title?: string;
     locs_city?: string;
     locs_zip?: string;
@@ -95,18 +96,24 @@ interface Order {
     locs_phone?: string;
     locs_email?: string;
     locs_state?: string;
+    license_number?: string;
     full_name?: string;
     pages_image_url?: string;
+	invoice_logo?: string;
   };
   from_address_detail_f_locs?: {
+	trade_name?: string;
     title?: string;
     locs_city?: string;
     locs_zip?: string;
+    locs_state?: string;
+    license_number?: string;
     locs_street?: string;
     locs_phone?: string;
     locs_email?: string;
     full_name?: string;
 	pages_image_url?: string;
+	invoice_logo?: string;
   };
   seller_information?: {
     title?: string;
@@ -426,7 +433,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
       generateInvoicePDF(
         order, 
         order.from_address_detail_f_locs?.title || '',
-        order.from_address_detail_f_locs?.pages_image_url || ''
+        order.from_address_detail_f_locs?.invoice_logo || order.from_address_detail_f_locs?.pages_image_url || ''
       );
       setShowDropdown(false);
       toast.success('Invoice PDF opened for printing');
@@ -436,7 +443,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
   const handleGenerateManifestPDF = () => {
     if (order) {
       generateShippingManifestPDF(order, order.from_address_detail_f_locs?.title || '',
-        order.from_address_detail_f_locs?.pages_image_url || '');
+        order.from_address_detail_f_locs?.invoice_logo || order.from_address_detail_f_locs?.pages_image_url || '');
       setShowDropdown(false);
       toast.success('Shipping Manifest opened for printing');
     }
@@ -445,7 +452,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
   const handleGeneratePackListPDF = () => {
     if (order) {
       generatePackListPDF(order,  order.from_address_detail_f_locs?.title || '',
-        order.from_address_detail_f_locs?.pages_image_url || '');
+        order.from_address_detail_f_locs?.invoice_logo || order.from_address_detail_f_locs?.pages_image_url || '');
       setShowDropdown(false);
       toast.success('Pack List opened for printing');
     }
@@ -678,7 +685,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Order #{order.order_id}</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">{order.from_address_detail_f_locs?.title}</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">{order.from_address_detail_f_locs?.trade_name || order.from_address_detail_f_locs?.title}</p>
           </div>
 
           {/* Dropdown Menu Button */}
@@ -865,23 +872,33 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                 </h3>
                 <div className="space-y-4">
                   <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                    <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Name</p>
-                    <p className="text-gray-900 dark:text-gray-100 font-medium">
-                      {order.seller_information?.title ?? 'N/A'}
-                    </p>
+                    {order.from_address_detail_f_locs ? (
+					  <>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">
+						  {order.from_address_detail_f_locs.trade_name || order.from_address_detail_f_locs.title || 'N/A'}
+						</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_street}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_city}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_state || ''}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_zip}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.license_number}</p>
+					  </>
+					) : (
+					  <p className="text-gray-900 dark:text-gray-100 font-medium">No address details available</p>
+					)}
                   </div>
                   
                   <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
                     <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
                       <Mail size={16} /> Email
                     </p>
-                    <p className="text-blue-600 dark:text-blue-400 font-medium">{order.seller_information?.locs_email ?? 'N/A'}</p>
+                    <p className="text-blue-600 dark:text-blue-400 font-medium">{order.from_address_detail_f_locs?.locs_email ?? 'N/A'}</p>
                   </div>
                     <div>
                       <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
                         <Phone size={16} /> Phone
                       </p>
-                      <p className="text-gray-900 dark:text-gray-100 font-medium">{order.seller_information?.locs_phone ?? 'N/A'}</p>
+                      <p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_phone ?? 'N/A'}</p>
                     </div>
                 </div>
               </div>
@@ -904,7 +921,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       ${parseFloat(order.shipping_cost || '0').toFixed(2)}
                     </span>
                   </div>
-                  {order.total_commission && (
+                  {/*{order.total_commission && (
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Commission</span>
                       <span className="font-semibold text-gray-900 dark:text-gray-100">
@@ -912,7 +929,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       </span>
                     </div>
                   )}
-                  {/*<div className="flex justify-between">
+                  <div className="flex justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Tax (4.5%)</span>
                     <span className="font-semibold text-gray-900 dark:text-gray-100">
                       ${(() => {
@@ -1363,9 +1380,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
           <MapPin size={20} /> Shipping Address
         </h3>
         <div className="space-y-2">
-          {order.contact_address && (
-            <p className="text-gray-900 dark:text-gray-100 font-medium">{order.contact_address}</p>
-          )}
+          <p className="text-gray-900 dark:text-gray-100 font-medium">{order.to_address_detail_f_locs?.trade_name || order.to_address_detail_f_locs?.title || ''}</p>
           {order.to_address_detail_f_locs && (
             <>
               {order.to_address_detail_f_locs.locs_street && (

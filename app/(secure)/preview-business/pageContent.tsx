@@ -1,13 +1,13 @@
 // pageContent.tsx
 'use client';
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   Loader2, AlertCircle, ArrowLeft, MapPin, Star, Clock, Phone, Globe, Mail,
   Heart, Share2, Navigation, Verified, Leaf, ChevronRight, ShoppingBag,
   DollarSign, Tag, Filter, Grid, List, ChevronDown, X, Info, MessageSquare,
   Calendar, CreditCard, Car, Accessibility, Shield, Percent, Users, ThumbsUp,
-  ChevronLeft, Moon, Sun
+  ChevronLeft
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
@@ -446,8 +446,46 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
   const [medicineProducts, setMedicineProducts] = useState<MedicineProduct[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<MedicineProduct | null>(null);
   const [selectedProductIndex, setSelectedProductIndex] = useState(0);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [businessTypeId, setBusinessTypeId] = useState<number | null>(null);
+
+  // Infinite scroll pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  const [allFetchedProducts, setAllFetchedProducts] = useState<MedicineProduct[]>([]);
+  const observerRef = useRef<HTMLDivElement>(null);
+
+  // Detect dark mode from app-level (document or parent provider)
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Check if app uses dark mode class on html or body element
+    const isDark = 
+      document.documentElement.classList.contains('dark') ||
+      document.body.classList.contains('dark') ||
+      window.matchMedia('(prefers-color-scheme: dark)').matches;
+    
+    setIsDarkMode(isDark);
+
+    // Watch for changes to dark mode class
+    const observer = new MutationObserver(() => {
+      const isDarkNow = 
+        document.documentElement.classList.contains('dark') ||
+        document.body.classList.contains('dark');
+      setIsDarkMode(isDarkNow);
+    });
+
+    observer.observe(document.documentElement, { 
+      attributes: true, 
+      attributeFilter: ['class'] 
+    });
+    observer.observe(document.body, { 
+      attributes: true, 
+      attributeFilter: ['class'] 
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   // Order management state
   const [isAdmin, setIsAdmin] = useState(false);
@@ -602,6 +640,11 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 		  if (productApi.data?.status === 'success' && productApi.data.data?.products) {
 						// New API returns a flat array of products with cat_id and cat_name
 						const apiProducts: APIProduct[] = productApi.data.data.products;
+						const totalProducts = productApi.data.data.total || 0;
+
+						// Check if there are more products to load
+						setHasMoreProducts(totalProducts > 30);
+						setCurrentPage(1);
 
 						// Build unique categories from the products
 						const categoryMap = new Map<string, CategoryItem>();
@@ -668,6 +711,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 						  })) as MedicineProduct[];
 
 						// Store medicine products separately for modal display
+						setAllFetchedProducts(allProducts);
 						setMedicineProducts(allProducts);
 
 						// Convert products to display-friendly format
@@ -766,6 +810,93 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
       setLoading(false);
     }
   }, [slug]);
+
+  // Fetch next page of products for infinite scroll
+  const fetchMoreProducts = useCallback(async () => {
+    if (isLoadingMore || !hasMoreProducts || !dispensary?.id) return;
+
+    setIsLoadingMore(true);
+    try {
+      const nextPage = currentPage + 1;
+      const productApi = await axios.get(
+        `/api/business/get-business-page-products/?page_id=${dispensary.id}&page=${nextPage}&limit=30`
+      );
+
+      if (productApi.data?.status === 'success' && productApi.data.data?.products) {
+        const apiProducts: APIProduct[] = productApi.data.data.products;
+        const totalProducts = productApi.data.data.total || 0;
+        const currentTotal = allFetchedProducts.length;
+
+        // Check if more products available
+        setHasMoreProducts(currentTotal + apiProducts.length < totalProducts);
+        setCurrentPage(nextPage);
+
+        // Convert new products to MedicineProduct
+        const newProducts = apiProducts
+          .filter((prod) => prod.enable_product === '1' && prod.name)
+          .map((prod) => ({
+            product_id: String(prod.product_id ?? ''),
+            name: prod.name ?? 'Unknown Product',
+            cat_name: (prod.cat_name && String(prod.cat_name).trim() 
+              ? String(prod.cat_name).trim() 
+              : 'Uncategorized'),
+            value1: String(prod.value1 ?? prod.med_value?.split(',')[0] ?? 'Each'),
+            value2: String(prod.value2 ?? prod.i_price ?? prod.p_offer_price ?? '0'),
+            image: prod.med_image_path ?? prod.med_image ?? null,
+            med_image_url: prod.med_image_path ?? prod.med_image ?? null,
+            med_img: prod.med_image_path ?? prod.med_image ?? null,
+            med_type: String(prod.med_type ?? '0'),
+            med_value: prod.med_value ?? '',
+            thc: String(prod.thc ?? ''),
+            cbd: String(prod.cbd ?? ''),
+            terepenes: String(prod.terepenes ?? ''),
+            text_parsed: String(prod.text_parsed ?? ''),
+            strain: prod.strain ?? '',
+            strain_cat: prod.strain_cat ?? '',
+            org_value1: String(prod.value1 ?? 'Each'),
+            org_value2: String(prod.value2 ?? prod.i_price ?? '0'),
+            business_name: dispensary?.name ?? '',
+            brand_name: null,
+            flavors: prod.flavors ?? [],
+            quantity: prod.quantity ?? prod.i_onhand ?? '0',
+            in_stock: prod.enable_product === '1',
+          })) as MedicineProduct[];
+
+        // Combine old + new products
+        const combinedMedicineProducts = [...allFetchedProducts, ...newProducts];
+        setAllFetchedProducts(combinedMedicineProducts);
+        setMedicineProducts(combinedMedicineProducts);
+      }
+    } catch (error) {
+      console.error('Error fetching more products:', error);
+      toast.error('Failed to load more products');
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [dispensary?.id, currentPage, isLoadingMore, hasMoreProducts, allFetchedProducts]);
+
+  // Infinite scroll - observe when reaching bottom
+  useEffect(() => {
+    if (!observerRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreProducts && !isLoadingMore) {
+          fetchMoreProducts();
+        }
+      },
+      {
+        rootMargin: '200px', // Start loading 200px before reaching bottom
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(observerRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [hasMoreProducts, isLoadingMore, fetchMoreProducts]);
 
   useEffect(() => {
     if (slug) fetchDispensary();
@@ -1404,6 +1535,23 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                   ))}
                 </div>
               )}
+
+              {/* Infinite Scroll Loading Indicator & Observer Target */}
+              <div ref={observerRef} className="w-full py-8 flex justify-center">
+                {isLoadingMore && (
+                  <div className="flex flex-col items-center gap-2">
+                    <Loader2 className="w-6 h-6 animate-spin text-teal-600" />
+                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                      Loading more products...
+                    </p>
+                  </div>
+                )}
+                {!hasMoreProducts && sortedAndFilteredProducts.length > 30 && (
+                  <p className={`text-sm ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                    All products loaded ({sortedAndFilteredProducts.length} total)
+                  </p>
+                )}
+              </div>
             </div>
           )}
 

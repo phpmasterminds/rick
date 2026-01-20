@@ -88,6 +88,7 @@ interface Order {
   wholesale_order?: string | number;
   sample_order?: string | number;
   to_address_detail_f_locs?: {
+	trade_name?: string;
     title?: string;
     locs_city?: string;
     locs_zip?: string;
@@ -95,18 +96,24 @@ interface Order {
     locs_phone?: string;
     locs_email?: string;
     locs_state?: string;
+    license_number?: string;
     full_name?: string;
     pages_image_url?: string;
+	invoice_logo?: string;
   };
   from_address_detail_f_locs?: {
+	trade_name?: string;
     title?: string;
     locs_city?: string;
     locs_zip?: string;
+    locs_state?: string;
+    license_number?: string;
     locs_street?: string;
     locs_phone?: string;
     locs_email?: string;
     full_name?: string;
 	pages_image_url?: string;
+	invoice_logo?: string;
   };
   cart?: CartItem[];
 }
@@ -411,7 +418,7 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
 
   const handleGenerateInvoicePDF = () => {
     if (order) {
-      generateInvoicePDF(order, readableName, order.to_address_detail_f_locs?.pages_image_url);
+      generateInvoicePDF(order, readableName, order.to_address_detail_f_locs?.invoice_logo || order.to_address_detail_f_locs?.pages_image_url);
       setShowDropdown(false);
       toast.success('Invoice PDF opened for printing');
     }
@@ -419,7 +426,7 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
 
   const handleGenerateManifestPDF = () => {
     if (order) {
-      generateShippingManifestPDF(order, readableName, order.to_address_detail_f_locs?.pages_image_url);
+      generateShippingManifestPDF(order, readableName, order.to_address_detail_f_locs?.invoice_logo || order.to_address_detail_f_locs?.pages_image_url);
       setShowDropdown(false);
       toast.success('Shipping Manifest opened for printing');
     }
@@ -427,7 +434,7 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
 
   const handleGeneratePackListPDF = () => {
     if (order) {
-      generatePackListPDF(order, readableName, order.to_address_detail_f_locs?.pages_image_url);
+      generatePackListPDF(order, readableName, order.to_address_detail_f_locs?.invoice_logo || order.to_address_detail_f_locs?.pages_image_url);
       setShowDropdown(false);
       toast.success('Pack List opened for printing');
     }
@@ -638,7 +645,7 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
 
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Order #{order.order_id}</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">{order.from_address_detail_f_locs?.title ?? 'N/A'}</p>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">{order.from_address_detail_f_locs?.trade_name || order.from_address_detail_f_locs?.title || '—'}</p>
           </div>
 
           {/* Dropdown Menu Button */}
@@ -865,14 +872,24 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
               {/* Customer Information */}
               <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                  <User size={20} /> Customer Information
+                  <User size={20} /> Seller Information
                 </h3>
                 <div className="space-y-4">
                   <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                    <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Name</p>
-                    <p className="text-gray-900 dark:text-gray-100 font-medium">
-                      {order.full_name || `${order.contact_fname || ''} ${order.contact_lname || ''}`.trim() || 'N/A'}
-                    </p>
+                    {order.from_address_detail_f_locs ? (
+					  <>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">
+						  {order.from_address_detail_f_locs.trade_name || order.from_address_detail_f_locs.title || 'N/A'}
+						</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_street}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_city}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_state || ''}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_zip}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.license_number}</p>
+					  </>
+					) : (
+					  <p className="text-gray-900 dark:text-gray-100 font-medium">No address details available</p>
+					)}
                   </div>
                   {order.account_name && (
                     <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
@@ -1377,9 +1394,7 @@ export default function PageContent({ business, orderId, typeid }: PageContentPr
           <MapPin size={20} /> Shipping Address
         </h3>
         <div className="space-y-2">
-          {order.contact_address && (
-            <p className="text-gray-900 dark:text-gray-100 font-medium">{order.contact_address}</p>
-          )}
+          <p className="text-gray-900 dark:text-gray-100 font-medium">{order.to_address_detail_f_locs?.trade_name || order.to_address_detail_f_locs?.title || ''}</p>
           {order.to_address_detail_f_locs && (
             <>
               {order.to_address_detail_f_locs.locs_street && (

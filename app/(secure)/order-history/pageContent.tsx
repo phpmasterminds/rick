@@ -28,6 +28,7 @@ const ORDER_STEPS: { [key: number]: string } = {
   7: 'Canceled',
   8: 'Completed',
   9: 'POD',
+  10: 'Packaged',
 };
 
 const STATUS_COLORS: { [key: string]: string } = {
@@ -40,6 +41,7 @@ const STATUS_COLORS: { [key: string]: string } = {
   'Canceled': 'bg-red-100 text-red-700',
   'Completed': 'bg-emerald-100 text-emerald-700',
   'POD': 'bg-teal-100 text-teal-700',
+  'Packaged': 'bg-teal-100 text-teal-700',
 };
 
 const STATUS_DROPDOWN_COLORS: { [key: string]: string } = {

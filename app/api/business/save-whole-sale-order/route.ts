@@ -10,6 +10,7 @@ export async function GET(req: Request) {
 	const { searchParams } = new URL(req.url);
 	const business = searchParams.get("business");
 	const order_id = searchParams.get("order_id");
+	const curpage = searchParams.get("curpage");
 	const page = searchParams.get("page") || "1";
 	const is_from = searchParams.get("is_from") || "pos";
 	const limit = searchParams.get("limit") || "10";
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
 	const open_orders = searchParams.get("open_orders") || "";
 
     // 🔹 Replace this with your external API path
-    const response = await axios.get("/business/whole-sale-order",{params: { business, page, is_from, limit, wholesale, status, open_orders  }});
+    const response = await axios.get("/business/whole-sale-order",{params: { business, page, is_from, limit, wholesale, status, open_orders, curpage  }});
 
     return NextResponse.json(response.data);
   } catch (error: any) {
