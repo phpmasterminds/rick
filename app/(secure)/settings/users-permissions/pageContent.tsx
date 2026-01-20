@@ -63,6 +63,7 @@ interface UserRequestBody {
 const PERMISSION_OPTIONS = [
   'Can Manage Business Pages',
   'Can Access Inventory',
+  'Can Access Production Packaging',
   'Can Access METRC',
   'Can Access CRM',
   'Can Access Settings',
@@ -164,6 +165,7 @@ export default function UsersPage({ business }: UserListPageProps) {
             row.can_access_crm === '1' && 'Can Access CRM',
             row.can_access_settings_page === '1' && 'Can Access Settings',
             row.can_access_marketplace_orders === '1' && 'Can Access Marketplace Orders',
+            row.can_access_production_packaging === '1' && 'Can Access Production Packaging',
             /*row.is_sales_person === '1' && 'Is Sales Person',
             row.is_reg_cashier === '1' && 'Is Registered Cashier',
             row.can_view_products === '1' && 'Can View Products',
@@ -244,6 +246,7 @@ export default function UsersPage({ business }: UserListPageProps) {
         can_access_crm: formData.permissions.includes('Can Access CRM') ? '1' : '0',
         can_access_settings_page: formData.permissions.includes('Can Access Settings') ? '1' : '0',
         can_access_marketplace_orders: formData.permissions.includes('Can Access Marketplace Orders') ? '1' : '0',
+        can_access_production_packaging: formData.permissions.includes('Can Access Production Packaging') ? '1' : '0',
         /*is_sales_person: formData.permissions.includes('Is Sales Person') ? '1' : '0',
         is_reg_cashier: formData.permissions.includes('Is Registered Cashier') ? '1' : '0',
         can_view_products: formData.permissions.includes('Can View Products') ? '1' : '0',
