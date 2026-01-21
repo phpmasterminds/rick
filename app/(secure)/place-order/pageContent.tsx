@@ -404,7 +404,7 @@ export default function WholesaleOrderPage() {
     updatedItems[index].subtotal = updatedItems[index].unit_price * newQuantity;
     setOrderItems(updatedItems);
   };
-
+console.log(customers);
   const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
   const orderTotal = subtotal + shippingFee;
 

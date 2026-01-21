@@ -82,6 +82,10 @@ interface Order {
     page_id: string;
     user_id: string;
   };
+  to_address_detail_t_locs?: {
+	trade_name?: string;
+    title?: string;
+  };
   age: string;
   birthday?: string;
   cart: CartItem[];
@@ -275,7 +279,7 @@ const PackagingDetailModal: React.FC<{
               </div>
               <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                 <p className="text-xs uppercase text-gray-600 dark:text-gray-400 font-semibold">Customer</p>
-                <p className="text-lg font-bold text-gray-900 dark:text-gray-100 mt-1">{order.full_name}</p>
+                <p className="text-lg font-bold text-gray-900 dark:text-gray-100 mt-1">{order.to_address_detail_t_locs?.trade_name || order.to_address_detail_t_locs?.title || '—'}</p>
               </div>
               <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
                 <p className="text-xs uppercase text-gray-600 dark:text-gray-400 font-semibold">Total Items</p>
@@ -753,7 +757,7 @@ export default function OrdersPageContent({ business = 'dispensary' }: { busines
                         </p>
                       </td>
                       <td className="px-6 py-4">
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">{order.full_name}</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">{order.to_address_detail_t_locs?.trade_name || order.to_address_detail_t_locs?.title || '—'}</p>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
                         {new Date().toLocaleDateString()}

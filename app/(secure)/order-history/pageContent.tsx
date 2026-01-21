@@ -78,9 +78,12 @@ interface Order {
     locs_city?: string;
     locs_zip?: string;
     locs_street?: string;
+	 trade_name?: string;
+    title?: string;
   };
   seller_information?: {
     title?: string;
+	trade_name?: string;
   };
 }
 
@@ -975,7 +978,24 @@ export default function OrderPageContent({ business, typeid }: { business: strin
                     </td>
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">{typeid === '20' ? order.seller_information?.title ?? "N/A" : order.full_name}</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">
+						{typeid === '20'
+						  ? (order.seller_information?.trade_name
+							  ?? order.seller_information?.title
+							  ?? 'N/A')
+						  : (order.to_address_detail_t_locs?.trade_name
+							  ?? order.to_address_detail_t_locs?.title
+							  ?? 'N/A')
+						}
+
+						
+						</p>
+						{typeid !== '20' && (
+						  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+							{order?.full_name || '—'}
+						  </p>
+						)}
+
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Sales Reps: {order.sales_person_name || '-'}</p>{/*
                         <div className="flex gap-1 mt-2">
                           <span className="inline-block bg-yellow-300 text-yellow-900 text-xs px-2 py-0.5 rounded font-bold">

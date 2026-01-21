@@ -46,6 +46,7 @@ const STATUS_COLORS: { [key: string]: string } = {
 };
 
 interface SellerInformation {
+  trade_name?: string;
   title?: string;
 }
 
@@ -71,6 +72,8 @@ interface Order {
     locs_city?: string;
     locs_zip?: string;
     locs_street?: string;
+    trade_name?: string;
+    title?: string;
   };
 }
 
@@ -878,7 +881,12 @@ export default function OrderPageContent({ business, typeid }: { business: strin
                     </td>
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">{order.seller_information?.title ?? 'N/A'}</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">
+							{order.seller_information?.trade_name
+							  ?? order.seller_information?.title
+							  ?? 'N/A'}
+
+						</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Sales Reps: {order.sales_person_name || '-'}</p>{/*
                         <div className="flex gap-1 mt-2">
                           <span className="inline-block bg-yellow-300 text-yellow-900 text-xs px-2 py-0.5 rounded font-bold">

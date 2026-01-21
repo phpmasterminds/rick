@@ -511,18 +511,32 @@ export default function Sidebar({
     return [
       // General seller menus
       { id: "dashboard", icon: Home, label: "Dashboard", path: "/dashboard" },
+	  { id: "messages", icon: Megaphone, label: "Messages", path: "/messages" },
 	  { id: "customers", icon: Users, label: "My Customers", path: "/customers" },
-      { id: "messages", icon: Megaphone, label: "Messages", path: "/messages" },
-      { id: "inventory", icon: Package, label: "Inventory", path: "/inventory" },
-	  { id: "pricing", icon: CreditCard, label: "Pricing & Discounts", path: "/pricing" },
-      { id: "preview-catalog", icon: Box, label: "Preview Catalog", path: "/preview-catalog" },
-      { id: "place-order", icon: ShoppingCart, label: "Place Order", path: "/place-order" },
-      { id: "new-orders", icon: ClipboardList, label: "New Orders", path: "/new-orders" },
-      { id: "order-history", icon: FileText, label: "Order History", path: "/order-history" },      
-      { id: "production-packing", icon: PackageCheck, label: "Production Packaging", path: "/production-packing" },      
+	  {
+        id: "orders",
+        icon: ClipboardList,
+        label: "Orders",
+        submenu: [
+          { id: "place-order", label: "Place Order", path: "/place-order" },/*icon: ShoppingCart,*/
+		  { id: "new-orders", label: "New Orders", path: "/new-orders" },/*icon: ClipboardList,*/
+		  { id: "production-packing", label: "Packaging", path: "/production-packing" },/*icon: PackageCheck,*/
+		  { id: "order-history", label: "Order History", path: "/order-history" },      /*icon: FileText,*/
+        ],
+      },
+	  {
+        id: "catalog-inventory",
+        icon: Package,
+        label: "Catalog & Inventory",
+        submenu: [
+          { id: "inventory", label: "Inventory", path: "/inventory" },/*icon: Package,*/
+		  { id: "pricing", label: "Promotions and Discount", path: "/pricing" },/*icon: CreditCard,*/
+		  { id: "preview-catalog", label: "My Marketplace", path: "/preview-catalog" },      /*icon: Box,*/
+        ],
+      },
       { id: "metrc", icon: Folder, label: "Metrc", path: "/metrc" },
       { id: "reports", icon: BarChart, label: "Reports & Analytics", path: "/reports" },
-      { id: "preview-business", icon: Briefcase, label: "Preview Business", path: "/preview-business" },
+      { id: "preview-business", icon: Briefcase, label: "My Public Page", path: "/preview-business" },
       {
         id: "settings",
         icon: Settings,
@@ -1142,7 +1156,7 @@ export default function Sidebar({
               <button
                 type="button"
                 onClick={() => handleMenuClick(item)}
-                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 text-sm rounded-lg transition-all duration-200 ${
                   isCollapsed ? "justify-center" : "justify-start"
                 }`}
                 title={isCollapsed ? item.label : ""}
