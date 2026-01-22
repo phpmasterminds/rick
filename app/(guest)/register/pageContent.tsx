@@ -532,7 +532,7 @@ export default function RegistrationPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8 px-4 mt-16">
       <div className="max-w-4xl mx-auto">
         {!registrationComplete && (
           <div className="bg-white rounded-t-2xl shadow-lg p-8 border-b border-gray-200">

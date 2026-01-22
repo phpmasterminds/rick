@@ -1,0 +1,368 @@
+.cta-nav {
+	background: var(--forest-700);
+	color: var(--warm-white) !important;
+	padding: 0.65rem 1.5rem;
+	border-radius: 6px;
+	transition: all 0.3s ease;
+}
+
+.cta-nav:hover {
+	background: var(--forest-800);
+	transform: translateY(-2px);
+	box-shadow: 0 4px 12px rgba(36, 112, 85, 0.25);
+}
+
+.cta-nav::after {
+	display: none;
+}
+
+/* Hero Section */
+.hero {
+	margin-top: 80px;
+	padding: 4rem 2rem;
+	background: linear-gradient(135deg, var(--forest-700) 0%, var(--forest-600) 100%);
+	text-align: center;
+}
+
+.hero-container {
+	max-width: 900px;
+	margin: 0 auto;
+}
+
+.hero h1 {
+	font-family: 'Crimson Pro', serif;
+	font-size: 3.5rem;
+	font-weight: 600;
+	line-height: 1.15;
+	color: var(--warm-white);
+	margin-bottom: 1.5rem;
+	letter-spacing: -1px;
+}
+
+.hero-subtitle {
+	font-size: 1.3rem;
+	color: var(--sage-300);
+	line-height: 1.7;
+}
+
+.savings-banner {
+	display: inline-block;
+	background: rgba(212, 165, 116, 0.2);
+	color: var(--accent-amber);
+	padding: 0.75rem 1.5rem;
+	border-radius: 50px;
+	font-size: 1.1rem;
+	font-weight: 700;
+	margin-top: 1.5rem;
+	border: 2px solid var(--accent-amber);
+}
+
+/* Pricing Plans */
+.pricing-plans {
+	padding: 6rem 2rem;
+	background: var(--warm-white);
+}
+
+.section-tag {
+	color: var(--forest-700);
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 2px;
+	font-size: 0.85rem;
+	margin-bottom: 1rem;
+	display: block;
+	text-align: center;
+}
+
+.pricing-plans h2, .additional-services h2, .cta-section h2 {
+	font-family: 'Crimson Pro', serif;
+	font-size: 2.75rem;
+	font-weight: 600;
+	color: var(--forest-900);
+	margin-bottom: 1.5rem;
+	letter-spacing: -0.5px;
+	text-align: center;
+}
+
+.section-description {
+	font-size: 1.15rem;
+	color: var(--earth-500);
+	line-height: 1.8;
+	text-align: center;
+	max-width: 800px;
+	margin: 0 auto 4rem;
+}
+
+.plans-container {
+	max-width: 1200px;
+	margin: 0 auto;
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+	gap: 2.5rem;
+}
+
+.plan-card {
+	background: linear-gradient(135deg, rgba(246, 244, 240, 0.9) 0%, rgba(255, 255, 255, 0.9) 100%);
+	padding: 3rem 2.5rem;
+	border-radius: 16px;
+	border: 2px solid rgba(107, 144, 128, 0.2);
+	transition: all 0.4s ease;
+	position: relative;
+}
+
+.plan-card:hover {
+	transform: translateY(-10px);
+	box-shadow: 0 25px 50px rgba(13, 59, 46, 0.2);
+	border-color: var(--forest-700);
+}
+
+.plan-card.featured {
+	border-color: var(--forest-700);
+	background: linear-gradient(135deg, var(--sage-300) 0%, rgba(204, 227, 222, 0.7) 100%);
+}
+
+.plan-badge {
+	position: absolute;
+	top: -15px;
+	left: 50%;
+	transform: translateX(-50%);
+	background: var(--forest-700);
+	color: var(--warm-white);
+	padding: 0.5rem 1.5rem;
+	border-radius: 50px;
+	font-size: 0.85rem;
+	font-weight: 700;
+	letter-spacing: 0.5px;
+}
+
+.plan-name {
+	font-family: 'Crimson Pro', serif;
+	font-size: 2rem;
+	font-weight: 600;
+	color: var(--forest-900);
+	margin-bottom: 1rem;
+	text-align: center;
+}
+
+.plan-price {
+	text-align: center;
+	margin-bottom: 2rem;
+}
+
+.price-amount {
+	font-family: 'Crimson Pro', serif;
+	font-size: 3rem;
+	font-weight: 600;
+	color: var(--forest-800);
+}
+
+.price-period {
+	font-size: 1.1rem;
+	color: var(--earth-500);
+}
+
+.plan-description {
+	text-align: center;
+	color: var(--earth-700);
+	margin-bottom: 2rem;
+	line-height: 1.7;
+}
+
+.plan-features {
+	list-style: none;
+	margin-bottom: 2.5rem;
+}
+
+.plan-features li {
+	padding: 0.85rem 0;
+	color: var(--earth-700);
+	border-bottom: 1px solid rgba(107, 144, 128, 0.15);
+	position: relative;
+	padding-left: 2rem;
+}
+
+.plan-features li:last-child {
+	border-bottom: none;
+}
+
+.plan-features li::before {
+	content: '✓';
+	position: absolute;
+	left: 0;
+	color: var(--forest-700);
+	font-weight: 700;
+	font-size: 1.2rem;
+}
+
+.btn-plan {
+	width: 100%;
+	padding: 1.1rem 2rem;
+	border: none;
+	border-radius: 8px;
+	font-family: 'DM Sans', sans-serif;
+	font-size: 1.05rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	text-decoration: none;
+	display: block;
+	text-align: center;
+}
+
+.btn-plan-primary {
+	background: var(--forest-700);
+	color: var(--warm-white);
+}
+
+.btn-plan-primary:hover {
+	background: var(--forest-800);
+	transform: translateY(-2px);
+	box-shadow: 0 6px 20px rgba(36, 112, 85, 0.3);
+}
+
+.btn-plan-secondary {
+	background: transparent;
+	color: var(--forest-800);
+	border: 2px solid var(--forest-700);
+}
+
+.btn-plan-secondary:hover {
+	background: var(--forest-700);
+	color: var(--warm-white);
+}
+
+/* Additional Services */
+.additional-services {
+	padding: 6rem 2rem;
+	background: linear-gradient(135deg, var(--cream) 0%, var(--sage-300) 100%);
+}
+
+.services-container {
+	max-width: 1200px;
+	margin: 0 auto;
+}
+
+.services-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+	gap: 2.5rem;
+	margin-top: 4rem;
+}
+
+.service-card {
+	background: rgba(255, 255, 255, 0.95);
+	padding: 2.5rem;
+	border-radius: 16px;
+	border: 1px solid rgba(107, 144, 128, 0.2);
+	transition: all 0.3s ease;
+}
+
+.service-card:hover {
+	transform: translateY(-5px);
+	box-shadow: 0 15px 35px rgba(13, 59, 46, 0.15);
+}
+
+.service-icon {
+	width: 60px;
+	height: 60px;
+	background: linear-gradient(135deg, var(--forest-700), var(--sage-500));
+	border-radius: 12px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 1.5rem;
+	font-size: 1.8rem;
+}
+
+.service-title {
+	font-family: 'Crimson Pro', serif;
+	font-size: 1.6rem;
+	font-weight: 600;
+	color: var(--forest-900);
+	margin-bottom: 1rem;
+}
+
+.service-description {
+	color: var(--earth-700);
+	line-height: 1.7;
+	margin-bottom: 1.5rem;
+}
+
+.service-link {
+	color: var(--forest-700);
+	font-weight: 600;
+	text-decoration: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	transition: gap 0.3s ease;
+}
+
+.service-link:hover {
+	gap: 0.75rem;
+}
+
+/* CTA Section */
+.cta-section {
+	padding: 6rem 2rem;
+	background: var(--forest-800);
+	color: var(--warm-white);
+}
+
+.cta-container {
+	max-width: 900px;
+	margin: 0 auto;
+	text-align: center;
+}
+
+.cta-container h2 {
+	color: var(--warm-white);
+	margin-bottom: 1.5rem;
+}
+
+.cta-container .section-description {
+	color: var(--sage-300);
+	margin-bottom: 2.5rem;
+}
+
+.cta-buttons {
+	display: flex;
+	gap: 1rem;
+	justify-content: center;
+	flex-wrap: wrap;
+}
+
+.btn {
+	padding: 1.1rem 2.5rem;
+	border: none;
+	border-radius: 8px;
+	font-size: 1.05rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.3s ease;
+	text-decoration: none;
+	display: inline-block;
+	font-family: 'DM Sans', sans-serif;
+}
+
+.btn-primary {
+	background: var(--accent-amber);
+	color: var(--forest-900);
+}
+
+.btn-primary:hover {
+	background: var(--warm-white);
+	transform: translateY(-3px);
+	box-shadow: 0 6px 20px rgba(212, 165, 116, 0.4);
+}
+
+.btn-secondary {
+	background: transparent;
+	color: var(--sage-300);
+	border: 2px solid var(--sage-400);
+}
+
+.btn-secondary:hover {
+	background: var(--sage-400);
+	color: var(--forest-900);
+}

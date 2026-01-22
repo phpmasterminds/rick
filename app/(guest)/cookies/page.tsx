@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import PageContent from "./pageContent"; 
 
 export const metadata: Metadata = {
-  title: "Terms of Service - Nature's High",
+  title: "Cookies - Nature's High",
 
   description:
-    "Nature's High Terms of Service - Legal terms and conditions for using our B2B cannabis wholesale marketplace platform.",
+    "Nature's High Cookies Service - Legal terms and conditions for using our B2B cannabis wholesale marketplace platform.",
 	
   authors: [{ name: "Nature's High" }],
 };
