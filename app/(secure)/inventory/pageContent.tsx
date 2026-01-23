@@ -1707,7 +1707,7 @@ console.log(rowData);
 							)}
 						  </div>
 
-						  {/* 🔍 Hover Preview */}
+						  {/* 🔍 Hover Preview 
 						  {product.med_image && (
 							<div className="absolute left-14 top-1/2 z-50 hidden group-hover:block -translate-y-1/2">
 							  <div className="w-40 h-40 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -1718,7 +1718,7 @@ console.log(rowData);
 								/>
 							  </div>
 							</div>
-						  )}
+						  )}*/}
 						</div>
 
                         <div>

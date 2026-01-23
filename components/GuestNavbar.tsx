@@ -2,12 +2,19 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import Cookies from 'js-cookie';
+
 
 export default function GuestNavbar() {
   const pathname = usePathname();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const isActive = (path: string) => pathname === path;
-
+	useEffect(() => {
+    setIsLoggedIn(!!Cookies.get('user_id'));
+  }, []);
+  
   return (
     <nav>
       <div className="nav-container">
@@ -57,7 +64,8 @@ export default function GuestNavbar() {
               Contact
             </Link>
           </li>
-
+			{!isLoggedIn && (
+            <>
           <li>
             <Link href="/login">Login</Link>
           </li>
@@ -67,6 +75,13 @@ export default function GuestNavbar() {
               Start Free Trial
             </Link>
           </li>
+		   </>
+          )}
+		  {isLoggedIn && (
+			  <li>
+				<Link href="/dashboard">Dashboard</Link>
+			  </li>
+			)}
         </ul>
       </div>
     </nav>

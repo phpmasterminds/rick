@@ -17,6 +17,8 @@ interface Customer {
   billing_city: string;
   billing_state: string;
   billing_postal_code: string;
+  trade_name: string;
+  title: string;
   detail: {
 	  contact_address: string;
 	  contact_city: string;
@@ -500,7 +502,7 @@ console.log(customers);
                 >
                   <span>
                     {selectedCustomer
-                      ? `${selectedCustomer.contact_name} (${selectedCustomer.contact_email})`
+					? `${selectedCustomer?.trade_name || selectedCustomer?.title} (${selectedCustomer.contact_name})`
                       : 'Select a customer...'}
                   </span>
                   <ChevronDown size={20} />
@@ -524,10 +526,10 @@ console.log(customers);
                           className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0 text-gray-900 dark:text-gray-100 transition"
                         >
                           <div className="font-medium">
-                            {customer.contact_name}
+                            {customer.trade_name || customer.title}
                           </div>
                           <div className="text-sm text-gray-600 dark:text-gray-400">
-                            {customer.contact_name} - {customer.contact_email}
+                            {customer.contact_name}
                           </div>
                         </button>
                       ))

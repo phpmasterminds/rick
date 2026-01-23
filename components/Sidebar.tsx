@@ -530,7 +530,7 @@ export default function Sidebar({
         label: "Catalog & Inventory",
         submenu: [
           { id: "inventory", label: "Inventory", path: "/inventory" },/*icon: Package,*/
-		  { id: "pricing", label: "Promotions and Discount", path: "/pricing" },/*icon: CreditCard,*/
+		  { id: "promotion-discount", label: "Promotions and Discount", path: "/promotion-discount" },/*icon: CreditCard,*/
 		  { id: "preview-catalog", label: "My Marketplace", path: "/preview-catalog" },      /*icon: Box,*/
         ],
       },

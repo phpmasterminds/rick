@@ -424,7 +424,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 
   const handleGenerateInvoicePDF = () => {
     if (order) {
-      generateInvoicePDF(order, readableName, order.to_address_detail_f_locs?.invoice_logo || order.to_address_detail_f_locs?.pages_image_url);
+      generateInvoicePDF(order, readableName, order.from_address_detail_f_locs?.invoice_logo || order.from_address_detail_f_locs?.pages_image_url);
       setShowDropdown(false);
       toast.success('Invoice PDF opened for printing');
     }
@@ -432,7 +432,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 
   const handleGenerateManifestPDF = () => {
     if (order) {
-      generateShippingManifestPDF(order, readableName, order.to_address_detail_f_locs?.invoice_logo || order.to_address_detail_f_locs?.pages_image_url);
+      generateShippingManifestPDF(order, readableName, order.from_address_detail_f_locs?.invoice_logo || order.from_address_detail_f_locs?.pages_image_url);
       setShowDropdown(false);
       toast.success('Shipping Manifest opened for printing');
     }
@@ -440,7 +440,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 
   const handleGeneratePackListPDF = () => {
     if (order) {
-      generatePackListPDF(order, readableName, order.to_address_detail_f_locs?.invoice_logo || order.to_address_detail_f_locs?.pages_image_url);
+      generatePackListPDF(order, readableName, order.from_address_detail_f_locs?.invoice_logo || order.from_address_detail_f_locs?.pages_image_url);
       setShowDropdown(false);
       toast.success('Pack List opened for printing');
     }
@@ -666,9 +666,9 @@ export default function PageContent({ business, orderId }: PageContentProps) {
           </Link>
 
           {/* Business Logo */}
-          {order.to_address_detail_f_locs?.pages_image_url && (
+          {order.from_address_detail_f_locs?.pages_image_url && (
             <img
-              src={order.to_address_detail_f_locs.pages_image_url}
+              src={order.from_address_detail_f_locs.pages_image_url}
               alt={readableName}
               className="h-12 md:h-16 object-contain rounded"
             />

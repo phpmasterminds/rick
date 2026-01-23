@@ -209,6 +209,37 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
             box-shadow: none;
           }
         }
+		/* Screen + Print */
+.address-row-print {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.address-block-print {
+  display: table-cell;
+  width: 50%;
+  vertical-align: top;
+  padding-right: 20px;
+}
+
+.address-block-print h3 {
+  margin-top: 0;
+  font-size: 14px;
+}
+
+.address-block-print p {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+/* Print specific */
+@media print {
+  .address-row-print {
+    page-break-inside: avoid;
+  }
+}
+
       </style>
     </head>
     <body>
@@ -228,29 +259,30 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
         </div>
 
         <!-- Customer Info -->
-        <div>
-          ${order.from_address_detail_f_locs ? `
-            <div class="address-block">
-              <h3>Bill To</h3>
-              <p><strong>${order.from_address_detail_f_locs.trade_name || order.from_address_detail_f_locs.title || order.full_name || 'N/A'}</strong></p>
-              ${order.from_address_detail_f_locs.locs_street ? `<p>${order.from_address_detail_f_locs.locs_street}</p>` : ''}
-              <p>${order.from_address_detail_f_locs.locs_city || ''}, ${order.from_address_detail_f_locs.locs_state || ''} ${order.from_address_detail_f_locs.locs_zip || ''}</p>
-              ${order.from_address_detail_f_locs.locs_phone ? `<p>${order.from_address_detail_f_locs.locs_phone}</p>` : ''}
-              ${order.from_address_detail_f_locs.license_number ? `<p>${order.from_address_detail_f_locs.license_number}</p>` : ''}
-            </div>
-          ` : ''}
+		<div class="address-row-print">
+		  ${order.from_address_detail_f_locs ? `
+			<div class="address-block-print">
+			  <h3>Bill To</h3>
+			  <p><strong>${order.from_address_detail_f_locs.trade_name || order.from_address_detail_f_locs.title || order.full_name || 'N/A'}</strong></p>
+			  ${order.from_address_detail_f_locs.locs_street ? `<p>${order.from_address_detail_f_locs.locs_street}</p>` : ''}
+			  <p>${order.from_address_detail_f_locs.locs_city || ''}, ${order.from_address_detail_f_locs.locs_state || ''} ${order.from_address_detail_f_locs.locs_zip || ''}</p>
+			  ${order.from_address_detail_f_locs.locs_phone ? `<p>${order.from_address_detail_f_locs.locs_phone}</p>` : ''}
+			  ${order.from_address_detail_f_locs.license_number ? `<p>${order.from_address_detail_f_locs.license_number}</p>` : ''}
+			</div>
+		  ` : ''}
 
-          ${order.to_address_detail_f_locs ? `
-            <div class="address-block">
-              <h3>Ship To</h3>
-              <p><strong>${order.to_address_detail_f_locs.trade_name || order.to_address_detail_f_locs.title || order.full_name || 'N/A'}</strong></p>
-              ${order.to_address_detail_f_locs.locs_street ? `<p>${order.to_address_detail_f_locs.locs_street}</p>` : ''}
-              <p>${order.to_address_detail_f_locs.locs_city || ''}, ${order.to_address_detail_f_locs.locs_state || ''} ${order.to_address_detail_f_locs.locs_zip || ''}</p>
-              ${order.to_address_detail_f_locs.locs_phone ? `<p>${order.to_address_detail_f_locs.locs_phone}</p>` : ''}
-              ${order.to_address_detail_f_locs.license_number ? `<p>${order.to_address_detail_f_locs.license_number}</p>` : ''}
-            </div>
-          ` : ''}
-        </div>
+		  ${order.to_address_detail_f_locs ? `
+			<div class="address-block-print">
+			  <h3>Ship To</h3>
+			  <p><strong>${order.to_address_detail_f_locs.trade_name || order.to_address_detail_f_locs.title || order.full_name || 'N/A'}</strong></p>
+			  ${order.to_address_detail_f_locs.locs_street ? `<p>${order.to_address_detail_f_locs.locs_street}</p>` : ''}
+			  <p>${order.to_address_detail_f_locs.locs_city || ''}, ${order.to_address_detail_f_locs.locs_state || ''} ${order.to_address_detail_f_locs.locs_zip || ''}</p>
+			  ${order.to_address_detail_f_locs.locs_phone ? `<p>${order.to_address_detail_f_locs.locs_phone}</p>` : ''}
+			  ${order.to_address_detail_f_locs.license_number ? `<p>${order.to_address_detail_f_locs.license_number}</p>` : ''}
+			</div>
+		  ` : ''}
+		</div>
+
 
         <!-- Items Table -->
         <div class="section-header">Order Items</div>
