@@ -23,10 +23,12 @@ const ORDER_STEPS: { [key: number]: string } = {
   3: 'Order Approved',
   4: 'Pending',
   5: 'Processing',
+  10: 'Packaged',
   6: 'Shipped',
   7: 'Canceled',
   8: 'Completed',
-  9: 'POD',
+  //9: 'POD',
+  
 };
 
 const STATUS_BADGE_COLORS: { [key: string]: string } = {
@@ -35,10 +37,11 @@ const STATUS_BADGE_COLORS: { [key: string]: string } = {
   'Order Approved': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
   'Pending': 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
   'Processing': 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  'Packaged': 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
   'Shipped': 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400',
   'Canceled': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
   'Completed': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  'POD': 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+  //'POD': 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
 };
 
 interface CartItem {
@@ -70,6 +73,7 @@ interface Order {
   cart_cost: string;
   cart_tax_cost?: string | null;
   shipping_cost: string;
+  invoice_discount?: string;
   order_time: string;
   order_update_time?: string;
   order_status: string;
@@ -477,7 +481,8 @@ export default function PageContent({ business, orderId }: PageContentProps) {
       //const taxCost = (4.5 / 100) * subtotal;
       const taxCost = 0;
       const shippingCost = parseFloat(editFormData.shipping_cost || order.shipping_cost || '0');
-      const totalCost = subtotal + taxCost + shippingCost;
+      const invoiceDiscount = parseFloat(editFormData.invoice_discount || order.invoice_discount || '0');
+      const totalCost = subtotal + taxCost + shippingCost - invoiceDiscount;
 
       // Build cart items array with new quantities
       const cartItems = editFormData.cart || order.cart;
@@ -489,6 +494,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
         cart: cartItems,
         tax_cost: taxCost.toFixed(2),
         shipping_cost: shippingCost.toFixed(2),
+        invoice_discount: invoiceDiscount.toFixed(2),
         total_cost: totalCost.toFixed(2),
       });
 
@@ -501,6 +507,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
           cart_cost: subtotal.toFixed(2),
           cart_tax_cost: taxCost.toFixed(2),
           shipping_cost: shippingCost.toFixed(2),
+          invoice_discount: invoiceDiscount.toFixed(2),
           cart_total_cost: totalCost.toFixed(2),
         });
       }
@@ -860,9 +867,9 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 
       {/* Main Content Card */}
       <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden shadow-sm">
-        {/* Tabs */}
+        {/* Tabs shipping {tab === 'shipping' && '🚚 Shipping'} */}
         <div className="flex border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-800 overflow-x-auto">
-          {(['details', 'items', 'payments', 'shipping'] as const).map((tab) => (
+          {(['details', 'items', 'payments'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -875,7 +882,6 @@ export default function PageContent({ business, orderId }: PageContentProps) {
               {tab === 'details' && '📋 Details'}
               {tab === 'items' && '📦 Items'}
               {tab === 'payments' && '💳 Payments'}
-              {tab === 'shipping' && '🚚 Shipping'}
             </button>
           ))}
         </div>
@@ -887,7 +893,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
               {/* Customer Information */}
               <div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-                  <User size={20} /> Seller Information
+                  <User size={20} /> Buyer Information
                 </h3>
                 <div className="space-y-4">
                   <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
@@ -895,13 +901,13 @@ export default function PageContent({ business, orderId }: PageContentProps) {
 					{order.from_address_detail_f_locs ? (
 					  <>
 						<p className="text-gray-900 dark:text-gray-100 font-medium">
-						  {order.from_address_detail_f_locs.trade_name || order.from_address_detail_f_locs.title || 'N/A'}
+						  {order.to_address_detail_f_locs?.trade_name || order.to_address_detail_f_locs?.title || 'N/A'}
 						</p>
-						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_street}</p>
-						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_city}</p>
-						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_state || ''}</p>
-						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.locs_zip}</p>
-						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.from_address_detail_f_locs?.license_number}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.to_address_detail_f_locs?.locs_street}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.to_address_detail_f_locs?.locs_city}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.to_address_detail_f_locs?.locs_state || ''}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.to_address_detail_f_locs?.locs_zip}</p>
+						<p className="text-gray-900 dark:text-gray-100 font-medium">{order.to_address_detail_f_locs?.license_number}</p>
 					  </>
 					) : (
 					  <p className="text-gray-900 dark:text-gray-100 font-medium">No address details available</p>
@@ -944,11 +950,49 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       ${parseFloat(order.cart_cost || '0').toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between">
+                  <div className="flex justify-between items-center">
                     <span className="text-gray-600 dark:text-gray-400">Shipping</span>
-                    <span className="font-semibold text-gray-900 dark:text-gray-100">
-                      ${parseFloat(order.shipping_cost || '0').toFixed(2)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      
+                      <button
+                        onClick={() => {
+                          setEditFormData({
+                            ...editFormData,
+                            shipping_cost: order.shipping_cost || '0'
+                          });
+                          setShowEditModal(true);
+                        }}
+                        className="ml-2 p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition"
+                        title="Edit Shipping Cost"
+                      >
+                        <Edit3 size={16} className="text-blue-600 dark:text-blue-400" />
+                      </button>
+					  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        ${parseFloat(order.shipping_cost || '0').toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Invoice Discount</span>
+                    <div className="flex items-center gap-2">
+                      
+                      <button
+                        onClick={() => {
+                          setEditFormData({
+                            ...editFormData,
+                            invoice_discount: order.invoice_discount || '0'
+                          });
+                          setShowEditModal(true);
+                        }}
+                        className="ml-2 p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition"
+                        title="Edit Invoice Discount"
+                      >
+                        <Edit3 size={16} className="text-blue-600 dark:text-blue-400" />
+                      </button>
+					  <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        ${parseFloat(order.invoice_discount || '0').toFixed(2)}
+                      </span>
+                    </div>
                   </div>
                   {/*{order.total_commission && (
                     <div className="flex justify-between">
@@ -975,9 +1019,10 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                         const subtotal = parseFloat(order.cart_cost || '0');
                         const shipping = parseFloat(order.shipping_cost || '0');
                         const commission = parseFloat(order.total_commission || '0');
+                        const discount = parseFloat(order.invoice_discount || '0');
                         //const tax = (4.5 / 100) * subtotal;
                         const tax = 0;
-                        const total = subtotal + shipping + commission + tax;
+                        const total = subtotal + shipping + commission + tax - discount;
                         return total.toFixed(2);
                       })()}
                     </span>
@@ -1534,6 +1579,22 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                         />
                       </div>
                     </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                        Invoice Discount
+                      </label>
+                      <div className="flex items-center">
+                        <span className="text-lg font-bold text-gray-700 dark:text-gray-300 mr-2">$</span>
+                        <input
+                          type="number"
+                          value={editFormData.invoice_discount || order.invoice_discount || '0'}
+                          onChange={(e) => setEditFormData({ ...editFormData, invoice_discount: e.target.value })}
+                          step="0.01"
+                          min="0"
+                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   {/* Right Column - Summary */}
@@ -1583,6 +1644,14 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       </span>
                     </div>
 
+                    {/* Invoice Discount */}
+                    <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
+                      <span className="text-gray-700 dark:text-gray-300 font-medium">Invoice Discount:</span>
+                      <span className="font-bold text-gray-900 dark:text-gray-100">
+                        -${(parseFloat(editFormData.invoice_discount || order?.invoice_discount || '0')).toFixed(2)}
+                      </span>
+                    </div>
+
                     {/* Commission 
                     {(editFormData.total_commission || order?.total_commission) && (
                       <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
@@ -1609,7 +1678,8 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                           const tax = (parseFloat(taxPercentage) / 100) * subtotal;
                           const shipping = parseFloat(editFormData.shipping_cost || order?.shipping_cost || '0');
                           const commission = parseFloat(editFormData.total_commission || order?.total_commission || '0');
-                          const total = subtotal + tax + shipping + commission;
+                          const discount = parseFloat(editFormData.invoice_discount || order?.invoice_discount || '0');
+                          const total = subtotal + tax + shipping + commission - discount;
                           return total.toFixed(2);
                         })()}
                       </span>
@@ -1659,7 +1729,22 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                 </label>
                 <select
                   value={paymentFormData.payment_type}
-                  onChange={(e) => setPaymentFormData({ ...paymentFormData, payment_type: e.target.value })}
+                  onChange={(e) => {
+                    const selectedType = e.target.value;
+                    if (selectedType === 'full') {
+                      setPaymentFormData({ 
+                        ...paymentFormData, 
+                        payment_type: selectedType,
+                        amount: balanceDue
+                      });
+                    } else {
+                      setPaymentFormData({ 
+                        ...paymentFormData, 
+                        payment_type: selectedType,
+                        amount: '0'
+                      });
+                    }
+                  }}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                 >
                   <option value="partial">Partial payment</option>

@@ -29,7 +29,7 @@ body {
 }
 
 /* Navigation */
-nav {
+.guest_page nav {
 	position: fixed;
 	top: 0;
 	width: 100%;

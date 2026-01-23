@@ -24,11 +24,12 @@ const ORDER_STEPS: { [key: number]: string } = {
   3: 'Order Approved',
   4: 'Pending',
   5: 'Processing',
+  10: 'Packaged',
   6: 'Shipped',
   7: 'Canceled',
   8: 'Completed',
-  9: 'POD',
-  10: 'Packaged',
+  //9: 'POD',
+  
 };
 
 const STATUS_COLORS: { [key: string]: string } = {
@@ -37,11 +38,12 @@ const STATUS_COLORS: { [key: string]: string } = {
   'Order Approved': 'bg-green-100 text-green-700',
   'Pending': 'bg-orange-100 text-orange-700',
   'Processing': 'bg-purple-100 text-purple-700',
+  'Packaged': 'bg-teal-100 text-teal-700',
   'Shipped': 'bg-cyan-100 text-cyan-700',
   'Canceled': 'bg-red-100 text-red-700',
   'Completed': 'bg-emerald-100 text-emerald-700',
-  'POD': 'bg-teal-100 text-teal-700',
-  'Packaged': 'bg-teal-100 text-teal-700',
+  //'POD': 'bg-teal-100 text-teal-700',
+  
 };
 
 const STATUS_DROPDOWN_COLORS: { [key: string]: string } = {
@@ -112,20 +114,40 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, bus
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Auto-detect and update payment type when amount equals outstanding
+  // Auto-populate amount when "Full payment" is first selected
+  // Track if we just switched to Full payment to avoid continuous overwrites
+  const [hasAutoFilledFullPayment, setHasAutoFilledFullPayment] = useState(false);
+
   useEffect(() => {
-    if (!isOpen || !order) return; // Early return inside effect
+    if (!isOpen || !order) {
+      setHasAutoFilledFullPayment(false);
+      return;
+    }
     
     const outstanding = parseFloat(order.total_balance);
+    
+    // If Full payment is selected AND we haven't auto-filled yet, do it once
+    if (paymentData.paymentToApply === 'Full payment' && !hasAutoFilledFullPayment) {
+      setPaymentData(prev => ({ ...prev, amount: outstanding.toFixed(2) }));
+      setHasAutoFilledFullPayment(true);
+    }
+    
+    // If switched back to Partial, reset the flag
+    if (paymentData.paymentToApply === 'Partial payment') {
+      setHasAutoFilledFullPayment(false);
+    }
+    
     const amount = parseFloat(paymentData.amount || '0');
     
+    // Auto-detect full payment based on amount
     if (Math.abs(amount - outstanding) < 0.01 && paymentData.amount !== '') {
       // Only update if it's not already set to 'Full payment'
       if (paymentData.paymentToApply !== 'Full payment') {
         setPaymentData(prev => ({ ...prev, paymentToApply: 'Full payment' }));
+        setHasAutoFilledFullPayment(true);
       }
     }
-  }, [isOpen, order, paymentData.amount, paymentData.paymentToApply]);
+  }, [isOpen, order, paymentData.paymentToApply, hasAutoFilledFullPayment]);
 
   // Early return only happens in render after hooks
   if (!isOpen || !order) return null;
@@ -226,7 +248,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, bus
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-2xl">
         {/* Header */}
-        <div className="bg-gradient-to-r accent-bg accent-hover px-6 py-4 flex justify-between items-center rounded-t-xl">
+        <div className="accent-bg accent-hover px-6 py-4 flex justify-between items-center rounded-t-xl">
           <h2 className="text-white text-lg font-semibold">Apply Payment</h2>
           <button
             onClick={onClose}
@@ -260,14 +282,19 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, bus
                   </label>
                   <select
                     value={paymentData.paymentToApply}
-                    onChange={(e) =>
-                      setPaymentData({ ...paymentData, paymentToApply: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const newValue = e.target.value;
+                      setPaymentData({ ...paymentData, paymentToApply: newValue });
+                      // Reset amount when switching payment types
+                      if (newValue === 'Partial payment') {
+                        setHasAutoFilledFullPayment(false);
+                      }
+                    }}
                     disabled={isSubmitting}
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100 disabled:opacity-50"
+                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-gray-100 disabled:opacity-50 appearance-none cursor-pointer"
                   >
-                    <option>Partial payment</option>
-                    <option>Full payment</option>
+                    <option value="Partial payment">Partial payment</option>
+                    <option value="Full payment">Full payment</option>
                   </select>
                 </div>
 
@@ -366,7 +393,7 @@ const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, order, onClose, bus
               <button
                 onClick={handleApplyPayment}
                 disabled={!isFormValid || isSubmitting}
-                className={`px-6 py-3 text-white rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
+                className={`px-6 py-3 text-white accent-bg accent-hover rounded-lg font-semibold transition-all duration-300 flex items-center gap-2 ${
                   isFormValid && !isSubmitting
                     ? 'accent-bg accent-hover hover:scale-105 active:scale-95'
                     : 'bg-gray-400 cursor-not-allowed opacity-50'

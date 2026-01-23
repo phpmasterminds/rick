@@ -11,12 +11,12 @@ export default function GuestLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    <div className="guest_page">
       <GuestNavbar />
       {children}
       <GuestFooter />
       <CookieBanner />
       <ScrollEffects />
-    </>
+    </div>
   );
 }

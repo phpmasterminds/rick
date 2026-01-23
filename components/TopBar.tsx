@@ -237,7 +237,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
 
   // ===== HANDLE THEME CHANGE =====
 	const handleThemeChange = (newTheme: string) => {
-		setTheme(newTheme);           // ✅ instant UI update
+		setTheme(newTheme as 'light' | 'dark');           // ✅ instant UI update
 		setShowThemeMenu(false);
 		saveThemeToApi(newTheme);     // API + cookie
 	};

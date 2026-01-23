@@ -6,6 +6,7 @@ import SellerDashboard from './components/SellerDashboard';
 import BuyerDashboard from './components/BuyerDashboard';
 import { useTheme } from 'next-themes';
 import Cookies from "js-cookie";
+import { toast } from "react-toastify";
 
 type UserType = 'admin' | 'seller' | 'buyer' | null;
 
@@ -15,6 +16,23 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+	useEffect(() => {
+		const toastData = sessionStorage.getItem("toast");
+
+		if (toastData) {
+		  const { type, message } = JSON.parse(toastData);
+
+		  if (type === "success") {
+			toast.success(message, {
+			  position: "bottom-center",
+			  autoClose: 3000,
+			});
+		  }
+
+		  sessionStorage.removeItem("toast"); // 🔥 important
+		}
+	}, []);
+	  
   useEffect(() => {
     determineUserType();
   }, []);

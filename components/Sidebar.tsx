@@ -954,7 +954,7 @@ export default function Sidebar({
       <div
         className={`${
           isCollapsed ? "w-24" : "w-64"
-        } bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col py-4 transition-all duration-300 ease-in-out fixed md:relative h-full z-40 ${
+        } dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col py-4 transition-all duration-300 ease-in-out fixed md:relative h-full z-40 ${
           isMobileOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
 		

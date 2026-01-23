@@ -24,13 +24,13 @@ export default function RetailersPage() {
                 href="/register"
                 className={`${styles.btn} ${styles['btn-primary']}`}
               >
-                Start Free Trial
+                Get Started
               </Link>
               <Link
                 href="/contact"
                 className={`${styles.btn} ${styles['btn-secondary']}`}
               >
-                Browse Brands
+                Tell Me More
               </Link>
             </div>
           </div>
@@ -178,8 +178,8 @@ export default function RetailersPage() {
             </div>
 
             <div className={styles['feature-item']}>
-              <h3>Secure Payment Processing</h3>
-              <p>Manage invoicing and payments securely.</p>
+              <h3>Invoicing and Payments</h3>
+              <p>Manage invoicing and payments offered by Wholesalers.</p>
             </div>
 
             <div className={styles['feature-item']}>
@@ -200,13 +200,13 @@ export default function RetailersPage() {
         <div className={styles['cta-container']}>
           <h2>Ready to Simplify Your Wholesale Ordering?</h2>
           <p className={styles['section-description']}>
-            Join thousands of dispensaries and retailers who trust Nature&apos;s
+            Join dispensaries and retailers who trust Nature&apos;s
             High for their wholesale cannabis needs.
           </p>
 
           <div className={styles['trial-highlight']}>
             <p className={styles['trial-text']}>
-              30-Day Free Trial • No Credit Card Required • Access All Features
+              Save Cash • Become More Efficient • Smile More Often
             </p>
           </div>
 
@@ -215,7 +215,7 @@ export default function RetailersPage() {
               href="/register"
               className={`${styles.btn} ${styles['btn-primary']}`}
             >
-              Start Your Free Trial
+              Start Now!
             </Link>
             <Link
               href="/contact"

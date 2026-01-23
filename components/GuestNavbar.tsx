@@ -40,14 +40,14 @@ export default function GuestNavbar() {
             </Link>
           </li>
 
-          <li>
+          {/*<li>
             <Link
               href="/pricing"
               className={isActive('/pricing') ? 'active' : ''}
             >
               Pricing
             </Link>
-          </li>
+          </li>*/}
 
           <li>
             <Link

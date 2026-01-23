@@ -40,7 +40,14 @@ export function middleware(request: NextRequest) {
     "/set-password",
     "/pricing",
     "/contact",
-    "/",
+    "/brands",
+    "/features",
+    "/retailers",
+    "/pricing",
+    "/about",
+    "/privacy",
+    "/terms",
+    "/cookies",
   ];
 
   // 🆕 Approval-pending route is always accessible for pending users
@@ -51,11 +58,10 @@ export function middleware(request: NextRequest) {
   );
 
   // ==================== EXISTING AUTH LOGIC ====================
-
   // 🚫 Case 1: No token & NOT a public route → redirect to login
-  if (!token && !isPublicRoute) {
-    return NextResponse.redirect(new URL("/login", request.url));
-  }
+	 if (!token && !isPublicRoute && request.nextUrl.pathname !== "/") {
+	  return NextResponse.redirect(new URL("/login", request.url));
+	}
 
   // 🔒 Case 2: Logged in user visiting login/register → redirect to home
   if (

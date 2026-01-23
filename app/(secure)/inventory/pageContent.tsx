@@ -1694,7 +1694,7 @@ console.log(rowData);
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
                         <div className="relative group">
-						  <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden cursor-pointer" onMouseOver={() => handleSelectProduct(product)}>
+						  <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center overflow-hidden cursor-pointer">
 							{product.med_image ? (
 							  <img
 								src={product.med_image}
@@ -1723,8 +1723,14 @@ console.log(rowData);
 
                         <div>
                           <div className="font-medium text-gray-900 dark:text-gray-100">
-						  <a onClick={() => handleSelectProduct(product)}>
-						  {product.name}</a></div>
+							<button
+								type="button"
+								onClick={() => handleSelectProduct(product)}
+								className="accent-text bg-transparent p-0"
+							 >
+								{product.name}
+							  </button>
+						  </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
                             {product.tag_no} 
                           </div>
@@ -1960,28 +1966,35 @@ console.log(rowData);
                         className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Description</label>
-                      <input
-                        type="text"
-                        value={editFormData.description}
-                        onChange={(e) => setEditFormData({...editFormData, description: e.target.value})}
-                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      />
-                    </div>
-                  </div>
+					{/* Variant Product Name */}
+					  <div>
+						<label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Variant Product Name</label>
+						<input
+						  type="text"
+						  value={editFormData.variantName}
+						  onChange={(e) => setEditFormData({...editFormData, variantName: e.target.value})}
+						  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+						  placeholder="Variant Product Name"
+						/>
+					  </div>
+                   
+                </div>
 
-                  {/* Variant Product Name */}
-                  <div>
-                    <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Variant Product Name</label>
-                    <input
-                      type="text"
-                      value={editFormData.variantName}
-                      onChange={(e) => setEditFormData({...editFormData, variantName: e.target.value})}
-                      className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      placeholder="Variant Product Name"
-                    />
-                  </div>
+				<div>
+				  <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+					Description
+				  </label>
+
+				  <textarea
+					value={editFormData.description}
+					onChange={(e) =>
+					  setEditFormData({ ...editFormData, description: e.target.value })
+					}
+					rows={4}
+					className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 resize-none"
+				  />
+				</div>
+
 
                   {/* Strain Name */}
                   <div>
@@ -2166,7 +2179,7 @@ console.log(rowData);
                     {/* Dynamic Flavor Selection */}
                     <div>
                       <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
-                        <a href="#" className="text-blue-600 hover:underline" onClick={(e) => { e.preventDefault(); }}>Add Flavor</a>
+                        <span className="accent-text">Add Flavor</span>
                       </label>
                       
                       <div className="space-y-3">
@@ -2198,7 +2211,7 @@ console.log(rowData);
                                   });
                                 }
                               }}
-                              className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+                              className="px-3 py-2 accent-bg accent-hover text-white rounded-lg text-sm"
                               title="Add selected flavor"
                               type="button"
                             >

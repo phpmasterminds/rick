@@ -81,12 +81,14 @@ export default function LoginPage() {
 		}
 
 		
-		router.push("/dashboard");
-		
-		toast.success("Login successful!", {
-			position: "bottom-center",
-			autoClose: 3000,
-		});
+		//router.push("/dashboard");
+		//router.refresh();
+		sessionStorage.setItem("toast", JSON.stringify({
+		  type: "success",
+		  message: "Login successful!",
+		}));
+
+		window.location.href = "/dashboard";
 
       
     } catch (err: any) {
