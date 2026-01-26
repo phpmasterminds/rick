@@ -4,7 +4,7 @@ import {
   Bell, Home, Megaphone, Package, CreditCard, Settings, HelpCircle,
   Plus, X, Upload, Target, DollarSign, MousePointer, Eye, CheckCircle,
   ChevronDown, ChevronRight, Menu, User, LogOut, Users, Folder, Edit, 
-  Loader2, AlertCircle, ChevronLeft, Copy, Trash2
+  Loader2, AlertCircle, ChevronLeft, Copy, Trash2, FileText, MoreVertical
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import StatCard from "@/components/StatCard";
@@ -204,9 +204,9 @@ function PublishedToggle({ product, onToggle }: { product: Product, onToggle: (i
         </button>
       </div>
 	  
-	  {/* Sample Toggle 
+	  {/* Sample Toggle */}
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Sample</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Wholesale</span>
         <button
           onClick={() => {
             const isCurrentlyPAGE = product.is_sample === '1';
@@ -224,7 +224,7 @@ function PublishedToggle({ product, onToggle }: { product: Product, onToggle: (i
             }`}
           />
         </button>
-      </div>*/}
+      </div>
     </div>
   );
 }
@@ -258,6 +258,18 @@ export default function PageContent() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [dealsProduct, setDealsProduct] = useState<Product | null>(null);
   const [globalPageId, setGlobalPageId] = useState<string>('');
+  
+  // COA Modal State
+  const [showCoaModal, setShowCoaModal] = useState(false);
+  const [coaProductId, setCoaProductId] = useState<string | null>(null);
+  const [coaTitle, setCoaTitle] = useState<string>('');
+  const [coaFile, setCoaFile] = useState<File | null>(null);
+  const [coaFilePreview, setCoaFilePreview] = useState<string>('');
+  const [isUploadingCoa, setIsUploadingCoa] = useState(false);
+  
+  // Settings Dropdown State
+  const [openSettingsDropdown, setOpenSettingsDropdown] = useState<string | null>(null);
+  
   const [dealData, setDealData] = useState<DealData>({
     amount: '',
     percentage: '',
@@ -452,10 +464,10 @@ export default function PageContent() {
   const [hasInitialized, setHasInitialized] = useState(false);
 
   // Helper function to get cookie
-  const getCookie = (name: string) => {
+  const getCookie = (name: string): string => {
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift();
+    if (parts.length === 2) return parts.pop()?.split(';').shift() || '';
     return '';
   };
 
@@ -466,6 +478,10 @@ export default function PageContent() {
       setError(null);
       
       const vanityUrl = getCookie('vanity_url');
+      if (!vanityUrl) {
+        throw new Error('Business information not found. Please refresh and try again.');
+      }
+      
       let allLoadedProducts: Product[] = [];
       let totalProdCount = 0;
       
@@ -820,6 +836,11 @@ export default function PageContent() {
     try {
       setIsDeleting(true);
       const vanityUrl = getCookie('vanity_url');
+      if (!vanityUrl) {
+        toast.error('Business information not found. Please refresh and try again.');
+        setIsDeleting(false);
+        return;
+      }
       
       // Call delete API with business and product_id
 	  
@@ -857,7 +878,251 @@ export default function PageContent() {
     setProductToDelete(null);
   };
 
-  const fetchEditModalDropdowns = async (product: Product) => {
+  // COA Modal Handlers
+  const handleOpenCoaModal = (productId: string) => {
+    setCoaProductId(productId);
+    setCoaTitle('');
+    setCoaFile(null);
+    setCoaFilePreview('');
+    setShowCoaModal(true);
+    setOpenSettingsDropdown(null); // Close dropdown
+    
+    // Load existing COAs for this product
+    loadProductCoas(productId);
+  };
+
+  const loadProductCoas = async (productId: string) => {
+    try {
+      const response = await axios.get(`/api/business/posinventory/coa?product_id=${productId}`);
+      
+      // Handle both response structures:
+      // 1. New structure: { status, data: { documents: [...] } }
+      // 2. Alternative: { status, data: [...] }
+      let coaItems = [];
+      
+      if (response.data && response.data.data) {
+        if (Array.isArray(response.data.data)) {
+          // Direct array
+          coaItems = response.data.data;
+        } else if (response.data.data.documents && Array.isArray(response.data.data.documents)) {
+          // Nested under documents
+          coaItems = response.data.data.documents;
+        }
+      }
+      
+      if (coaItems.length > 0) {
+        renderCoaList(coaItems);
+      } else {
+        renderCoaList([]);
+      }
+    } catch (error) {
+      console.error('Error loading COAs:', error);
+      // Silently fail - show empty state
+      renderCoaList([]);
+    }
+  };
+
+  const renderCoaList = (coaItems: any[]) => {
+    const container = document.getElementById('coaListContainer');
+    if (!container) return;
+
+    if (!coaItems || coaItems.length === 0) {
+      container.innerHTML = `
+        <div class="text-center py-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+          <svg class="mx-auto mb-2 text-gray-400" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+          </svg>
+          <p class="text-sm text-gray-600 dark:text-gray-400">No documents uploaded yet</p>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = coaItems.map((item: any, index: number) => {
+      // Convert timestamp to date - API returns seconds since epoch
+      let addedDate = 'N/A';
+      if (item.time_stamp) {
+        try {
+          const timestamp = parseInt(item.time_stamp) * 1000; // Convert to milliseconds
+          addedDate = new Date(timestamp).toLocaleDateString();
+        } catch (e) {
+          addedDate = 'N/A';
+        }
+      }
+      
+      return `
+        <div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group">
+          <div class="flex items-center gap-3 flex-1 min-w-0">
+            <div class="flex-shrink-0 p-2 bg-teal-100 dark:bg-teal-900/30 rounded">
+              <svg class="text-teal-600 dark:text-teal-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <button 
+                onclick="downloadCoaDocument('${item.document_path || ''}', '${(item.title || 'Document').replace(/'/g, "\\'")}', event)"
+                class="text-sm font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 truncate cursor-pointer transition-colors"
+                title="Click to download"
+              >
+                ${item.title || 'Untitled'}
+              </button>
+              <p class="text-xs text-gray-500 dark:text-gray-400">${addedDate}</p>
+            </div>
+          </div>
+          
+        </div>
+      `;
+    }).join('');
+  };
+  {/*
+  <button class="flex-shrink-0 ml-2 p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" onclick="deleteCoa(this, '${item.document_id || ''}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+  */}
+  const handleCloseCoaModal = () => {
+    setShowCoaModal(false);
+    setCoaProductId(null);
+    setCoaTitle('');
+    setCoaFile(null);
+    setCoaFilePreview('');
+  };
+
+  const handleCoaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    const allowedExtensions = ['pdf', 'doc', 'docx'];
+
+    if (!allowedTypes.includes(file.type) && !allowedExtensions.includes(fileExtension || '')) {
+      toast.error('Only PDF and DOC files are allowed');
+      return;
+    }
+
+    // Validate file size (8 MB limit)
+    const maxSize = 8 * 1024 * 1024; // 8 MB in bytes
+    if (file.size > maxSize) {
+      toast.error('File size must be less than 8 MB');
+      return;
+    }
+
+    setCoaFile(file);
+    setCoaFilePreview(file.name);
+  };
+
+  const handleUploadCoa = async () => {
+    // Validate both fields are filled
+    if (!coaTitle.trim()) {
+      toast.error('Please enter a title for the Certificate of Analysis');
+      return;
+    }
+
+    if (!coaFile) {
+      toast.error('Please select a file to upload');
+      return;
+    }
+
+    if (!coaProductId) {
+      toast.error('Product information is missing');
+      return;
+    }
+
+    try {
+      setIsUploadingCoa(true);
+      const vanityUrl = getCookie('vanity_url');
+      
+      // Validate vanityUrl is available
+      if (!vanityUrl) {
+        toast.error('Business information not found. Please refresh and try again.');
+        setIsUploadingCoa(false);
+        return;
+      }
+      
+      // Create FormData for file upload
+      const formData = new FormData();
+      formData.append('product_id', coaProductId);
+      formData.append('business', vanityUrl);
+      formData.append('title', coaTitle.trim());
+      formData.append('file', coaFile);
+
+      // Upload COA file
+      const response = await axios.post('/api/business/posinventory/coa', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      if (response.data.status === 'success') {
+        toast.success('Certificate of Analysis uploaded successfully!');
+        
+        // Clear form
+        setCoaTitle('');
+        setCoaFile(null);
+        setCoaFilePreview('');
+        
+        // Refresh the COA list
+        if (coaProductId) {
+          await loadProductCoas(coaProductId);
+        }
+        
+        // Refresh inventory items
+        await fetchAllInventory();
+      } else {
+        throw new Error(response.data.message || 'Failed to upload COA');
+      }
+    } catch (error: any) {
+      showErrorToast(error, 'Failed to upload Certificate of Analysis');
+    } finally {
+      setIsUploadingCoa(false);
+    }
+  };
+
+  // Download COA Document
+  if (typeof window !== 'undefined') {
+    (window as any).downloadCoaDocument = (documentPath: string, documentTitle: string, event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      
+      if (!documentPath) {
+        toast.error('Document path not available');
+        return;
+      }
+
+      try {
+        // Create a temporary anchor element
+        const link = document.createElement('a');
+        link.href = documentPath;
+        link.target = '_blank';
+        
+        // Set download attribute with filename
+        const filename = documentTitle || 'document';
+        link.setAttribute('download', `${filename}.pdf`);
+        
+        // Trigger download
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        toast.success(`Downloading: ${documentTitle}`);
+      } catch (error) {
+        console.error('Download error:', error);
+        // Fallback: open in new tab
+        window.open(documentPath, '_blank');
+        toast.info(`Opening: ${documentTitle}`);
+      }
+    };
+  }
+
+  const fetchEditModalDropdowns = async (product: Product): Promise<void> => {
     try {
       setEditModalLoading(true);
 	  console.log('product.product_id'+product.product_id);
@@ -1735,6 +2000,12 @@ console.log(rowData);
                             {product.tag_no} 
                           </div>
                           <div className="text-xs text-gray-400 dark:text-gray-500">{product.cat_name}</div>
+                          <button
+                            onClick={() => handleOpenCoaModal(product.product_id)}
+                            className="text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium mt-1 transition-colors"
+                          >
+                            COA List →
+                          </button>
                         </div>
                       </div>
                     </td>
@@ -1807,7 +2078,7 @@ console.log(rowData);
 						  />
                     </td>
                     <td className="px-4 py-4 text-center">
-                      <div className="flex justify-center gap-2">
+                      <div className="flex justify-center gap-2 relative">
                         {editingRows[product.product_id] ? (
                           <>
                             <button 
@@ -1825,27 +2096,73 @@ console.log(rowData);
                           </>
                         ) : (
                           <>
-                            <button 
-                              onClick={() => handleEditClick(product)} 
-                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                              title="Edit product"
-                            >
-                              <Edit size={16} className="text-gray-600 dark:text-gray-400" />
-                            </button>
-                            <button 
-                              onClick={() => handleCloneProduct(product)} 
-                              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                              title="Clone product"
-                            >
-                              <Copy size={16} className="text-gray-600 dark:text-gray-400" />
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteClick(product)} 
-                              className="p-2 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                              title="Delete product"
-                            >
-                              <Trash2 size={16} className="text-red-600 dark:text-red-400" />
-                            </button>
+                            {/* Settings Dropdown Button */}
+                            <div className="relative">
+                              <button 
+                                onClick={() => setOpenSettingsDropdown(openSettingsDropdown === product.product_id ? null : product.product_id)}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                title="More options"
+                              >
+                                <MoreVertical size={16} className="text-gray-600 dark:text-gray-400" />
+                              </button>
+                              
+                              {/* Dropdown Menu */}
+                              {openSettingsDropdown === product.product_id && (
+                                <>
+                                  {/* Click-outside overlay to close dropdown */}
+                                  <div 
+                                    className="fixed inset-0 z-40"
+                                    onClick={() => setOpenSettingsDropdown(null)}
+                                  />
+                                  
+                                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                                    <button
+                                      onClick={() => {
+                                        handleEditClick(product);
+                                        setOpenSettingsDropdown(null);
+                                      }}
+                                      className="w-full text-left px-4 py-3 flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-t-lg"
+                                    >
+                                      <Edit size={16} />
+                                      <span>Edit</span>
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => {
+                                        handleCloneProduct(product);
+                                        setOpenSettingsDropdown(null);
+                                      }}
+                                      className="w-full text-left px-4 py-3 flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                    >
+                                      <Copy size={16} />
+                                      <span>Clone</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => {
+                                        handleOpenCoaModal(product.product_id);
+                                        setOpenSettingsDropdown(null);
+                                      }}
+                                      className="w-full text-left px-4 py-3 flex items-center gap-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                    >
+                                      <FileText size={16} />
+                                      <span>Certificates Of Analysis</span>
+                                    </button>
+
+                                    <button
+                                      onClick={() => {
+                                        handleDeleteClick(product);
+                                        setOpenSettingsDropdown(null);
+                                      }}
+                                      className="w-full text-left px-4 py-3 flex items-center gap-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors rounded-b-lg"
+                                    >
+                                      <Trash2 size={16} />
+                                      <span>Delete</span>
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+                            </div>
                           </>
                         )}
                       </div>
@@ -2687,6 +3004,148 @@ console.log(rowData);
                   <ChevronRight size={20} />
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+	  
+      {/* COA Upload Modal - Combined List & Add */}
+      {showCoaModal && coaProductId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-800 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-lg">
+                  <FileText size={20} className="text-teal-600 dark:text-teal-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Certificates Of Analysis</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Manage product documentation</p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseCoaModal}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Content - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-6">
+                {/* COA List Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Uploaded Documents</h3>
+                  <div id="coaListContainer" className="space-y-2 mb-6">
+                    {/* COA list items will be rendered here */}
+                    <div className="text-center py-6 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <FileText size={24} className="mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm text-gray-600 dark:text-gray-400">No documents uploaded yet</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-gray-200 dark:border-gray-800"></div>
+
+                {/* Upload Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Add New Document</h3>
+                  
+                  <div className="space-y-4">
+                    {/* Title Input */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Title <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={coaTitle}
+                        onChange={(e) => setCoaTitle(e.target.value)}
+                        placeholder="e.g., Lab Analysis Report 2024"
+                        disabled={isUploadingCoa}
+                        className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Give your document a meaningful title</p>
+                    </div>
+
+                    {/* File Input */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Select File <span className="text-red-600">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="file"
+                          onChange={handleCoaFileChange}
+                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                          disabled={isUploadingCoa}
+                          className="sr-only"
+                          id="coaFileInput"
+                        />
+                        <label
+                          htmlFor="coaFileInput"
+                          className="flex items-center justify-center w-full px-4 py-6 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                        >
+                          <div className="text-center">
+                            <Upload size={24} className="mx-auto mb-2 text-gray-400" />
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {coaFilePreview ? (
+                                <span className="font-medium text-teal-600 dark:text-teal-400">{coaFilePreview}</span>
+                              ) : (
+                                <>
+                                  <span className="font-medium">Click to upload</span> or drag and drop
+                                </>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">PDF, DOC, DOCX (Max 8 MB)</p>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* File Requirements */}
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                      <p className="text-xs font-medium text-blue-900 dark:text-blue-300 mb-2">Requirements:</p>
+                      <ul className="text-xs text-blue-800 dark:text-blue-400 space-y-1">
+                        <li>• Allowed formats: PDF, DOC, DOCX</li>
+                        <li>• Maximum file size: 8 MB</li>
+                        <li>• Required for product compliance</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer - Buttons */}
+            <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-800 flex-shrink-0 bg-gray-50 dark:bg-gray-900/50">
+              <button
+                onClick={handleCloseCoaModal}
+                disabled={isUploadingCoa}
+                className="flex-1 px-4 py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleUploadCoa}
+                disabled={!coaTitle.trim() || !coaFile || isUploadingCoa}
+                className="flex-1 px-4 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium flex items-center justify-center gap-2"
+              >
+                {isUploadingCoa ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Plus size={16} />
+                    Add Document
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
