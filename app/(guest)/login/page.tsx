@@ -60,9 +60,9 @@ export default function LoginPage() {
 			aUserBusinessDetails.data.data.business_variants,null,2
 			));
 			
-			localStorage.setItem("business", JSON.stringify(
-			aUserBusinessDetails.data.data.business,null,2
-			));
+			localStorage.setItem("business", JSON.stringify(aUserBusinessDetails.data.data.business,null,2));
+			
+			localStorage.setItem("permissions", JSON.stringify(aUserBusinessDetails.data.data.permissions,null,2));
 			
 			const business = aUserBusinessDetails.data.data.business[0];
 			if (business?.page_id) {
@@ -72,6 +72,46 @@ export default function LoginPage() {
 			  Cookies.set("business_title", business.title);
 			  Cookies.set("trade_name", business.trade_name);
 			  Cookies.set("business_logo", business.image_path);
+			  
+			  // OPTIONAL permissions logic
+			  const permissionsRaw = localStorage.getItem("permissions");
+
+				if (permissionsRaw) {
+					try {
+						const permissions = JSON.parse(permissionsRaw);
+
+						if (Array.isArray(permissions)) {
+							const currentPermission = permissions.find(
+							(perm) => perm.page_id === business.page_id
+							);
+
+							if (currentPermission) {
+								Cookies.set(
+								"current_permission_account_type",
+								currentPermission.account_type
+								);
+								Cookies.set(
+								"current_permission_can_access_crm",
+								currentPermission.can_access_crm
+								);
+								Cookies.set(
+								"current_permission_can_access_inventory",
+								currentPermission.can_access_inventory
+								);
+								Cookies.set(
+								"current_permission_can_access_production_packaging",
+								currentPermission.can_access_production_packaging
+								);
+								Cookies.set(
+								"current_permission_can_access_business_pages",
+								currentPermission.can_manage_business_pages
+								);
+							}
+						}
+					} catch (e) {
+					console.warn("Invalid permissions in localStorage", e);
+					}
+				}
 			}
 		  } else {
 			console.error("User ID not found in user details response");

@@ -1,16 +1,14 @@
-import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import PageContent from "./pageContent";
+import OrderPageWrapper from "./page-wrapper";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return {
-    title: `Order List | Find Oklahoma Marijuana Dispensaries`,
-  };
+export async function generateMetadata() {
+  return { title: `Order List | Find Oklahoma...` };
 }
 
 export default async function Page() {
   const cookieStore = await cookies();
   const slug = cookieStore.get('vanity_url')?.value || '';
-
-  return <PageContent business={slug} />;
+  
+  // ✅ Pass to wrapper
+  return <OrderPageWrapper business={slug} />;
 }

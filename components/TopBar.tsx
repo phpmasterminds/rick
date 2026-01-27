@@ -417,6 +417,16 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     Cookies.remove("trade_name", { path: "/" });
     Cookies.remove("business_logo", { path: "/" });
     Cookies.remove("business_title", { path: "/" });
+	const permissionCookies = [
+	  "current_permission_account_type",
+	  "current_permission_can_access_crm",
+	  "current_permission_can_access_inventory",
+	  "current_permission_can_access_production_packaging",
+	  "current_permission_can_access_business_pages"
+	];
+
+	permissionCookies.forEach((c) => Cookies.remove(c));
+
     router.push("/");
   };
 

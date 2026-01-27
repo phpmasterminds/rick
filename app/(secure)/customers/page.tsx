@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import PageContent from "./pageContent";
+import CustomerPageWrapper from "./page-wrapper";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -7,6 +7,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function Page() {
-  return <PageContent />;
+export default function Page() {
+  return <CustomerPageWrapper />;
 }

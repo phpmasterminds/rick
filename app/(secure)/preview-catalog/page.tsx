@@ -1,12 +1,11 @@
-import type { Metadata } from "next";
-import PageContent from "./pageContent";
+import { cookies } from "next/headers";
+import OrderPageWrapper from "./page-wrapper";
 
-export async function generateMetadata({ params }: { params: Promise<{ business: string }> }): Promise<Metadata> {
-  return {
-    title: `Preview Catalog | Find Oklahoma Marijuana Dispensaries`,
-  };
+export async function generateMetadata() {
+  return { title: `Preview Catalog | Find Oklahoma Marijuana Dispensaries`, };
 }
 
-export default async function Page({ params }: { params: Promise<{ business: string }> }) {
-  return <PageContent />;
+export default async function Page() {
+  // ✅ Pass to wrapper
+  return <OrderPageWrapper/>;
 }

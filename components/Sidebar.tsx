@@ -106,7 +106,10 @@ export default function Sidebar({
     try {
       const businessVariantsStr = localStorage.getItem("business_variants");
       
-      if (!businessVariantsStr) {
+      if (!businessVariantsStr ||
+			businessVariantsStr === "undefined" ||
+			businessVariantsStr === "null") {
+		  console.log(businessVariantsStr+'--');
         // Default: show all options if no variants
         setShowBusinessOption(true);
         setShowPosOption(true);
@@ -231,7 +234,8 @@ export default function Sidebar({
 	  "order-history",
 	  "buy-again",
 	  "open-orders",
-	  "messages"
+	  "messages",
+	  "promotions-discounts"
     ];
     
     // First segment that is not a known route is the vanity URL
@@ -530,7 +534,7 @@ export default function Sidebar({
         label: "Catalog & Inventory",
         submenu: [
           { id: "inventory", label: "Inventory", path: "/inventory" },/*icon: Package,*/
-		  { id: "promotion-discount", label: "Promotions and Discount", path: "/promotion-discount" },/*icon: CreditCard,*/
+		  { id: "promotion-discount", label: "Promotions and Discount", path: "/promotions-discounts" },/*icon: CreditCard,*/
 		  { id: "preview-catalog", label: "My Marketplace", path: "/preview-catalog" },      /*icon: Box,*/
         ],
       },

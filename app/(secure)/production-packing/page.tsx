@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
-import PageContent from "./pageContent";
+import ProductionPackagingPageWrapper from "./page-wrapper";
 
 export async function generateMetadata(): Promise<Metadata> {
   return {
@@ -8,9 +8,6 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default async function Page() {
-  const cookieStore = await cookies();
-  const slug = cookieStore.get('vanity_url')?.value || '';
-
-  return <PageContent business={slug} />;
+export default function Page() {
+  return <ProductionPackagingPageWrapper />;
 }
