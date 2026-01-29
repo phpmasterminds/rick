@@ -653,7 +653,7 @@ const VolumeDiscountsSection: React.FC<VolumeDiscountsSectionProps> = ({
                                     {threshold.discount_type === 'percentage' ? '%' : '$'} off
                                   </div>
                                   <div className={`text-xs ${getSecondaryText()} mt-1`}>
-                                    Quantity: {threshold.quantity} | Min: ${parseFloat(threshold.minimum_purchase).toFixed(2)}
+                                    Min: ${parseFloat(threshold.minimum_purchase).toFixed(2)}
                                   </div>
                                 </div>
                               </div>
@@ -1094,19 +1094,19 @@ const VolumeDiscountModal = ({
             <div className="space-y-4">
               {thresholds.map((threshold, index) => (
                 <div key={index} className={`p-4 rounded-lg border`} style={{ borderColor: `var(--border-color)` }}>
-                  <div className="grid grid-cols-4 gap-4 mb-3">
-                    <div>
-                      <label className={`text-xs font-semibold ${getSecondaryText()} mb-1 block`}>
+                  <div className="grid grid-cols-3 gap-4 mb-3">
+                    {/*<div>
+					<label className={`text-xs font-semibold ${getSecondaryText()} mb-1 block`}>
                         Quantity
-                      </label>
+					</label>
                       <input
-                        type="number"
+                        type="hidden"
                         value={threshold.quantity}
                         onChange={(e) => updateThreshold(index, 'quantity', parseInt(e.target.value))}
                         min="1"
                         className={`w-full px-3 py-2 rounded border outline-none text-sm transition-colors ${getInputBg()}`}
                       />
-                    </div>
+                    </div>*/}
                     <div>
                       <label className={`text-xs font-semibold ${getSecondaryText()} mb-1 block`}>
                         Discount Value

@@ -2,9 +2,16 @@
 
 import React, { useState } from 'react';
 import { X, Heart } from 'lucide-react';
+import {
+  calculateApplicableDiscount,
+  calculateFinalPrice,
+  getDiscountMessage,
+  type Discount,
+} from '@/app/utils/discountUtils';
 
 interface ProductDetailModalProps {
   product: any;
+  discount?: Discount | null;
   isOpen: boolean;
   onClose: () => void;
   onAddToCart: (quantity: number, selectedVariant?: string, selectedFlavor?: string) => void;
@@ -12,6 +19,7 @@ interface ProductDetailModalProps {
 
 export default function ProductDetailModal({
   product,
+  discount,
   isOpen,
   onClose,
   onAddToCart,
@@ -23,7 +31,9 @@ export default function ProductDetailModal({
 
   if (!isOpen || !product) return null;
 
-  const price = parseFloat(product.p_offer_price || '0');
+  const basePrice = parseFloat(product.p_offer_price || '0');
+  const appliedDiscount = calculateApplicableDiscount(basePrice, quantity, discount);
+  const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
   const imageUrl = product.image_url || '/images/placeholder-product.png';
 
   const flavors = product.flavors
@@ -44,6 +54,8 @@ export default function ProductDetailModal({
     setSelectedVariant('');
     setSelectedFlavor('');
   };
+
+  const discountMessage = getDiscountMessage(appliedDiscount);
 
   return (
     <div className="fixed inset-0 bg-black/50 dark:bg-black/70 z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -73,6 +85,16 @@ export default function ProductDetailModal({
                 {product.is_safe && (
                   <div className="absolute top-3 left-3 bg-yellow-400 text-black text-xs font-bold px-3 py-1 rounded">
                     {product.is_safe}
+                  </div>
+                )}
+
+                {/* Discount Badge on Modal */}
+                {appliedDiscount && appliedDiscount.isApplicable && (
+                  <div className="absolute top-3 left-3 bg-red-600 text-white text-sm font-bold px-4 py-3 rounded shadow-lg border-2 border-red-700">
+                    <div className="text-center">
+                      <div className="text-base font-bold">{appliedDiscount.discountDisplay}</div>
+                      <div className="text-xs">OFF</div>
+                    </div>
                   </div>
                 )}
 
@@ -125,12 +147,35 @@ export default function ProductDetailModal({
             </div>
 
             <div className="space-y-4">
+              {/* Price Section with Discount */}
               <div className="bg-gradient-to-r from-accent-50 dark:from-accent-900/20 to-accent-100 dark:to-accent-800/20 p-4 rounded-lg">
                 <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Price</p>
-                <p className="text-3xl font-bold text-accent-600 dark:text-accent-400">
-                  ${price.toFixed(2)}
-                </p>
+                <div className="flex items-center gap-3">
+                  {appliedDiscount && appliedDiscount.isApplicable ? (
+                    <>
+                      <span className="text-lg line-through text-gray-400 dark:text-gray-500">
+                        ${basePrice.toFixed(2)}
+                      </span>
+                      <p className="text-3xl font-bold text-accent-600 dark:text-accent-400">
+                        ${finalPrice.toFixed(2)}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-3xl font-bold text-accent-600 dark:text-accent-400">
+                      ${basePrice.toFixed(2)}
+                    </p>
+                  )}
+                </div>
               </div>
+
+              {/* Discount Information */}
+              {discount && discount.lines && discount.lines.length > 0 && (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 rounded-lg">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    {discountMessage}
+                  </p>
+                </div>
+              )}
 
               {product.text_parsed && (
                 <div>
@@ -219,6 +264,16 @@ export default function ProductDetailModal({
                   </button>
                 </div>
               </div>
+
+              {/* Total Price Preview */}
+              {appliedDiscount && appliedDiscount.isApplicable && (
+                <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
+                  <p className="text-xs text-green-600 dark:text-green-400 mb-1">Total with discount:</p>
+                  <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                    ${(finalPrice * quantity).toFixed(2)}
+                  </p>
+                </div>
+              )}
 
               <button
                 onClick={handleAddToCart}

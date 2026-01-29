@@ -14,6 +14,7 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import ProductCard from './components/ProductCard';
 import { useShopCart, CartItem } from "../../contexts/ShopCartContext";
+import { calculateApplicableDiscount, calculateFinalPrice, type Discount } from '@/app/utils/discountUtils';
 
 // Helper function to get product image URL
 const getProductImageUrl = (product: any): string => {
@@ -60,6 +61,7 @@ interface Product {
   page_id?: string;
   is_sample?: string | number;
   med_image?: string;
+   discounts?: Discount;  // ADD THIS LINE ONLY
 }
 
 interface Category {
@@ -73,6 +75,7 @@ interface PageCache {
   total: number;
   totalPages: number;
 }
+
 
 export default function PageContent() {
   const { addToCart } = useShopCart();
@@ -115,6 +118,14 @@ export default function PageContent() {
   useEffect(() => {
     applyFiltersAndSort();
   }, [products, searchTerm, selectedCategory, sortBy, selectedSeller]);
+
+	const getProductDiscount = (product: any): Discount | null => {
+		
+		if (product.discounts && typeof product.discounts === 'object') {
+		return product.discounts as Discount;
+		}
+		return null;
+	};
 
   // Fetch products for a specific page with caching
   const fetchProducts = async (page: number = 1) => {
@@ -329,28 +340,41 @@ export default function PageContent() {
 
   // Handle add to cart
   const handleAddToCart = (product: Product) => {
-	  console.log(product);
-    const cartItem: CartItem = {
-      productId: product.product_id,
-      cartItemId: product.product_id,
-      productName: product.name,
-      price: parseFloat(product.p_offer_price || '0'),
-      brand: product.cat_name,
-      quantity: 1,
-      imageUrl: getProductImageUrl(product),
-      business: product.bus_title,
-      business_user_id: product.business_user_id ? parseInt(product.business_user_id, 10) : undefined,
-      name: product.name,
-      page_id: product.page_id ? parseInt(product.page_id, 10) : undefined,
-      is_sample: typeof product.is_sample === 'string' ? parseInt(product.is_sample, 10) : product.is_sample,
-      med_image: product.med_image,
-    };
-    addToCart(cartItem);
-    toast.success(`${product.name} added to cart!`, {
-      position: 'bottom-right',
-      autoClose: 2000,
-    });
-  };
+	  try {
+		const basePrice = parseFloat(product.p_offer_price || '0');
+		const productDiscount = getProductDiscount(product);
+		const appliedDiscount = calculateApplicableDiscount(basePrice, 1, productDiscount);
+		const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
+
+		const cartItem: CartItem = {
+		  cartItemId: `${product.product_id}_${Date.now()}`,
+		  productId: product.product_id,
+		  productName: product.name,
+		  brand: product.cat_name,
+		  price: finalPrice,
+		  basePrice: basePrice,
+		  quantity: 1,
+		  imageUrl: getProductImageUrl(product),
+		  business: product.bus_title || 'Nature\'s High',
+		  business_user_id: product.business_user_id ? parseInt(product.business_user_id) : undefined,
+		  page_id: product.page_id ? parseInt(product.page_id) : undefined,
+		  discount: productDiscount || undefined,
+		  appliedDiscount: appliedDiscount || undefined,
+		};
+
+		addToCart(cartItem);
+		toast.success(`Added ${product.name} to cart!`, {
+		  position: 'top-right',
+		  autoClose: 2000,
+		});
+	  } catch (error) {
+		console.error('Error adding to cart:', error);
+		toast.error('Failed to add item to cart', {
+		  position: 'top-right',
+		  autoClose: 2000,
+		});
+	  }
+	};
   
   // In your product card or add to cart function
 	/*const handleAddToCart = (product: any, businessData: any) => {
@@ -551,6 +575,21 @@ export default function PageContent() {
                         THC: {product.thc}%
                       </div>
                     )}
+					
+					{(() => {
+					  const basePrice = parseFloat(product.p_offer_price || '0');
+					  const appliedDiscount = calculateApplicableDiscount(basePrice, 1, getProductDiscount(product));
+					  console.log(getProductDiscount(product));
+
+					  return appliedDiscount && appliedDiscount.isApplicable ? (
+						<div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold border border-red-700 shadow-md">
+						  <div className="text-center">
+							<div className="font-bold text-sm">{appliedDiscount.discountDisplay}</div>
+							<div className="text-xs leading-tight">OFF</div>
+						  </div>
+						</div>
+					  ) : null;
+					})()}
                   </div>
 
                   {/* Product Info */}
@@ -565,13 +604,30 @@ export default function PageContent() {
                       </p>
                     )}
                     <div className="flex justify-between items-center">
-                      <span className="text-lg font-bold text-teal-600 dark:text-teal-400">
-                        ${product.p_offer_price}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {product.i_onhand} in stock
-                      </span>
-                    </div>
+					  {(() => {
+						const basePrice = parseFloat(product.p_offer_price || '0');
+						const appliedDiscount = calculateApplicableDiscount(basePrice, 1, getProductDiscount(product));
+						const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
+						
+						return appliedDiscount && appliedDiscount.isApplicable ? (
+						  <div className="flex items-center gap-2">
+							<span className="text-xs line-through text-gray-400 dark:text-gray-500">
+							  ${basePrice.toFixed(2)}
+							</span>
+							<span className="text-lg font-bold text-teal-600 dark:text-teal-400">
+							  ${finalPrice.toFixed(2)}
+							</span>
+						  </div>
+						) : (
+						  <span className="text-lg font-bold text-teal-600 dark:text-teal-400">
+							${basePrice.toFixed(2)}
+						  </span>
+						);
+					  })()}
+					  <span className="text-xs text-gray-500 dark:text-gray-400">
+						{product.i_onhand} in stock
+					  </span>
+					</div>
 
                     {/* Action Buttons */}
                     <div className="mt-3 flex gap-2">
@@ -683,9 +739,26 @@ export default function PageContent() {
 
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Price</p>
-                    <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
-                      ${selectedProduct.p_offer_price}
-                    </p>
+					{(() => {
+					  const basePrice = parseFloat(selectedProduct.p_offer_price || '0');
+					  const appliedDiscount = calculateApplicableDiscount(basePrice, 1, getProductDiscount(selectedProduct));
+					  const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
+					  
+					  return appliedDiscount && appliedDiscount.isApplicable ? (
+						<div className="flex items-center gap-2">
+						  <span className="text-lg line-through text-gray-400 dark:text-gray-500">
+							${basePrice.toFixed(2)}
+						  </span>
+						  <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+							${finalPrice.toFixed(2)}
+						  </p>
+						</div>
+					  ) : (
+						<p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+						  ${basePrice.toFixed(2)}
+						</p>
+					  );
+					})()}
                   </div>
 				  
 				  {/* Details Grid */}

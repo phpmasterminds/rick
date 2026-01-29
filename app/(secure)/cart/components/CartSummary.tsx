@@ -6,6 +6,8 @@ import Link from 'next/link';
 
 interface CartSummaryProps {
   cartTotal: number;
+  cartSubtotal: number;
+  totalDiscount: number;
   itemCount: number;
   onCheckout: () => void;
   onClear: () => void;
@@ -15,6 +17,8 @@ interface CartSummaryProps {
 
 export default function CartSummary({
   cartTotal,
+  cartSubtotal,
+  totalDiscount,
   itemCount,
   onCheckout,
   onClear,
@@ -24,9 +28,13 @@ export default function CartSummary({
   const [showConfirm, setShowConfirm] = useState(false);
 
   const shippingCost = 0;
-  //const tax = (cartTotal * 0.045).toFixed(2);
   const tax = '0';
   const finalTotal = (cartTotal + parseFloat(tax) + shippingCost).toFixed(2);
+
+  // Calculate savings percentage
+  const savingsPercentage = cartSubtotal > 0 
+    ? ((totalDiscount / cartSubtotal) * 100).toFixed(1)
+    : '0';
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 sticky top-6">
@@ -38,9 +46,21 @@ export default function CartSummary({
         <div className="flex justify-between text-sm">
           <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
           <span className="text-gray-900 dark:text-white">
-            ${cartTotal.toFixed(2)}
+            ${cartSubtotal.toFixed(2)}
           </span>
         </div>
+
+        {/* NEW: Show discount savings if any */}
+        {totalDiscount > 0 && (
+          <div className="flex justify-between text-sm bg-green-50 dark:bg-green-900/20 p-2 rounded-lg border border-green-200 dark:border-green-800">
+            <span className="text-green-700 dark:text-green-300 font-semibold">
+              Discount Savings
+            </span>
+            <span className="text-green-700 dark:text-green-300 font-semibold">
+              -${totalDiscount.toFixed(2)} ({savingsPercentage}%)
+            </span>
+          </div>
+        )}
 
         <div className="flex justify-between text-sm">
           <span className="text-gray-600 dark:text-gray-400">Shipping</span>
@@ -48,11 +68,6 @@ export default function CartSummary({
             ${shippingCost.toFixed(2)}
           </span>
         </div>
-
-        {/*<div className="flex justify-between text-sm">
-          <span className="text-gray-600 dark:text-gray-400">Tax (4.5%)</span>
-          <span className="text-gray-900 dark:text-white">${tax}</span>
-        </div>*/}
       </div>
 
       <div className="mb-6">
@@ -70,7 +85,14 @@ export default function CartSummary({
         </p>
       </div>
 
-      {/* ✨ REMOVED: Business Selection Warning - page_id now comes from cart items */}
+      {/* NEW: Show savings badge when discount is applied */}
+      {totalDiscount > 0 && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4">
+          <p className="text-xs text-green-800 dark:text-green-300">
+            ✨ You're saving ${totalDiscount.toFixed(2)} with our discount offers!
+          </p>
+        </div>
+      )}
 
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
         <p className="text-xs text-blue-800 dark:text-blue-300">
@@ -107,7 +129,7 @@ export default function CartSummary({
         </button>
 
         <Link
-          href="/shop"
+          href="/buy"
           className="block w-full bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600 font-semibold py-2 rounded-lg transition-colors text-center"
         >
           Continue Shopping

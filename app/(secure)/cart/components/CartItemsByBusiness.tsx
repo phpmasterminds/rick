@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState } from 'react';
@@ -20,7 +19,19 @@ export default function CartItemsByBusiness({
 }: CartItemsByBusinessProps) {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  const businessTotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // Calculate business total WITH discounts applied
+  const businessTotal = items.reduce((sum, item) => {
+    return sum + (item.price * item.quantity); // price already includes discount
+  }, 0);
+
+  // Calculate business subtotal BEFORE discounts
+  const businessSubtotal = items.reduce((sum, item) => {
+    const basePrice = item.basePrice || item.price;
+    return sum + (basePrice * item.quantity);
+  }, 0);
+
+  // Calculate total discount for this business
+  const totalDiscount = businessSubtotal - businessTotal;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden mb-4">
@@ -48,6 +59,11 @@ export default function CartItemsByBusiness({
           <p className="font-bold text-lg text-gray-900 dark:text-white">
             ${businessTotal.toFixed(2)}
           </p>
+          {totalDiscount > 0 && (
+            <p className="text-xs text-green-600 dark:text-green-400 font-semibold">
+              Save ${totalDiscount.toFixed(2)}
+            </p>
+          )}
         </div>
       </button>
 
@@ -92,6 +108,12 @@ export default function CartItemsByBusiness({
                   {item.selectedFlavor && (
                     <span className="text-xs bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-300 px-2 py-1 rounded">
                       {item.selectedFlavor}
+                    </span>
+                  )}
+                  {/* NEW: Show discount badge if applicable */}
+                  {item.appliedDiscount && item.appliedDiscount.isApplicable && (
+                    <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-300 px-2 py-1 rounded font-semibold">
+                      {item.appliedDiscount.discountDisplay} OFF
                     </span>
                   )}
                 </div>
@@ -142,6 +164,12 @@ export default function CartItemsByBusiness({
                 </button>
 
                 <div className="text-right">
+                  {/* NEW: Show base price if discount applied */}
+                  {item.basePrice && item.basePrice !== item.price && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 line-through">
+                      ${item.basePrice.toFixed(2)}/each
+                    </p>
+                  )}
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                     ${item.price.toFixed(2)}/each
                   </p>
@@ -153,13 +181,36 @@ export default function CartItemsByBusiness({
             </div>
           ))}
 
-          <div className="p-4 bg-gray-50 dark:bg-gray-750 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
-            <p className="font-semibold text-gray-900 dark:text-white">
-              Business Subtotal
-            </p>
-            <p className="font-bold text-lg text-gray-900 dark:text-white">
-              ${businessTotal.toFixed(2)}
-            </p>
+          <div className="p-4 bg-gray-50 dark:bg-gray-750 border-t border-gray-200 dark:border-gray-700 space-y-2">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Subtotal
+              </p>
+              <p className="text-sm text-gray-900 dark:text-white">
+                ${businessSubtotal.toFixed(2)}
+              </p>
+            </div>
+
+            {/* NEW: Show discount if applicable */}
+            {totalDiscount > 0 && (
+              <div className="flex justify-between items-center">
+                <p className="text-sm font-semibold text-green-600 dark:text-green-400">
+                  Discount
+                </p>
+                <p className="text-sm font-semibold text-green-600 dark:text-green-400">
+                  -${totalDiscount.toFixed(2)}
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center pt-2 border-t border-gray-200 dark:border-gray-700">
+              <p className="font-semibold text-gray-900 dark:text-white">
+                Business Total
+              </p>
+              <p className="font-bold text-lg text-gray-900 dark:text-white">
+                ${businessTotal.toFixed(2)}
+              </p>
+            </div>
           </div>
         </div>
       )}

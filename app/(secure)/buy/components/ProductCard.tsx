@@ -4,15 +4,22 @@ import React from 'react';
 import { Heart, ShoppingCart } from 'lucide-react';
 import { useShopCart } from '@/app/contexts/ShopCartContext';
 import { toast } from 'react-toastify';
+import {
+  calculateApplicableDiscount,
+  calculateFinalPrice,
+  type Discount,
+} from '@/app/utils/discountUtils';
 
 interface ProductCardProps {
   product: any;
+  discount?: Discount | null;
   onViewDetails: (product: any) => void;
   onFavorite?: (productId: string) => void;
 }
 
 export default function ProductCard({
   product,
+  discount,
   onViewDetails,
   onFavorite,
 }: ProductCardProps) {
@@ -34,15 +41,22 @@ export default function ProductCard({
     setIsAdding(true);
 
     try {
+      const basePrice = parseFloat(product.p_offer_price || '0');
+      const appliedDiscount = calculateApplicableDiscount(basePrice, 1, discount);
+      const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
+
       const cartItem = {
         cartItemId: `${product.product_id}_${Date.now()}`,
         productId: product.product_id,
         productName: product.name,
         brand: product.cat_name,
-        price: parseFloat(product.p_offer_price || '0'),
+        price: finalPrice, // Use final price after discount
+        basePrice: basePrice, // Store original price for reference
         quantity: 1,
         imageUrl: product.image_url,
-        business: product.business || 'Nature\'s High', // Default business
+        business: product.business || 'Nature\'s High',
+        discount: discount || undefined, // Store discount for recalculation
+        appliedDiscount: appliedDiscount || undefined,
       };
 
       addToCart(cartItem);
@@ -61,7 +75,8 @@ export default function ProductCard({
     }
   };
 
-  const price = parseFloat(product.p_offer_price || '0');
+  const basePrice = parseFloat(product.p_offer_price || '0');
+  const appliedDiscount = calculateApplicableDiscount(basePrice, 1, discount);
   const imageUrl = product.image_url || '/images/placeholder-product.png';
 
   return (
@@ -79,6 +94,16 @@ export default function ProductCard({
         {product.is_safe && (
           <div className="absolute top-2 left-2 bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded">
             {product.is_safe}
+          </div>
+        )}
+
+        {/* Discount Badge */}
+        {appliedDiscount && appliedDiscount.isApplicable && (
+          <div className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-3 py-2 rounded shadow-lg border-2 border-red-700">
+            <div className="text-center">
+              <div className="text-sm font-bold">{appliedDiscount.discountDisplay}</div>
+              <div className="text-xs">OFF</div>
+            </div>
           </div>
         )}
 
@@ -131,10 +156,22 @@ export default function ProductCard({
           </div>
         )}
 
-        <div className="flex items-baseline gap-1 mt-auto">
-          <span className="text-lg font-bold text-accent-500">
-            ${price.toFixed(2)}
-          </span>
+        <div className="flex items-baseline gap-2 mt-auto">
+          {appliedDiscount && appliedDiscount.isApplicable ? (
+            <>
+              <span className="text-xs line-through text-gray-400 dark:text-gray-500">
+                ${basePrice.toFixed(2)}
+              </span>
+              <span className="text-lg font-bold text-accent-500">
+                ${(basePrice - appliedDiscount.discountValue).toFixed(2)}
+              </span>
+            </>
+          ) : (
+            <span className="text-lg font-bold text-accent-500">
+              ${basePrice.toFixed(2)}
+            </span>
+          )}
+
           {product.med_measurements && (
             <span className="text-xs text-gray-500 dark:text-gray-400">
               /{product.med_measurements}

@@ -2,27 +2,36 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode } from 'react';
+import {
+  calculateApplicableDiscount,
+  calculateFinalPrice,
+  type Discount,
+  type AppliedDiscount,
+} from '@/app/utils/discountUtils';
 
 export interface CartItem {
-  cartItemId: string;           // Unique cart item ID
-  productId: string;            // Product ID
-  productName: string;          // Product name
-  brand?: string;               // Brand/Category
-  price: number;                // Current price
-  quantity: number;             // Quantity
-  imageUrl?: string;            // Product image
-  selectedVariant?: string;     // Selected variant
-  selectedFlavor?: string;      // Selected flavor
-  sku?: string;                 // SKU/Product code
-  business?: string;            // Business name for grouping
-  business_user_id?: number;             // Page ID
-  page_id?: number;             // Page ID
-  is_sample?: number;           // Is sample indicator
-  customer_id?: number;         // Customer ID
-  sample_order?: number;        // Sample order indicator
-  name?: string;                // Product name alternative
-  med_image?: string;                // Product name alternative
-  total?: number;               // Line item total (price * quantity)
+  cartItemId: string; // Unique cart item ID
+  productId: string; // Product ID
+  productName: string; // Product name
+  brand?: string; // Brand/Category
+  price: number; // Current price (after discount if applicable)
+  basePrice?: number; // Original price before discount
+  quantity: number; // Quantity
+  imageUrl?: string; // Product image
+  selectedVariant?: string; // Selected variant
+  selectedFlavor?: string; // Selected flavor
+  sku?: string; // SKU/Product code
+  business?: string; // Business name for grouping
+  business_user_id?: number; // Business user ID
+  page_id?: number; // Page ID
+  is_sample?: number; // Is sample indicator
+  customer_id?: number; // Customer ID
+  sample_order?: number; // Sample order indicator
+  name?: string; // Product name alternative
+  med_image?: string; // Product image alternative
+  total?: number; // Line item total (price * quantity)
+  discount?: Discount | null; // Discount object for recalculation
+  appliedDiscount?: AppliedDiscount; // Currently applied discount
 }
 
 interface ShopCartContextType {
@@ -32,16 +41,26 @@ interface ShopCartContextType {
   updateCartItemQuantity: (cartItemId: string, quantity: number) => void;
   getCartItemsCount: () => number;
   getCartTotal: () => number;
+  getCartSubtotal: () => number;
+  getTotalDiscount: () => number;
   clearCart: () => void;
+  getCartItemWithDiscount: (item: CartItem) => CartItem; // Get item with updated discount
 }
 
 const ShopCartContext = createContext<ShopCartContextType | undefined>(undefined);
 
-// Helper function to calculate item total
+// Helper function to calculate item total with discount recalculation
 const calculateItemTotal = (item: CartItem): CartItem => {
+  // Recalculate discount based on quantity and base price
+  const basePrice = item.basePrice || item.price;
+  const appliedDiscount = calculateApplicableDiscount(basePrice, item.quantity, item.discount);
+  const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
+
   return {
     ...item,
-    total: (item.price || 0) * (item.quantity || 0),
+    price: finalPrice, // Update price to final price after discount
+    appliedDiscount: appliedDiscount || undefined,
+    total: finalPrice * (item.quantity || 0),
   };
 };
 
@@ -74,12 +93,13 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
   const addToCart = (item: CartItem) => {
     try {
       setCartItems((prevItems) => {
-        // Check if item already exists (by productId, not cartItemId)
+        // Check if item already exists (by productId and options, not cartItemId)
         const existingItemIndex = prevItems.findIndex(
-          (i) => i.productId === item.productId && 
-                 i.selectedVariant === item.selectedVariant &&
-                 i.selectedFlavor === item.selectedFlavor &&
-                 i.business === item.business
+          (i) =>
+            i.productId === item.productId &&
+            i.selectedVariant === item.selectedVariant &&
+            i.selectedFlavor === item.selectedFlavor &&
+            i.business === item.business
         );
 
         let updatedItems: CartItem[];
@@ -88,7 +108,12 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
           // Update existing item quantity and recalculate total
           updatedItems = prevItems.map((i, idx) => {
             if (idx === existingItemIndex) {
-              const updatedItem = { ...i, quantity: i.quantity + item.quantity };
+              // Preserve discount information from existing item or new item
+              const updatedItem = {
+                ...i,
+                quantity: i.quantity + item.quantity,
+                discount: item.discount || i.discount,
+              };
               return calculateItemTotal(updatedItem);
             }
             return i;
@@ -133,7 +158,7 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
           return updatedItems;
         }
 
-        // Update quantity and recalculate total
+        // Update quantity and recalculate total with discount
         const updatedItems = prevItems.map((item) => {
           if (item.cartItemId === cartItemId) {
             const updatedItem = { ...item, quantity };
@@ -156,11 +181,21 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
     return cartItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
   };
 
+  const getCartSubtotal = (): number => {
+    return cartItems.reduce((total, item) => {
+      const basePrice = item.basePrice || item.price;
+      return total + basePrice * (item.quantity || 0);
+    }, 0);
+  };
+
+  const getTotalDiscount = (): number => {
+    return cartItems.reduce((total, item) => {
+      return total + (item.appliedDiscount?.discountValue || 0) * (item.quantity || 0);
+    }, 0);
+  };
+
   const getCartTotal = (): number => {
-    return cartItems.reduce(
-      (total, item) => total + (item.total || 0),
-      0
-    );
+    return cartItems.reduce((total, item) => total + (item.total || 0), 0);
   };
 
   const clearCart = () => {
@@ -175,6 +210,10 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const getCartItemWithDiscount = (item: CartItem): CartItem => {
+    return calculateItemTotal(item);
+  };
+
   const value: ShopCartContextType = {
     cartItems,
     addToCart,
@@ -182,13 +221,14 @@ export function ShopCartProvider({ children }: { children: ReactNode }) {
     updateCartItemQuantity,
     getCartItemsCount,
     getCartTotal,
+    getCartSubtotal,
+    getTotalDiscount,
     clearCart,
+    getCartItemWithDiscount,
   };
 
   return (
-    <ShopCartContext.Provider value={value}>
-      {children}
-    </ShopCartContext.Provider>
+    <ShopCartContext.Provider value={value}>{children}</ShopCartContext.Provider>
   );
 }
 

@@ -24,7 +24,7 @@ export default function PageContent() {
   const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false);
   const [orderNotes, setOrderNotes] = useState('');
 
-  // ✨ FIX: Provide default value for undefined business
+  // FIX: Provide default value for undefined business
   const itemsByBusiness = cartItems.reduce(
     (acc, item) => {
       const business = item.business || "Nature's High";
@@ -37,7 +37,7 @@ export default function PageContent() {
     {} as Record<string, typeof cartItems>
   );
 
-  // ✨ Get page_id from cart items (all items should have same page_id or we handle multi-page orders)
+  // Get page_id from cart items (all items should have same page_id or we handle multi-page orders)
   const getPageIdsFromCart = () => {
     const pageIds = new Set(cartItems.map(item => item.page_id).filter(Boolean));
     return Array.from(pageIds);
@@ -45,12 +45,21 @@ export default function PageContent() {
 
   const pageIds = getPageIdsFromCart();
 
+  // NEW: Calculate subtotal before discount
+  const cartSubtotal = cartItems.reduce((sum, item) => {
+    const basePrice = item.basePrice || item.price;
+    return sum + (basePrice * item.quantity);
+  }, 0);
+
+  // NEW: Calculate total discount
+  const totalDiscount = cartSubtotal - getCartTotal();
+
   const cartTotal = getCartTotal();
   const itemCount = getCartItemsCount();
   const businessCount = Object.keys(itemsByBusiness).length;
 
   const handleCheckout = async () => {
-    // ✨ Validation: Ensure all cart items have page_id
+    // Validation: Ensure all cart items have page_id
     if (!pageIds || pageIds.length === 0) {
       toast.error('Cart items are missing page_id. Please contact support.', {
         position: 'top-right',
@@ -62,7 +71,7 @@ export default function PageContent() {
     setIsCheckoutProcessing(true);
 
     try {
-      // ✨ Extract vanity_url from cookie (the business identifier)
+      // Extract vanity_url from cookie (the business identifier)
       const vanityUrl = Cookies.get('vanity_url') || null;
 
       if (!vanityUrl) {
@@ -74,7 +83,7 @@ export default function PageContent() {
         return;
       }
 
-      // ✨ Extract business_user_id from first item (or use page_id as fallback)
+      // Extract business_user_id from first item (or use page_id as fallback)
       const businessUserIdMap = new Map<string, string | null>();
       cartItems.forEach(item => {
         const pageIdKey = String(item.page_id);
@@ -83,36 +92,58 @@ export default function PageContent() {
         }
       });
 
-      // ✨ Prepare checkout payload with all cart items and their page_ids
+      // NEW: Prepare checkout payload with discount details
       const checkoutPayload = {
-        items: cartItems.map(item => ({
-          id: item.productId,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-          subtotal: item.quantity * item.price,
-          business: vanityUrl, // ✨ Use vanity_url from cookie as business identifier
-          product_id: item.productId,
-          page_id: item.page_id, // ✨ Each item carries its own page_id
-          business_user_id: item.business_user_id, // ✨ Each item carries its own business_user_id
-          is_sample: item.is_sample,
-          sample_order: item.sample_order,
-          total: item.quantity * item.price,
-          med_image: item.med_image,
-        })),
+        items: cartItems.map(item => {
+          const basePrice = item.basePrice || item.price;
+          const itemDiscount = (basePrice - item.price) * item.quantity;
+
+          return {
+            id: item.productId,
+            name: item.productName,
+            quantity: item.quantity,
+            basePrice: basePrice,                    // Original price before discount
+            price: item.price,                       // Final price after discount
+            subtotal: basePrice * item.quantity,     // Original subtotal
+            discount: itemDiscount,                  // Total discount for this item
+            discountPercentage: item.appliedDiscount?.discountDisplay || null,
+            final_total: item.price * item.quantity, // Final total after discount
+            product_id: item.productId,
+            page_id: item.page_id,
+            business_user_id: item.business_user_id,
+            business: vanityUrl,
+            is_sample: item.is_sample,
+            sample_order: item.sample_order,
+            total: item.quantity * item.price,
+            med_image: item.med_image,
+            // NEW: Include full discount object for reference
+            appliedDiscount: item.appliedDiscount ? {
+              discountValue: item.appliedDiscount.discountValue,
+              discountDisplay: item.appliedDiscount.discountDisplay,
+              minimumPurchase: item.appliedDiscount.minimumPurchase,
+              isApplicable: item.appliedDiscount.isApplicable,
+              // NEW: Include discount id and applies_to_id
+              discountId: item.appliedDiscount.discountId,
+              appliesToId: item.appliedDiscount.appliesToId,
+            } : null,
+          };
+        }),
         summary: {
           itemCount,
           businessCount,
-          totalAmount: cartTotal,
+          subtotalAmount: cartSubtotal,    // NEW: Before discount
+          totalDiscount: totalDiscount,     // NEW: Total discount savings
+          totalAmount: cartTotal,           // Final total after discount
           currency: 'USD',
         },
-        vanity_url: vanityUrl, // ✨ Top-level business identifier
-        page_ids: pageIds, // ✨ Array of all page_ids in the order
-        business_user_ids: Object.fromEntries(businessUserIdMap), // ✨ Map of page_id -> business_user_id
+        vanity_url: vanityUrl,
+        page_ids: pageIds,
+        business_user_ids: Object.fromEntries(businessUserIdMap),
         order_notes: orderNotes,
         timestamp: new Date().toISOString(),
       };
 
+      console.log('Checkout Payload:', checkoutPayload); // DEBUG
       
       // Send checkout request to your API
       const response = await axios.post('/api/business/master-catalog-cart', checkoutPayload);
@@ -127,9 +158,9 @@ export default function PageContent() {
       clearCart();
       
       // Optional: Redirect to payment or order confirmation page
-       window.location.href = result.redirectUrl || '/open-orders';
+      window.location.href = result.redirectUrl || '/open-orders';
     } catch (error) {
-      console.error('❌ Checkout error:', error);
+      console.error('Checkout error:', error);
       toast.error('Failed to process checkout. Please try again.', {
         position: 'top-right',
         autoClose: 3000,
@@ -209,7 +240,7 @@ export default function PageContent() {
             />
           ))}
 
-          {/* ✨ Order Notes Section */}
+          {/* Order Notes Section */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
               Order Notes
@@ -230,6 +261,8 @@ export default function PageContent() {
         <div>
           <CartSummary
             cartTotal={cartTotal}
+            cartSubtotal={cartSubtotal}      // NEW
+            totalDiscount={totalDiscount}    // NEW
             itemCount={itemCount}
             businessCount={businessCount}
             onCheckout={handleCheckout}
