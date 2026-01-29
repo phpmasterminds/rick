@@ -40,49 +40,75 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
 
   const [isLoading, setIsLoading] = useState(true);
 
+  const getCookie = (name: string): string | null => {
+    if (typeof document === 'undefined') return null;
+
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+
+    if (parts.length === 2) {
+      return parts.pop()!.split(';').shift() || null;
+    }
+
+    return null;
+  };
+
   // ✅ NEW: Check localStorage for permissions
   const loadPermissionsFromLocalStorage = () => {
     try {
-      // Check if localStorage is available
+      // SSR safety
       if (typeof window === 'undefined') {
         setIsLoading(false);
         return;
       }
 
-      // Try to get permissions from localStorage
-      const permissionsData = localStorage.getItem('permissions');
-	  
-      // ✅ NEW LOGIC: If NO localStorage data → User is owner/admin
-      if (!permissionsData || permissionsData === 'null' || permissionsData === 'undefined') {
-        // No permissions in localStorage = Business Owner or Site Admin
+      const accountType = getCookie('current_permission_account_type');
+      const canBusinessPages = getCookie('current_permission_can_access_business_pages');
+      const canCRM = getCookie('current_permission_can_access_crm');
+      const canInventory = getCookie('current_permission_can_access_inventory');
+      const canProductionPackaging = getCookie('current_permission_can_access_production_packaging');
+      const canCustomer = getCookie('current_permission_can_access_customer');
+
+      // ✅ NEW LOGIC: If NO permission cookies → Owner/Admin
+      if (
+        !accountType &&
+        !canBusinessPages &&
+        !canCRM &&
+        !canInventory &&
+        !canProductionPackaging &&
+        !canCustomer
+      ) {
         setPermissions({
           account_type: 'business_owner',
-          can_access_crm: true,        // Full access
-          can_access_inventory: true,   // Full access
-          can_access_production_packaging: true, // Full access
-          can_access_business_pages: true, // Full access
-          can_access_customer: true, // Full access
+          can_access_crm: true,
+          can_access_inventory: true,
+          can_access_production_packaging: true,
+          can_access_business_pages: true,
+          can_access_customer: true,
           isOwnerOrAdmin: true,
         });
         setIsLoading(false);
         return;
       }
 
-      // Parse permissions from localStorage
-      const parsed = JSON.parse(permissionsData);
+      // Staff permissions from cookies
+      // ✅ FIX: Type narrowing - cast to valid union type
+      const validAccountType = (accountType as 'staff' | 'admin' | 'business_owner' | null) || 'staff';
 
       setPermissions({
-        account_type: parsed.account_type || 'staff',
-        can_access_crm: parsed.can_access_crm === true || parsed.can_access_crm === '1',
-        can_access_inventory: parsed.can_access_inventory === true || parsed.can_access_inventory === '1',
-        can_access_production_packaging: parsed.can_access_production_packaging === true || parsed.can_access_production_packaging === '1',
-        can_access_business_pages: parsed.can_access_business_pages === true || parsed.can_access_business_pages === '1',
-        can_access_customer: parsed.can_access_customer === true || parsed.can_access_customer === '1',
-        isOwnerOrAdmin: false, // Has localStorage = Staff member
+        account_type: validAccountType,
+        can_access_business_pages: canBusinessPages === '1' || canBusinessPages === 'true',
+        can_access_crm: canCRM === '1' || canCRM === 'true',
+        can_access_inventory: canInventory === '1' || canInventory === 'true',
+        can_access_production_packaging:
+          canProductionPackaging === '1' || canProductionPackaging === 'true',
+        can_access_customer: canCustomer === '1' || canCustomer === 'true',
+        isOwnerOrAdmin: false,
       });
     } catch (error) {
-      console.error('Error loading permissions from localStorage:', error);
-      // On error, treat as owner/admin (safe default)
+      console.error('Error loading permissions from cookies:', error);
+
+      // Safe fallback → Owner/Admin
       setPermissions({
         account_type: 'business_owner',
         can_access_crm: true,
