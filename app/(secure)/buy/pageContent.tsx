@@ -61,7 +61,7 @@ interface Product {
   page_id?: string;
   is_sample?: string | number;
   med_image?: string;
-   discounts?: Discount;  // ADD THIS LINE ONLY
+   discounts?: Discount;
 }
 
 interface Category {
@@ -87,9 +87,15 @@ export default function PageContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filter state
+  // Background loading state
+  const [isLoadingBackground, setIsLoadingBackground] = useState(false);
+  const [backgroundLoadProgress, setBackgroundLoadProgress] = useState(0);
+  const [totalLoadedInBackground, setTotalLoadedInBackground] = useState(0);
+
+  // Filter state - UPDATED with selectedSubCategory ✅
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('default');
   const [sellers, setSellers] = useState<string[]>([]);
   const [selectedSeller, setSelectedSeller] = useState('All');
@@ -107,17 +113,34 @@ export default function PageContent() {
   // Cache for page data to avoid redundant API calls
   const pageCache = useRef<Map<number, PageCache>>(new Map());
   const lastTotalRef = useRef<number>(0);
+  const backgroundLoadingRef = useRef<boolean>(false);
 
   // Initial load
   useEffect(() => {
-    fetchProducts(1);
-    fetchCategories();
+    const initializeData = async () => {
+      await fetchProducts(1);
+      fetchCategories();
+      // Start background loading
+      loadAllProductsInBackground();
+    };
+    initializeData();
   }, []);
 
-  // Apply filters when products, search, category, sort, or seller changes
+  // Apply filters when products, search, category, subcategory, sort, or seller changes - UPDATED ✅
   useEffect(() => {
     applyFiltersAndSort();
-  }, [products, searchTerm, selectedCategory, sortBy, selectedSeller]);
+  }, [products, searchTerm, selectedCategory, selectedSubCategory, sortBy, selectedSeller, categories]);
+
+  // Reset subcategory and page when main category changes - UPDATED ✅
+  useEffect(() => {
+    setSelectedSubCategory(null);
+    setCurrentPage(1);
+  }, [selectedCategory]);
+
+  // Reset page when seller/search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedSeller, searchTerm]);
 
 	const getProductDiscount = (product: any): Discount | null => {
 		
@@ -126,6 +149,123 @@ export default function PageContent() {
 		}
 		return null;
 	};
+
+  // Load all products in background
+  const loadAllProductsInBackground = async () => {
+    if (backgroundLoadingRef.current) return;
+    
+    backgroundLoadingRef.current = true;
+    setIsLoadingBackground(true);
+    setBackgroundLoadProgress(0);
+    setTotalLoadedInBackground(0);
+
+    try {
+      const firstPageCache = pageCache.current.get(1);
+      const totalProducts = firstPageCache?.total || 0;
+      const pagesNeeded = totalProducts > 0 ? Math.ceil(totalProducts / 30) : 0;
+      
+      console.log(`📊 Total products available: ${totalProducts}`);
+      console.log(`📄 Pages needed to load all products: ${pagesNeeded}`);
+      
+      let accumulatedProducts: Product[] = [];
+
+      for (let page = 1; page <= pagesNeeded; page++) {
+        const cachedPage = pageCache.current.get(page);
+        let pageProducts: Product[] = [];
+        
+        if (cachedPage) {
+          pageProducts = cachedPage.products;
+          console.log(`📦 Using cached page ${page} for background load`);
+        } else {
+          try {
+            const params = new URLSearchParams({
+              page: page.toString(),
+              limit: '30',
+            });
+
+            const endpoints = [
+              `/api/business/business-products?${params.toString()}`,
+              `/api/business/products?${params.toString()}`,
+              `/api/products?${params.toString()}`,
+              `/api/shop/products?${params.toString()}`,
+            ];
+
+            let response;
+            let lastError: any = null;
+            
+            for (const endpoint of endpoints) {
+              try {
+                response = await axios.get(endpoint);
+                break;
+              } catch (err) {
+                lastError = err;
+                continue;
+              }
+            }
+
+            if (!response) throw lastError;
+
+            let productsData: Product[] = [];
+            
+            if (response.data.data?.products && Array.isArray(response.data.data.products)) {
+              productsData = response.data.data.products;
+            } else if (response.data.products && Array.isArray(response.data.products)) {
+              productsData = response.data.products;
+            } else if (response.data.data && Array.isArray(response.data.data)) {
+              productsData = response.data.data;
+            } else if (Array.isArray(response.data)) {
+              productsData = response.data;
+            }
+
+            const enabledProducts = productsData.filter(
+              (p: any) => p.enable_catalog === '1' || p.enable_catalog === 1
+            );
+
+            pageProducts = enabledProducts;
+
+            const cacheData: PageCache = {
+              products: enabledProducts,
+              total: response.data.data?.total || response.data.total || 0,
+              totalPages: Math.ceil((response.data.data?.total || response.data.total || 0) / 30),
+            };
+            pageCache.current.set(page, cacheData);
+
+            console.log(`📥 Loaded page ${page}/${pagesNeeded} with ${enabledProducts.length} products`);
+          } catch (err) {
+            console.error(`Error loading page ${page}:`, err);
+            continue;
+          }
+        }
+
+        accumulatedProducts = [...accumulatedProducts, ...pageProducts];
+        const loadedCount = Math.min(accumulatedProducts.length, totalProducts);
+        setTotalLoadedInBackground(loadedCount);
+        
+        const progressPercentage = totalProducts > 0 
+          ? Math.min((loadedCount / totalProducts) * 100, 100)
+          : 0;
+        setBackgroundLoadProgress(progressPercentage);
+
+        if (accumulatedProducts.length >= totalProducts && totalProducts > 0) {
+          console.log(`✅ Background load complete: ${loadedCount} of ${totalProducts} products`);
+          break;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      if (pagesNeeded === 0) {
+        setBackgroundLoadProgress(100);
+      }
+
+    } catch (err) {
+      console.error('Error in background loading:', err);
+    } finally {
+      setIsLoadingBackground(false);
+      backgroundLoadingRef.current = false;
+      setBackgroundLoadProgress(100);
+    }
+  };
 
   // Fetch products for a specific page with caching
   const fetchProducts = async (page: number = 1) => {
@@ -254,6 +394,7 @@ export default function PageContent() {
         const categoryArray = Object.values(response.data.data) as Category[];
         setCategories(categoryArray);
         console.log(`✅ Loaded ${categoryArray.length} categories`);
+        console.log('📋 Categories structure:', categoryArray);
       }
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -275,9 +416,14 @@ export default function PageContent() {
     }
   }, [products]);
 
-  // Apply filters and sort
+  // Apply filters and sort - UPDATED with subcategory support ✅
   const applyFiltersAndSort = useCallback(() => {
     let filtered = [...products];
+
+    console.log('🔍 Applying filters:');
+    console.log(`  - Search: "${searchTerm}"`);
+    console.log(`  - Category: "${selectedCategory}"`);
+    console.log(`  - SubCategory: "${selectedSubCategory}"`);
 
     // Filter by search term
     if (searchTerm) {
@@ -286,16 +432,35 @@ export default function PageContent() {
           p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           p.cat_name?.toLowerCase().includes(searchTerm.toLowerCase())
       );
+      console.log(`  ✓ After search: ${filtered.length} products`);
     }
 
-    // Filter by category
+    // Filter by category and subcategory - FIXED with hierarchy ✅
     if (selectedCategory !== 'All') {
-      filtered = filtered.filter((p) => p.cat_name === selectedCategory);
+      if (selectedSubCategory && selectedSubCategory !== null) {
+        // If subcategory is selected, filter by subcategory name only
+        filtered = filtered.filter((p) => p.cat_name === selectedSubCategory);
+        console.log(`  ✓ After subcategory filter: ${filtered.length} products`);
+      } else {
+        // If only main category is selected, include main category + all subcategories
+        const categoryObj = categories.find(cat => cat.cat_name === selectedCategory);
+        
+        if (categoryObj) {
+          const subcategoryNames = categoryObj.sub?.map(sub => sub.cat_name) || [];
+          const validCategoryNames = [selectedCategory, ...subcategoryNames];
+          
+          filtered = filtered.filter((p) => validCategoryNames.includes(p.cat_name));
+          
+          console.log(`  ✓ After category filter: ${filtered.length} products`);
+          console.log(`    Valid categories: ${validCategoryNames.join(', ')}`);
+        }
+      }
     }
 
     // Filter by seller
     if (selectedSeller !== 'All') {
       filtered = filtered.filter((p) => p.bus_title === selectedSeller);
+      console.log(`  ✓ After seller filter: ${filtered.length} products`);
     }
 
     // Sort
@@ -313,8 +478,9 @@ export default function PageContent() {
         break;
     }
 
+    console.log(`📊 Final filtered result: ${filtered.length} products`);
     setFilteredProducts(filtered);
-  }, [products, searchTerm, selectedCategory, sortBy, selectedSeller]);
+  }, [products, searchTerm, selectedCategory, selectedSubCategory, sortBy, selectedSeller, categories]);
 
   // Handle previous page
   const handlePreviousPage = () => {
@@ -375,26 +541,6 @@ export default function PageContent() {
 		});
 	  }
 	};
-  
-  // In your product card or add to cart function
-	/*const handleAddToCart = (product: any, businessData: any) => {
-	  const cartItem = {
-		cartItemId: `${product.id}-${Date.now()}`, // Unique ID
-		productId: product.id,
-		productName: product.title || product.name,
-		price: product.price,
-		quantity: 1,
-		imageUrl: product.image_path || product.imageUrl, // Product image
-		business: businessData?.title || "Nature's High",
-		businessImage: businessData?.image_path,        // 🆕 Business logo/image
-		businessId: businessData?.type_id,              // 🆕 Business ID
-	  };
-
-	  addToCart(cartItem);
-	  // Show success toast
-	  toast.success(`Added to cart from ${businessData?.title}`,{position: 'bottom-right',
-      autoClose: 2000,});
-	};*/
 
   // Handle product selection
   const handleSelectProduct = (product: Product) => {
@@ -428,13 +574,17 @@ export default function PageContent() {
     }
   };
 
-  const displayProducts = filteredProducts.length > 0 ? filteredProducts : products;
+  const displayProducts = filteredProducts.length > 0 ? filteredProducts : [];
 
   // Calculate current product index and total for modal
   const currentProductIndex = displayProducts.findIndex(
     (p) => p.product_id === selectedProduct?.product_id
   );
   const totalProductsInModal = displayProducts.length;
+
+  // Get current category object for subcategories - NEW ✅
+  const currentCategoryObj = categories.find(cat => cat.cat_name === selectedCategory);
+  const currentSubCategories = currentCategoryObj?.sub || [];
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
@@ -443,6 +593,27 @@ export default function PageContent() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2 dark:text-white">Shop Products</h1>
           <p className="text-gray-600 dark:text-gray-400">Browse and add products</p>
+          
+          {/* Background Loading Progress Indicator */}
+          {isLoadingBackground && (
+            <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <div className="flex items-center gap-3 mb-2">
+                <Loader2 className="animate-spin text-blue-600 dark:text-blue-400" size={16} />
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  Loading product catalog in background... ({totalLoadedInBackground}/{totalProducts})
+                </span>
+              </div>
+              <div className="w-full bg-blue-200 dark:bg-blue-800/50 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-blue-600 dark:bg-blue-400 h-full transition-all duration-300 ease-out"
+                  style={{ width: `${backgroundLoadProgress}%` }}
+                />
+              </div>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                This happens in the background - you can browse while we load more products
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Search and Filter Bar */}
@@ -486,6 +657,34 @@ export default function PageContent() {
             ))}
           </div>
 
+          {/* SubCategories Display - NEW ✅ Show when category selected */}
+          {selectedCategory !== 'All' && currentSubCategories.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2 border-t pt-3 dark:border-slate-700">
+              <button
+                onClick={() => setSelectedSubCategory(null)}
+                className={`px-3 py-1 rounded-full text-sm font-medium transition ${
+                  selectedSubCategory === null
+                    ? 'bg-teal-400 text-white'
+                    : 'bg-gray-100 dark:bg-slate-700 dark:text-gray-300 text-gray-700 hover:bg-gray-200 dark:hover:bg-slate-600'
+                }`}
+              >
+                All {selectedCategory}
+              </button>
+              {currentSubCategories.map((subCat) => (
+                <button
+                  key={subCat.cat_id}
+                  onClick={() => setSelectedSubCategory(subCat.cat_name)}
+                  className={`px-3 py-1 rounded-full text-sm font-medium transition whitespace-nowrap ${
+                    selectedSubCategory === subCat.cat_name
+                      ? 'bg-teal-500 text-white'
+                      : 'bg-gray-100 dark:bg-slate-700 dark:text-gray-300 text-gray-700 hover:bg-gray-200 dark:hover:bg-slate-600'
+                  }`}
+                >
+                  {subCat.cat_name}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Sort Dropdown */}
           <div className="flex items-center gap-2">
@@ -519,8 +718,16 @@ export default function PageContent() {
 
         {/* Results Info */}
         <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-          Showing {displayProducts.length > 0 ? 'filtered results' : `${displayProducts.length} of ${products.length} products`} 
-          (from {totalProducts} total products, page {currentPage} of {totalPages} available)
+          {filteredProducts.length === 0 && (selectedCategory !== 'All' || selectedSubCategory !== null) ? (
+            <span className="text-red-600 dark:text-red-400 font-medium">
+              No products found with current filters - Try adjusting your selection
+            </span>
+          ) : (
+            <span>
+              Showing {displayProducts.length > 0 ? 'filtered results' : `${displayProducts.length} of ${products.length} products`} 
+              (from {totalProducts} total products, page {currentPage} of {totalPages} available)
+            </span>
+          )}
         </div>
 
         {/* Loading State */}
@@ -545,7 +752,15 @@ export default function PageContent() {
         {/* No Products State */}
         {!loading && !error && displayProducts.length === 0 && (
           <div className="text-center py-12">
+            <AlertCircle size={40} className="text-gray-400 mx-auto mb-2" />
             <p className="text-gray-600 dark:text-gray-400 text-lg">No products found</p>
+            <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">
+              {selectedCategory !== 'All' || selectedSubCategory !== null || selectedSeller !== 'All'
+                ? 'Try adjusting your filters'
+                : searchTerm
+                ? 'Try a different search term'
+                : 'Please try again later'}
+            </p>
           </div>
         )}
 

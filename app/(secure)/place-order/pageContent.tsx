@@ -11,6 +11,7 @@ interface Customer {
   contact_name: string;
   contact_first_name: string;
   contact_last_name: string;
+  contact_page_id: string;
   contact_email: string;
   contact_mobile: string;
   billing_street: string;
@@ -19,6 +20,7 @@ interface Customer {
   billing_postal_code: string;
   trade_name: string;
   title: string;
+  contact_company_name: string;
   detail: {
 	  contact_address: string;
 	  contact_city: string;
@@ -39,6 +41,33 @@ interface Customer {
   
 }
 
+interface DiscountLine {
+  id: string;
+  discount_id: string;
+  product_id: string | null;
+  category_id: string | null;
+  quantity: string;
+  discount_value: string;
+  discount_type: string;
+  minimum_purchase: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Discount {
+  id: string;
+  business_id: string;
+  name: string;
+  status: string;
+  applies_to_id: string;
+  applies_to_type: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  is_delete: string;
+  lines: DiscountLine[];
+}
+
 interface Product {
   product_id: string;
   name: string;
@@ -48,6 +77,7 @@ interface Product {
   cat_id: string;
   cat_name?: string;
   flavors?: string; // Comma-separated flavors string from API
+  discounts?: Discount | false;
 }
 
 interface Category {
@@ -60,6 +90,14 @@ interface ProductFlavor {
   flavor_name: string;
 }
 
+interface AppliedDiscount {
+  discount_id: string;
+  discount_line_id: string;
+  discount_name: string;
+  discount_value: string;
+  discount_type: string;
+}
+
 interface OrderItem {
   product_id: string;
   product_name: string;
@@ -69,6 +107,9 @@ interface OrderItem {
   unit_price: number;
   quantity: number;
   subtotal: number;
+  discount_amount?: number;  // Amount saved from discount
+  final_price?: number;      // Price after discount
+  applied_discount?: AppliedDiscount | null;
 }
 
 interface BusinessLocation {
@@ -280,6 +321,68 @@ export default function WholesaleOrderPage() {
     }
   };
 
+  /**
+   * Calculate applicable discount for a product based on quantity
+   * Checks if quantity meets minimum_purchase requirement
+   * Returns the best applicable discount line
+   */
+  const calculateAppliedDiscount = (product: Product, itemQuantity: number): AppliedDiscount | null => {
+    // Type guard: check if discounts is a Discount object (not false)
+    if (!product.discounts || typeof product.discounts === 'boolean') {
+      return null;
+    }
+
+    const discount = product.discounts;
+    if (!discount.lines || discount.lines.length === 0) {
+      return null;
+    }
+
+    // Filter applicable discount lines based on minimum_purchase
+    const applicableLines = discount.lines.filter(line => {
+      const minimumPurchase = parseFloat(line.minimum_purchase || '0');
+      return itemQuantity >= minimumPurchase;
+    });
+
+    if (applicableLines.length === 0) {
+      return null;
+    }
+
+    // Return the first applicable discount line (or implement logic to pick the best one)
+    const appliedLine = applicableLines[0];
+    
+    return {
+      discount_id: discount.id,
+      discount_line_id: appliedLine.id,
+      discount_name: discount.name,
+      discount_value: appliedLine.discount_value,
+      discount_type: appliedLine.discount_type,
+    };
+  };
+
+  /**
+   * Calculate the discount amount based on subtotal and discount info
+   * Returns { discountAmount, finalPrice }
+   */
+  const calculateDiscountAmount = (subtotal: number, appliedDiscount: AppliedDiscount | null | undefined): { discountAmount: number; finalPrice: number } => {
+    if (!appliedDiscount) {
+      return { discountAmount: 0, finalPrice: subtotal };
+    }
+
+    let discountAmount = 0;
+    
+    if (appliedDiscount.discount_type === 'percentage') {
+      discountAmount = (subtotal * parseFloat(appliedDiscount.discount_value)) / 100;
+    } else {
+      discountAmount = parseFloat(appliedDiscount.discount_value);
+    }
+
+    const finalPrice = Math.max(0, subtotal - discountAmount);
+
+    return {
+      discountAmount: parseFloat(discountAmount.toFixed(2)),
+      finalPrice: parseFloat(finalPrice.toFixed(2)),
+    };
+  };
 
   const handleCustomerSelect = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -351,13 +454,35 @@ export default function WholesaleOrderPage() {
       item.flavor_id === selectedFlavor?.flavor_id
     );
 
+    // Calculate applied discount for this product and quantity
+    const appliedDiscount = calculateAppliedDiscount(selectedProduct, quantity);
+    
+    // Calculate discount amount and final price
+    const itemSubtotal = unitPrice * quantity;
+    const { discountAmount, finalPrice } = calculateDiscountAmount(itemSubtotal, appliedDiscount);
+
     if (existingIndex >= 0) {
       // Update quantity if item exists
       const updatedItems = [...orderItems];
       updatedItems[existingIndex].quantity += quantity;
       updatedItems[existingIndex].subtotal = updatedItems[existingIndex].unit_price * updatedItems[existingIndex].quantity;
+      
+      // Recalculate discount for updated quantity
+      const newDiscount = calculateAppliedDiscount(selectedProduct, updatedItems[existingIndex].quantity);
+      updatedItems[existingIndex].applied_discount = newDiscount;
+      
+      // Recalculate discount amount and final price
+      const { discountAmount: newDiscountAmount, finalPrice: newFinalPrice } = calculateDiscountAmount(updatedItems[existingIndex].subtotal, newDiscount);
+      updatedItems[existingIndex].discount_amount = newDiscountAmount;
+      updatedItems[existingIndex].final_price = newFinalPrice;
+      
       setOrderItems(updatedItems);
-      toast.success('Product quantity updated');
+      
+      if (appliedDiscount) {
+        toast.success(`Product quantity updated - Discount applied: ${appliedDiscount.discount_name}`);
+      } else {
+        toast.success('Product quantity updated');
+      }
     } else {
       // Add new item
       const newItem: OrderItem = {
@@ -368,11 +493,19 @@ export default function WholesaleOrderPage() {
         flavor_name: selectedFlavor?.flavor_name,
         unit_price: unitPrice,
         quantity: quantity,
-        subtotal: unitPrice * quantity,
+        subtotal: itemSubtotal,
+        discount_amount: discountAmount,
+        final_price: finalPrice,
+        applied_discount: appliedDiscount || null,
       };
 
       setOrderItems([...orderItems, newItem]);
-      toast.success('Product added to order');
+      
+      if (appliedDiscount) {
+        toast.success(`Product added to order - Discount applied: ${appliedDiscount.discount_name}`);
+      } else {
+        toast.success('Product added to order');
+      }
     }
 
     // Reset form
@@ -404,10 +537,23 @@ export default function WholesaleOrderPage() {
     const updatedItems = [...orderItems];
     updatedItems[index].quantity = newQuantity;
     updatedItems[index].subtotal = updatedItems[index].unit_price * newQuantity;
+    
+    // Recalculate discount for new quantity
+    const product = allProducts.find(p => p.product_id === orderItems[index].product_id);
+    if (product) {
+      const newDiscount = calculateAppliedDiscount(product, newQuantity);
+      updatedItems[index].applied_discount = newDiscount;
+      
+      // Recalculate discount amount and final price
+      const { discountAmount, finalPrice } = calculateDiscountAmount(updatedItems[index].subtotal, newDiscount);
+      updatedItems[index].discount_amount = discountAmount;
+      updatedItems[index].final_price = finalPrice;
+    }
+    
     setOrderItems(updatedItems);
   };
-console.log(customers);
-  const subtotal = orderItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+  const subtotal = orderItems.reduce((sum, item) => sum + (item.final_price || item.subtotal), 0);
   const orderTotal = subtotal + shippingFee;
 
   const handlePlaceOrder = async () => {
@@ -415,7 +561,8 @@ console.log(customers);
       toast.error('Please select a customer');
       return;
     }
-	console.log(selectedCustomer);
+	console.log(JSON.stringify(selectedCustomer, null, 2));
+
 
     if (orderItems.length === 0) {
       toast.error('Please add at least one product to the order');
@@ -425,10 +572,23 @@ console.log(customers);
     try {
       setPlacingOrder(true);
 
+      // Build order items with applied discount information
+      const orderItemsWithDiscounts = orderItems.map(item => ({
+        ...item,
+        // Include discount line info if applicable
+        discount_info: item.applied_discount ? {
+          discount_id: item.applied_discount.discount_id,
+          discount_line_id: item.applied_discount.discount_line_id,
+          discount_name: item.applied_discount.discount_name,
+          discount_value: item.applied_discount.discount_value,
+          discount_type: item.applied_discount.discount_type,
+        } : null,
+      }));
+
       const payload = {
         page_id: businessDetails?.page_id || '',
         base_page_id: businessDetails?.page_id || '',
-        selected_page_id: businessDetails?.page_id || '',
+        selected_page_id: selectedCustomer?.contact_page_id || '',
         customer_id: selectedCustomer.customer_id,
         selected_customer_id: selectedCustomer.customer_id,
         contact_fname: selectedCustomer.account_details.contact_first_name,
@@ -440,12 +600,14 @@ console.log(customers);
         shipping_from: shippingFrom
           ? `${shippingFrom.title}, ${shippingFrom.locs_street}, ${shippingFrom.locs_city}, ${shippingFrom.locs_state} ${shippingFrom.locs_zip}`
           : '',
-        order_items: orderItems,
+        order_items: orderItemsWithDiscounts,
         subtotal: parseFloat(subtotal.toFixed(2)),
         shipping_fee: parseFloat(shippingFee.toFixed(2)),
         order_total: parseFloat(orderTotal.toFixed(2)),
         order_notes: orderNotes,
       };
+
+      console.log('Placing order with payload:', JSON.stringify(payload, null, 2));
 
       const response = await axios.post(`/api/business/save-whole-sale-order`, payload);
 
@@ -502,7 +664,7 @@ console.log(customers);
                 >
                   <span>
                     {selectedCustomer
-					? `${selectedCustomer?.trade_name || selectedCustomer?.title} (${selectedCustomer.contact_name})`
+					? `${selectedCustomer?.contact_company_name || selectedCustomer?.title} (${selectedCustomer.contact_name})`
                       : 'Select a customer...'}
                   </span>
                   <ChevronDown size={20} />
@@ -526,7 +688,7 @@ console.log(customers);
                           className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0 text-gray-900 dark:text-gray-100 transition"
                         >
                           <div className="font-medium">
-                            {customer.trade_name || customer.title}
+                            {customer.contact_company_name || customer.title}
                           </div>
                           <div className="text-sm text-gray-600 dark:text-gray-400">
                             {customer.contact_name}
@@ -552,45 +714,99 @@ console.log(customers);
             {/* Product Selection */}
             <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-md p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                Select Products
+                Product Selection
               </h3>
 
-              {/* Product Selection */}
+              {/* Product Search */}
               <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Product
-                  </label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Search Product
+                </label>
+                <input
+                  type="text"
+                  placeholder="Search by product name..."
+                  value={searchProduct}
+                  onChange={(e) => setSearchProduct(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                />
+              </div>
 
+              {/* Product Dropdown */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Select Product
+                </label>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowProductDropdown(!showProductDropdown)}
+                    className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 text-left flex justify-between items-center hover:border-gray-400 dark:hover:border-gray-600 transition"
+                  >
+                    <span>
+                      {selectedProduct ? selectedProduct.name : 'Select a product...'}
+                    </span>
+                    <ChevronDown size={20} />
+                  </button>
+
+                  {showProductDropdown && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg z-20 max-h-80 overflow-y-auto">
+                      {loadingProducts ? (
+                        <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                          <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+                        </div>
+                      ) : filteredProducts.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                          No products available
+                        </div>
+                      ) : (
+                        filteredProducts.map((product) => (
+                          <button
+                            key={product.product_id}
+                            onClick={() => handleProductSelect(product)}
+                            className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0 text-gray-900 dark:text-gray-100 transition"
+                          >
+                            <div className="font-medium">{product.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {product.cat_name} • Stock: {product.i_onhand} • ${product.p_offer_price || product.i_price}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Flavor Selection - Only show if product has flavors */}
+              {selectedProduct && flavors.length > 0 && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Select Flavor
+                  </label>
                   <div className="relative">
                     <button
-                      onClick={() => setShowProductDropdown(!showProductDropdown)}
+                      onClick={() => setShowFlavorDropdown(!showFlavorDropdown)}
                       className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 text-left flex justify-between items-center hover:border-gray-400 dark:hover:border-gray-600 transition"
                     >
-                      <span>{selectedProduct?.name || 'Select a product...'}</span>
+                      <span>
+                        {selectedFlavor ? selectedFlavor.flavor_name : 'Select a flavor...'}
+                      </span>
                       <ChevronDown size={20} />
                     </button>
 
-                    {showProductDropdown && (
+                    {showFlavorDropdown && (
                       <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg z-20 max-h-80 overflow-y-auto">
-                        {loadingProducts ? (
+                        {flavors.length === 0 ? (
                           <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                            <Loader2 className="w-5 h-5 animate-spin mx-auto" />
-                          </div>
-                        ) : filteredProducts.length === 0 ? (
-                          <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                            No products available
+                            No flavors available
                           </div>
                         ) : (
-                          filteredProducts.map((product) => (
+                          flavors.map((flavor) => (
                             <button
-                              key={product.product_id}
-                              onClick={() => handleProductSelect(product)}
+                              key={flavor.flavor_id}
+                              onClick={() => handleFlavorSelect(flavor)}
                               className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0 text-gray-900 dark:text-gray-100 transition"
                             >
-                              <div className="font-medium">{product.name}</div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400">
-                                Available: {product.i_onhand} | Price: ${parseFloat(product.p_offer_price || product.i_price || '0').toFixed(2)}
-                              </div>
+                              {flavor.flavor_name}
                             </button>
                           ))
                         )}
@@ -598,89 +814,63 @@ console.log(customers);
                     )}
                   </div>
                 </div>
+              )}
 
-                {/* Flavor Selection */}
-                {selectedProduct && flavors.length > 0 && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Flavor
-                    </label>
-
-                    <div className="relative">
-                      <button
-                        onClick={() => setShowFlavorDropdown(!showFlavorDropdown)}
-                        className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-100 text-left flex justify-between items-center hover:border-gray-400 dark:hover:border-gray-600 transition"
-                      >
-                        <span>{selectedFlavor?.flavor_name || 'Select a flavor...'}</span>
-                        <ChevronDown size={20} />
-                      </button>
-
-                      {showFlavorDropdown && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg z-20 max-h-64 overflow-y-auto">
-                          {flavors.length === 0 ? (
-                            <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                              No flavors available
-                            </div>
-                          ) : (
-                            flavors.map((flavor) => (
-                              <button
-                                key={flavor.flavor_id}
-                                onClick={() => handleFlavorSelect(flavor)}
-                                className="w-full text-left px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700 border-b border-gray-200 dark:border-gray-700 last:border-b-0 text-gray-900 dark:text-gray-100 transition"
-                              >
-                                {flavor.flavor_name}
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Quantity Input - Only show after product selection */}
-                {selectedProduct && (
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Quantity
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={quantity}
-                      onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-                    />
-                  </div>
-                )}
-
-                {/* Add Product Button - Only show after product selection */}
-                {selectedProduct && (
-                  <button
-                    onClick={handleAddProduct}
-                    disabled={!selectedProduct || !selectedCustomer}
-                    title={!selectedCustomer ? 'Please select a customer first' : !selectedProduct ? 'Please select a product' : ''}
-                    className="w-full px-4 py-3 accent-bg accent-hover disabled:bg-gray-400 text-white font-medium rounded-lg transition flex items-center justify-center gap-2 hover:scale-105 active:scale-95"
-                  >
-                    <Plus size={20} />
-                    Add Product to Order
-                  </button>
-                )}
-
-                {/* Order Notes - Inside Product Selection */}
-                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                    Order Notes
-                  </h4>
-                  <textarea
-                    value={orderNotes}
-                    onChange={(e) => setOrderNotes(e.target.value)}
-                    placeholder="Add any special instructions or notes for this order..."
-                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-32 resize-none transition"
+              {/* Quantity Input - Only show after product selection */}
+              {selectedProduct && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Quantity
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={quantity}
+                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
                   />
                 </div>
+              )}
+
+              {/* Discount Preview - Show if discount applies */}
+              {selectedProduct && quantity > 0 && calculateAppliedDiscount(selectedProduct, quantity) && (
+                <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                  <p className="text-sm font-medium text-green-900 dark:text-green-300">
+                    ✓ Discount Applied: {calculateAppliedDiscount(selectedProduct, quantity)?.discount_name}
+                  </p>
+                  <p className="text-xs text-green-700 dark:text-green-400 mt-1">
+                    {calculateAppliedDiscount(selectedProduct, quantity)?.discount_value}{calculateAppliedDiscount(selectedProduct, quantity)?.discount_type === 'percentage' ? '%' : '$'} off
+                  </p>
+                </div>
+              )}
+
+              {/* Add Product Button - Only show after product selection */}
+              {selectedProduct && (
+                <button
+                  onClick={handleAddProduct}
+                  disabled={!selectedProduct || !selectedCustomer}
+                  title={!selectedCustomer ? 'Please select a customer first' : !selectedProduct ? 'Please select a product' : ''}
+                  className="w-full px-4 py-3 accent-bg accent-hover disabled:bg-gray-400 text-white font-medium rounded-lg transition flex items-center justify-center gap-2 hover:scale-105 active:scale-95"
+                >
+                  <Plus size={20} />
+                  Add Product to Order
+                </button>
+              )}
+
+              {/* Order Notes - Inside Product Selection */}
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+                  Order Notes
+                </h4>
+                <textarea
+                  value={orderNotes}
+                  onChange={(e) => setOrderNotes(e.target.value)}
+                  placeholder="Add any special instructions or notes for this order..."
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-32 resize-none transition"
+                />
               </div>
             </div>
+          </div>
 
           {/* Right Column - Shipping & Summary */}
           <div className="space-y-6">
@@ -733,11 +923,29 @@ console.log(customers);
                             <p className="text-sm text-gray-600 dark:text-gray-400">
                               ${item.unit_price.toFixed(2)} × {item.quantity}
                             </p>
+                            {item.applied_discount && (
+                              <div className="text-xs mt-1 space-y-0.5">
+                                <p className="text-gray-500 dark:text-gray-400">
+                                  Original: ${item.subtotal.toFixed(2)}
+                                </p>
+                                <p className="text-red-600 dark:text-red-400">
+                                  Discount: -${(item.discount_amount || 0).toFixed(2)} ({item.applied_discount.discount_value}{item.applied_discount.discount_type === 'percentage' ? '%' : '$'})
+                                </p>
+                                <p className="text-green-600 dark:text-green-400 font-medium">
+                                  💚 {item.applied_discount.discount_name}
+                                </p>
+                              </div>
+                            )}
                           </div>
                           <div className="text-right">
                             <p className="font-semibold text-gray-900 dark:text-gray-100">
-                              ${item.subtotal.toFixed(2)}
+                              ${(item.final_price || item.subtotal).toFixed(2)}
                             </p>
+                            {item.applied_discount && (
+                              <p className="text-xs text-green-600 dark:text-green-400 font-medium">
+                                Saved: ${(item.discount_amount || 0).toFixed(2)}
+                              </p>
+                            )}
                             <div className="flex items-center gap-1 mt-2">
                               <input
                                 type="number"

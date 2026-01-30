@@ -17,6 +17,8 @@ import Cookies from 'js-cookie';
 import { toast } from 'react-toastify';
 
 interface Recipient {
+  contact_company_name: string;
+  contact_page_id: string;
   page_id: string;
   title: string;
   user_id: string;
@@ -169,9 +171,9 @@ export default function CreateMessageModal({
   const handleSelectRecipient = (recipient: Recipient) => {
     setFormData(prev => ({
       ...prev,
-      pageId: recipient.page_id.toString()
+      pageId: recipient.contact_page_id.toString()
     }));
-    setSearchQuery(recipient.title);
+    setSearchQuery(recipient.contact_company_name);
     setShowDropdown(false);
     setErrors(prev => ({ ...prev, pageId: '' }));
   };
@@ -371,14 +373,14 @@ export default function CreateMessageModal({
                       <div>
                         {filteredRecipients.map(recipient => (
                           <button
-                            key={recipient.page_id}
+                            key={recipient.user_id}
                             type="button"
                             onClick={() => handleSelectRecipient(recipient)}
                             className="w-full px-4 py-3 text-left hover:accent-bg hover:text-white dark:hover:bg-gray-700 transition flex items-center justify-between"
                           >
                             <div>
                               <div className="font-medium text-gray-900 dark:text-white">
-                                {recipient.title}
+                                {recipient.contact_company_name}
                               </div>
                               <div className="text-sm text-gray-500 dark:text-gray-400">
                                 ID: {recipient.user_id}

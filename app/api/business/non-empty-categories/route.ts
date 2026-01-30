@@ -8,6 +8,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const page_id = searchParams.get("page_id");
     const product_id = searchParams.get("product_id");
+    const business = searchParams.get("business");
 
     // ✅ Validate page_id
     /*if (!page_id || page_id === "undefined") {
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
 
     // ✅ Pass query params correctly
     const response = await axios.get("/business/nom-empty-categories", {
-      params: { page_id, product_id },
+      params: { business, page_id, product_id },
     });
 
     return NextResponse.json(response.data);

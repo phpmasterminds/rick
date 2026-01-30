@@ -262,7 +262,7 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
 		<div class="address-row-print">
 		  ${order.from_address_detail_f_locs ? `
 			<div class="address-block-print">
-			  <h3>Bill To</h3>
+			  <h3>From</h3>
 			  <p><strong>${order.from_address_detail_f_locs.trade_name || order.from_address_detail_f_locs.title || order.full_name || 'N/A'}</strong></p>
 			  ${order.from_address_detail_f_locs.locs_street ? `<p>${order.from_address_detail_f_locs.locs_street}</p>` : ''}
 			  <p>${order.from_address_detail_f_locs.locs_city || ''}, ${order.from_address_detail_f_locs.locs_state || ''} ${order.from_address_detail_f_locs.locs_zip || ''}</p>

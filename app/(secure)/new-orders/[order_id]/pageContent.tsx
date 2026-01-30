@@ -925,7 +925,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                     <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2">
                       <Mail size={16} /> Email
                     </p>
-                    <p className="text-blue-600 dark:text-blue-400 font-medium">{order.from_address_detail_f_locs?.locs_email || ''}</p>
+                    <p className="text-blue-600 dark:text-blue-400 font-medium">{order.to_address_detail_f_locs?.locs_email || ''}</p>
                   </div>
                   {order.contact_phone && (
                     <div>
