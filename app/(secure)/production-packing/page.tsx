@@ -8,6 +8,9 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function Page() {
-  return <ProductionPackagingPageWrapper />;
+export default async function Page() {
+	const cookieStore = await cookies();
+  const slug = cookieStore.get('vanity_url')?.value || '';
+  
+  return <ProductionPackagingPageWrapper business={slug} />;
 }
