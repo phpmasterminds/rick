@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { Loader2, ShoppingCart, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useShopCart } from '../../../contexts/ShopCartContext';
+import { toast } from 'react-toastify';
 
 interface CartSummaryProps {
   cartTotal: number;
@@ -27,13 +29,22 @@ export default function CartSummary({
 }: CartSummaryProps) {
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const { getTotalPromotionDiscount } = useShopCart();
+
   const shippingCost = 0;
   const tax = '0';
+
+  // Calculate savings from discounts/deals + promotions
+  const discountAndDealSavings = totalDiscount;
+  const promotionSavings = getTotalPromotionDiscount();
+  const totalSavings = discountAndDealSavings + promotionSavings;
+
+  // Final total after all discounts, deals, and promotions
   const finalTotal = (cartTotal + parseFloat(tax) + shippingCost).toFixed(2);
 
   // Calculate savings percentage
   const savingsPercentage = cartSubtotal > 0 
-    ? ((totalDiscount / cartSubtotal) * 100).toFixed(1)
+    ? ((totalSavings / cartSubtotal) * 100).toFixed(1)
     : '0';
 
   return (
@@ -50,14 +61,26 @@ export default function CartSummary({
           </span>
         </div>
 
-        {/* NEW: Show discount savings if any */}
-        {totalDiscount > 0 && (
-          <div className="flex justify-between text-sm bg-green-50 dark:bg-green-900/20 p-2 rounded-lg border border-green-200 dark:border-green-800">
+        {/* Show discount/deal savings if any */}
+        {discountAndDealSavings > 0 && (
+          <div className="flex justify-between text-sm bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
             <span className="text-green-700 dark:text-green-300 font-semibold">
-              Discount Savings
+              Discount & Deal Savings
             </span>
             <span className="text-green-700 dark:text-green-300 font-semibold">
-              -${totalDiscount.toFixed(2)} ({savingsPercentage}%)
+              -${discountAndDealSavings.toFixed(2)}
+            </span>
+          </div>
+        )}
+
+        {/* Show promotion savings if any */}
+        {promotionSavings > 0 && (
+          <div className="flex justify-between text-sm bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-200 dark:border-purple-800">
+            <span className="text-purple-700 dark:text-purple-300 font-semibold">
+              Promotion Savings
+            </span>
+            <span className="text-purple-700 dark:text-purple-300 font-semibold">
+              -${promotionSavings.toFixed(2)}
             </span>
           </div>
         )}
@@ -85,19 +108,21 @@ export default function CartSummary({
         </p>
       </div>
 
-      {/* NEW: Show savings badge when discount is applied */}
-      {totalDiscount > 0 && (
+      {/* Show total savings badge when any discount/deal/promotion is applied */}
+      {totalSavings > 0 && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 mb-4">
-          <p className="text-xs text-green-800 dark:text-green-300">
-            ✨ You're saving ${totalDiscount.toFixed(2)} with our discount offers!
+          <p className="text-sm text-green-800 dark:text-green-300 font-semibold">
+            ✨ You're saving ${totalSavings.toFixed(2)} total!
+          </p>
+          <p className="text-xs text-green-700 dark:text-green-400 mt-1">
+            That's {savingsPercentage}% off your order
           </p>
         </div>
       )}
 
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
         <p className="text-xs text-blue-800 dark:text-blue-300">
-          ℹ️ Please review the vendor payment options for your orders before
-          checkout
+          ℹ️ Promotion codes can be applied individually for each vendor above
         </p>
       </div>
 

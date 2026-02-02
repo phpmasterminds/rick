@@ -53,7 +53,7 @@ interface Product {
   product_code?: string;
   batch_id?: string;
   med_measurements?: string;
-  enable_product?: string | number;
+  enable_catalog?: string | number;
   bus_title?: string;
   business_url?: string;
   business_user_id?: string;
@@ -235,7 +235,7 @@ export default function PageContent() {
 
             // Filter only enabled products
             const enabledProducts = productsData.filter(
-              (p: any) => p.enable_product === '1' || p.enable_product === 1
+              (p: any) => p.enable_catalog === '1' || p.enable_catalog === 1
             );
 
             pageProducts = enabledProducts;
@@ -378,7 +378,7 @@ export default function PageContent() {
 
       // Filter only enabled products
       const enabledProducts = productsData.filter(
-        (p: any) => p.enable_product === '1' || p.enable_product === 1
+        (p: any) => p.enable_catalog === '1' || p.enable_catalog === 1
       );
 
       // Calculate total pages

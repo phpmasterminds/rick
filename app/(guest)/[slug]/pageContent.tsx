@@ -96,6 +96,7 @@ interface Hour {
 interface Dispensary {
   id: string;
   name: string;
+  trade_name: string;
   slug?: string;
   logo?: string | null;
   cover_image?: string | null;
@@ -277,6 +278,7 @@ const processProductsResponse = (response: APIProductResponse): Product[] => {
 const sampleDispensary: Dispensary = {
   id: '1',
   name: 'The Green Solution',
+  trade_name: 'The Green Solution',
   slug: 'the-green-solution',
   logo: 'https://images.unsplash.com/photo-1589484535988-f7d6cc6e0d5e?w=200&h=200&fit=crop',
   cover_image: 'https://images.unsplash.com/photo-1576086213369-97a306d36557?w=1200&h=600&fit=crop',
@@ -579,6 +581,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
     const mapped: Dispensary = {
       id: String(api.page_id ?? api.locs_id ?? api.claim_id ?? Math.random().toString(36).slice(2, 9)),
       name: api.title ?? api.full_name ?? api.locs_name ?? 'Unknown',
+      trade_name: api.trade_name,
       slug: api.vanity_url ?? (api.title ? String(api.title).toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '') : undefined),
       logo: api.pages_image_path && String(api.pages_image_path).startsWith('https') ? api.pages_image_path : (api.owner_user_image ? `https://www.api.natureshigh.com/PF.Base/file/pic/pages/${api.owner_user_image.replace('%s', '')}` : null),
       cover_image: tryResolveCover(),
@@ -1249,7 +1252,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
             {/* Info */}
             <div className="flex-1">
               <div className="flex flex-wrap items-center gap-2 mb-2">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{dispensary.name}</h1>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">{dispensary.trade_name || dispensary.name}</h1>
                 {dispensary.is_verified && (
                   <Verified className="w-6 h-6 text-teal-600" />
                 )}

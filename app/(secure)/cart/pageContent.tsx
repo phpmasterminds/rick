@@ -19,6 +19,8 @@ export default function PageContent() {
     clearCart,
     getCartTotal,
     getCartItemsCount,
+    appliedPromotions,
+    getTotalPromotionDiscount,
   } = useShopCart();
 
   const [isCheckoutProcessing, setIsCheckoutProcessing] = useState(false);
@@ -45,14 +47,19 @@ export default function PageContent() {
 
   const pageIds = getPageIdsFromCart();
 
-  // NEW: Calculate subtotal before discount
+  // Calculate subtotal before discount/deal
   const cartSubtotal = cartItems.reduce((sum, item) => {
     const basePrice = item.basePrice || item.price;
     return sum + (basePrice * item.quantity);
   }, 0);
 
-  // NEW: Calculate total discount
-  const totalDiscount = cartSubtotal - getCartTotal();
+  // Calculate total discount/deal savings
+  const totalDiscount = cartSubtotal - cartItems.reduce((sum, item) => {
+    return sum + (item.price * item.quantity);
+  }, 0);
+
+  // NEW: Get promotion discount across all businesses
+  const promotionDiscount = getTotalPromotionDiscount();
 
   const cartTotal = getCartTotal();
   const itemCount = getCartItemsCount();
@@ -92,37 +99,55 @@ export default function PageContent() {
         }
       });
 
-      // NEW: Prepare checkout payload with discount details
+      // Prepare checkout payload with discount & deal details
       const checkoutPayload = {
         items: cartItems.map(item => {
           const basePrice = item.basePrice || item.price;
           const itemDiscount = (basePrice - item.price) * item.quantity;
 
+          // NEW: Get promotion discount for this item's business
+          const itemBusinessId = item.page_id?.toString();
+          const businessPromotion = itemBusinessId ? appliedPromotions[itemBusinessId] : null;
+          const promotionDiscountForItem = businessPromotion && businessPromotion.isApplicable 
+            ? businessPromotion.discountValue 
+            : 0;
+          
+          // Calculate final total: base → discount/deal → promotion
+          const priceAfterDiscountAndDeal = item.price;
+          const finalTotalBeforePromotion = priceAfterDiscountAndDeal * item.quantity;
+          const finalTotal = Math.max(0, finalTotalBeforePromotion - promotionDiscountForItem);
+
           return {
             id: item.productId,
             name: item.productName,
             quantity: item.quantity,
-            basePrice: basePrice,                    // Original price before discount
-            price: item.price,                       // Final price after discount
+            basePrice: basePrice,                    // Original price before discount/deal
+            price: item.price,                       // Final price after discount/deal (before promotion)
             subtotal: basePrice * item.quantity,     // Original subtotal
-            discount: itemDiscount,                  // Total discount for this item
+            discount: itemDiscount,                  // Total discount/deal for this item
             discountPercentage: item.appliedDiscount?.discountDisplay || null,
-            final_total: item.price * item.quantity, // Final total after discount
+            // NEW: Include promotion discount for this item
+            promotionDiscount: promotionDiscountForItem,  // Promotion savings for this item
+            final_total: finalTotal,                 // Final total after discount/deal AND promotion
             product_id: item.productId,
             page_id: item.page_id,
             business_user_id: item.business_user_id,
             business: vanityUrl,
             is_sample: item.is_sample,
             sample_order: item.sample_order,
-            total: item.quantity * item.price,
+            total: finalTotal,                       // Use final total (with promotion)
             med_image: item.med_image,
-            // NEW: Include full discount object for reference
+            // Include deal string if present (from i_deals field)
+            dealString: item.dealString || null,
+            // Include full discount/deal object for reference
             appliedDiscount: item.appliedDiscount ? {
               discountValue: item.appliedDiscount.discountValue,
               discountDisplay: item.appliedDiscount.discountDisplay,
               minimumPurchase: item.appliedDiscount.minimumPurchase,
               isApplicable: item.appliedDiscount.isApplicable,
-              // NEW: Include discount id and applies_to_id
+              // Include source: 'discount', 'deal', or 'combined'
+              source: item.appliedDiscount.source,
+              // Include discount id and applies_to_id
               discountId: item.appliedDiscount.discountId,
               appliesToId: item.appliedDiscount.appliesToId,
             } : null,
@@ -131,11 +156,31 @@ export default function PageContent() {
         summary: {
           itemCount,
           businessCount,
-          subtotalAmount: cartSubtotal,    // NEW: Before discount
-          totalDiscount: totalDiscount,     // NEW: Total discount savings
-          totalAmount: cartTotal,           // Final total after discount
+          subtotalAmount: cartSubtotal,    // Before discount/deal
+          discountAndDealSavings: totalDiscount,     // Total discount/deal savings
+          promotionDiscount: promotionDiscount,       // Promotion savings (sum of all)
+          totalSavings: totalDiscount + promotionDiscount, // Combined savings
+          totalAmount: cartTotal,           // Final total after all discounts
           currency: 'USD',
         },
+        // NEW: Promotion data for each business
+        promotions: Object.entries(appliedPromotions)
+          .filter(([_, promo]) => promo && promo.isApplicable)
+          .reduce((acc, [pageId, promo]) => {
+            if (promo) {
+              acc[pageId] = {
+                code: promo.code || null,
+                promotionId: promo.promotionId || null,
+                discountType: promo.discountType,
+                discountValue: promo.discountValue,
+                discountDisplay: promo.discountDisplay,
+                minimumPurchase: promo.minimumPurchase,
+                isApplicable: promo.isApplicable,
+                source: promo.source,
+              };
+            }
+            return acc;
+          }, {} as Record<string, any>),
         vanity_url: vanityUrl,
         page_ids: pageIds,
         business_user_ids: Object.fromEntries(businessUserIdMap),
@@ -144,7 +189,7 @@ export default function PageContent() {
       };
 
       console.log('Checkout Payload:', checkoutPayload); // DEBUG
-      
+      //return;
       // Send checkout request to your API
       const response = await axios.post('/api/business/master-catalog-cart', checkoutPayload);
 
@@ -155,10 +200,10 @@ export default function PageContent() {
         autoClose: 3000,
       });
       
-      clearCart();
+     // clearCart();
       
       // Optional: Redirect to payment or order confirmation page
-      window.location.href = result.redirectUrl || '/open-orders';
+      //window.location.href = result.redirectUrl || '/open-orders';
     } catch (error) {
       console.error('Checkout error:', error);
       toast.error('Failed to process checkout. Please try again.', {
@@ -215,7 +260,7 @@ export default function PageContent() {
       <div className="mb-8">
         <Link
           href="/buy"
-          className="inline-flex items-center gap-2 accent-bg accent-hover mb-4"
+          className="inline-flex items-center gap-2 text-accent-600 dark:text-accent-400 hover:underline mb-4"
         >
           <ArrowLeft size={18} />
           Back to Shop
@@ -261,8 +306,8 @@ export default function PageContent() {
         <div>
           <CartSummary
             cartTotal={cartTotal}
-            cartSubtotal={cartSubtotal}      // NEW
-            totalDiscount={totalDiscount}    // NEW
+            cartSubtotal={cartSubtotal}
+            totalDiscount={totalDiscount}
             itemCount={itemCount}
             businessCount={businessCount}
             onCheckout={handleCheckout}

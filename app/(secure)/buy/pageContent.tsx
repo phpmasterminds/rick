@@ -41,7 +41,8 @@ interface Product {
   name: string;
   cat_name: string;
   strain?: string;
-  p_offer_price: string;
+  i_price: string;
+  i_deals: string;
   i_onhand: string;
   thc?: string;
   cbd?: string;
@@ -466,10 +467,10 @@ export default function PageContent() {
     // Sort
     switch (sortBy) {
       case 'price-asc':
-        filtered.sort((a, b) => parseFloat(a.p_offer_price || '0') - parseFloat(b.p_offer_price || '0'));
+        filtered.sort((a, b) => parseFloat(a.i_price || '0') - parseFloat(b.i_price || '0'));
         break;
       case 'price-desc':
-        filtered.sort((a, b) => parseFloat(b.p_offer_price || '0') - parseFloat(a.p_offer_price || '0'));
+        filtered.sort((a, b) => parseFloat(b.i_price || '0') - parseFloat(a.i_price || '0'));
         break;
       case 'name':
         filtered.sort((a, b) => a.name.localeCompare(b.name));
@@ -507,9 +508,16 @@ export default function PageContent() {
   // Handle add to cart
   const handleAddToCart = (product: Product) => {
 	  try {
-		const basePrice = parseFloat(product.p_offer_price || '0');
+		const basePrice = parseFloat(product.i_price || '0');
 		const productDiscount = getProductDiscount(product);
-		const appliedDiscount = calculateApplicableDiscount(basePrice, 1, productDiscount);
+		//const appliedDiscount = calculateApplicableDiscount(basePrice, 1, productDiscount);
+		const appliedDiscount = calculateApplicableDiscount(
+							basePrice,
+							1,
+							productDiscount,
+							product.i_deals
+							);
+							
 		const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
 
 		const cartItem: CartItem = {
@@ -526,6 +534,7 @@ export default function PageContent() {
 		  page_id: product.page_id ? parseInt(product.page_id) : undefined,
 		  discount: productDiscount || undefined,
 		  appliedDiscount: appliedDiscount || undefined,
+		  dealString: product.i_deals || undefined,  // Deal string ("10%" or "$5")
 		};
 
 		addToCart(cartItem);
@@ -792,9 +801,15 @@ export default function PageContent() {
                     )}
 					
 					{(() => {
-					  const basePrice = parseFloat(product.p_offer_price || '0');
-					  const appliedDiscount = calculateApplicableDiscount(basePrice, 1, getProductDiscount(product));
-					  console.log(getProductDiscount(product));
+					  const basePrice = parseFloat(product.i_price || '0');
+					  const appliedDiscount = calculateApplicableDiscount(
+							basePrice,
+							1,
+							getProductDiscount(product),
+							product.i_deals
+							);
+  
+					 
 
 					  return appliedDiscount && appliedDiscount.isApplicable ? (
 						<div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold border border-red-700 shadow-md">
@@ -820,8 +835,14 @@ export default function PageContent() {
                     )}
                     <div className="flex justify-between items-center">
 					  {(() => {
-						const basePrice = parseFloat(product.p_offer_price || '0');
-						const appliedDiscount = calculateApplicableDiscount(basePrice, 1, getProductDiscount(product));
+						const basePrice = parseFloat(product.i_price || '0');
+						//const appliedDiscount = calculateApplicableDiscount(basePrice, 1, getProductDiscount(product));
+						const appliedDiscount = calculateApplicableDiscount(
+							basePrice,
+							1,
+							getProductDiscount(product),
+							product.i_deals
+							);
 						const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
 						
 						return appliedDiscount && appliedDiscount.isApplicable ? (
@@ -955,8 +976,15 @@ export default function PageContent() {
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Price</p>
 					{(() => {
-					  const basePrice = parseFloat(selectedProduct.p_offer_price || '0');
-					  const appliedDiscount = calculateApplicableDiscount(basePrice, 1, getProductDiscount(selectedProduct));
+					  const basePrice = parseFloat(selectedProduct.i_price || '0');
+					  //const appliedDiscount = calculateApplicableDiscount(basePrice, 1, getProductDiscount(selectedProduct));
+					  const appliedDiscount = calculateApplicableDiscount(
+							basePrice,
+							1,
+							getProductDiscount(selectedProduct),
+							selectedProduct.i_deals
+							);
+							
 					  const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
 					  
 					  return appliedDiscount && appliedDiscount.isApplicable ? (

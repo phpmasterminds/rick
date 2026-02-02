@@ -2,6 +2,17 @@
 // Client-side PDF generation and printing for orders
 
 /**
+ * Parse JSON safely with fallback
+ */
+const parseJSON = (jsonString: string, fallback: any = null) => {
+  try {
+    return typeof jsonString === 'string' ? JSON.parse(jsonString) : jsonString;
+  } catch (e) {
+    return fallback;
+  }
+};
+
+/**
  * Generate Invoice PDF and trigger download
  */
 export const generateInvoicePDF = (order: any, businessName: string, businessLogo?: string) => {
@@ -14,11 +25,22 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
 
   const orderStatus = getOrderStatus(order.order_status);
   const subtotal = parseFloat(order.cart_cost || '0');
-  //const tax = parseFloat(order.cart_tax_cost || '0');
   const tax = 0;
   const shipping = parseFloat(order.shipping_cost || '0');
   const commission = parseFloat(order.total_commission || '0');
-  const total = subtotal + tax + shipping + commission;
+  
+  // Parse discount data
+  const volumeDiscount = parseFloat(order.volume_discount ? 
+    (parseJSON(order.volume_discount, {})?.discountValue || 0) : 0);
+  
+  const promotionDiscount = parseFloat(order.promotion_discount || '0');
+  const invoiceDiscount = parseFloat(order.invoice_discount || '0');
+  
+  // Total discounts
+  const totalDiscounts = volumeDiscount + promotionDiscount + invoiceDiscount;
+  
+  // Calculate final total
+  const total = subtotal - totalDiscounts + tax + shipping + commission;
 
   const html = `
     <!DOCTYPE html>
@@ -160,7 +182,7 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
         }
         .totals table {
           width: 100%;
-          max-width: 400px;
+          max-width: 500px;
           margin-left: auto;
           margin-right: 0;
         }
@@ -178,6 +200,30 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
           text-align: right;
           font-weight: normal;
           color: #333;
+        }
+        .totals .discount-row {
+          background: #f0fdf4;
+          color: #166534;
+        }
+        .totals .discount-row .label {
+          color: #166534;
+        }
+        .totals .discount-row .amount {
+          color: #166534;
+          font-weight: 600;
+        }
+        .totals .subtotal-row {
+          background: #f9fafb;
+          border-top: 1px solid #e5e7eb;
+        }
+        .totals .charge-row {
+          background: #fef3c7;
+        }
+        .totals .charge-row .label {
+          color: #92400e;
+        }
+        .totals .charge-row .amount {
+          color: #92400e;
         }
         .totals .total-row {
           background: #eff6ff;
@@ -283,68 +329,133 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
 		  ` : ''}
 		</div>
 
-
         <!-- Items Table -->
         <div class="section-header">Order Items</div>
         <table class="items-table">
           <thead>
             <tr>
-              <th>Product</th>
-              <th class="text-center">Qty</th>
-              <th class="text-right">Price</th>
+              <th>Product Name</th>
+              <th class="text-center">Quantity</th>
+              <th class="text-right">Unit Price</th>
               <th class="text-right">Total</th>
             </tr>
           </thead>
           <tbody>
             ${order.cart && Array.isArray(order.cart) ? order.cart.map((item: any) => {
-              const itemTotal = (parseFloat(item.selected_qty_price) || 0) * (typeof item.selected_qty === 'string' ? parseInt(item.selected_qty) : item.selected_qty);
+              const unitPrice = parseFloat(item.selected_qty_price || '0') / parseFloat(item.selected_qty || '1');
               return `
                 <tr>
                   <td>${item.name || 'Product'}</td>
                   <td class="text-center">${item.selected_qty || 0}</td>
-                  <td class="text-right">$${parseFloat(item.selected_qty_price).toFixed(2)}</td>
-                  <td class="text-right">$${itemTotal.toFixed(2)}</td>
+                  <td class="text-right">$${unitPrice.toFixed(2)}</td>
+                  <td class="text-right">$${parseFloat(item.selected_qty_price || '0').toFixed(2)}</td>
                 </tr>
               `;
-            }).join('') : '<tr><td colspan="4">No items</td></tr>'}
+            }).join('') : '<tr><td colspan="4" class="text-center">No items found</td></tr>'}
           </tbody>
         </table>
 
-        <!-- Totals -->
+        <!-- Totals Breakdown -->
         <div class="totals">
           <table>
-            <tr>
-              <td class="label">Subtotal</td>
-              <td class="amount">$${subtotal.toFixed(2)}</td>
-            </tr>
-            ${tax > 0 ? `
-              <tr>
-                <td class="label">Tax</td>
-                <td class="amount">$${tax.toFixed(2)}</td>
+            <tbody>
+              <!-- Subtotal -->
+              <tr class="subtotal-row">
+                <td class="label">Subtotal</td>
+                <td class="amount">$${subtotal.toFixed(2)}</td>
               </tr>
-            ` : ''}
-            ${shipping > 0 ? `
-              <tr>
-                <td class="label">Shipping</td>
-                <td class="amount">$${shipping.toFixed(2)}</td>
+              
+              <!-- Volume Discount -->
+              ${volumeDiscount > 0 ? `
+                <tr class="discount-row">
+                  <td class="label">Volume Discount</td>
+                  <td class="amount">-$${volumeDiscount.toFixed(2)}</td>
+                </tr>
+              ` : ''}
+              
+              <!-- Promotion Discount -->
+              ${promotionDiscount > 0 ? `
+                <tr class="discount-row">
+                  <td class="label">Promotion Discount</td>
+                  <td class="amount">-$${promotionDiscount.toFixed(2)}</td>
+                </tr>
+              ` : ''}
+              
+              <!-- Invoice Discount -->
+              ${invoiceDiscount > 0 ? `
+                <tr class="discount-row">
+                  <td class="label">Invoice Discount</td>
+                  <td class="amount">-$${invoiceDiscount.toFixed(2)}</td>
+                </tr>
+              ` : ''}
+              
+              <!-- Total Discount Summary -->
+              ${totalDiscounts > 0 ? `
+                <tr class="discount-row" style="font-weight: bold; border-top: 1px solid #86efac; border-bottom: 1px solid #86efac;">
+                  <td class="label">Total Discounts</td>
+                  <td class="amount">-$${totalDiscounts.toFixed(2)}</td>
+                </tr>
+              ` : ''}
+              
+              <!-- Tax -->
+              ${tax > 0 ? `
+                <tr>
+                  <td class="label">Tax</td>
+                  <td class="amount">$${tax.toFixed(2)}</td>
+                </tr>
+              ` : ''}
+              
+              <!-- Shipping Cost -->
+              ${shipping > 0 ? `
+                <tr class="charge-row">
+                  <td class="label">Shipping Cost</td>
+                  <td class="amount">$${shipping.toFixed(2)}</td>
+                </tr>
+              ` : ''}
+              
+              <!-- Commission -->
+              ${commission > 0 ? `
+                <tr class="charge-row">
+                  <td class="label">Commission</td>
+                  <td class="amount">$${commission.toFixed(2)}</td>
+                </tr>
+              ` : ''}
+              
+              <!-- Total -->
+              <tr class="total-row">
+                <td class="label">TOTAL AMOUNT DUE</td>
+                <td class="amount">$${total.toFixed(2)}</td>
               </tr>
-            ` : ''}
-            ${commission > 0 ? `
-              <tr>
-                <td class="label">Commission</td>
-                <td class="amount">$${commission.toFixed(2)}</td>
-              </tr>
-            ` : ''}
-            <tr class="total-row">
-              <td class="label">Total</td>
-              <td class="amount">$${total.toFixed(2)}</td>
-            </tr>
+            </tbody>
           </table>
         </div>
 
+        <!-- Payment Instructions -->
+        <div style="margin-top: 30px; padding: 15px; background: #f0f9ff; border: 1px solid #bfdbfe; border-radius: 4px;">
+          <p style="font-size: 12px; color: #1e40af; margin: 0;"><strong>Payment Status:</strong> ${order.order_complete === '1' ? 'Completed' : 'Pending'}</p>
+          ${order.contact_email ? `<p style="font-size: 12px; color: #1e40af; margin: 5px 0;"><strong>Contact:</strong> ${order.contact_email}</p>` : ''}
+          ${order.contact_phone ? `<p style="font-size: 12px; color: #1e40af; margin: 5px 0;"><strong>Phone:</strong> ${order.contact_phone}</p>` : ''}
+        </div>
+
+        <!-- Additional Notes -->
+        ${order.order_notes ? `
+          <div style="margin-top: 20px; padding: 15px; background: #fef3c7; border: 1px solid #fde047; border-radius: 4px;">
+            <p style="font-size: 12px; font-weight: bold; color: #92400e; margin-bottom: 5px;">Order Notes:</p>
+            <p style="font-size: 12px; color: #78350f; margin: 0;">${order.order_notes}</p>
+          </div>
+        ` : ''}
+
+        <!-- Order Details Section (hidden but available for reference) -->
+        ${order.contact_address || order.contact_phone ? `
+          <div style="margin-top: 20px; padding: 15px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px;">
+            <p style="font-size: 12px; font-weight: bold; color: #374151; margin-bottom: 10px;">Delivery Details:</p>
+            ${order.contact_address ? `<p style="font-size: 12px; color: #666; margin: 2px 0;">${order.contact_address}</p>` : ''}
+            ${order.contact_phone ? `<p style="font-size: 12px; color: #666; margin: 2px 0;">Phone: ${order.contact_phone}</p>` : ''}
+          </div>
+        ` : ''}
+
         <!-- Footer -->
         <div class="footer">
-          <p>Thank you for your business!</p>
           <p>Generated on ${new Date().toLocaleDateString()}</p>
         </div>
       </div>
@@ -352,8 +463,6 @@ export const generateInvoicePDF = (order: any, businessName: string, businessLog
       <script>
         window.onload = function() {
           window.print();
-          // Optionally close after printing
-          // setTimeout(() => window.close(), 1000);
         };
       </script>
     </body>

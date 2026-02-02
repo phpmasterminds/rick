@@ -7,6 +7,7 @@ import {
   calculateFinalPrice,
   getDiscountMessage,
   type Discount,
+  type AppliedDiscount,
 } from '@/app/utils/discountUtils';
 
 interface ProductDetailModalProps {
@@ -31,8 +32,16 @@ export default function ProductDetailModal({
 
   if (!isOpen || !product) return null;
 
-  const basePrice = parseFloat(product.p_offer_price || '0');
-  const appliedDiscount = calculateApplicableDiscount(basePrice, quantity, discount);
+  const basePrice = parseFloat(product.i_price || '0');
+  
+  // Calculate discount + deal (automatically stacks if both exist)
+  const appliedDiscount = calculateApplicableDiscount(
+    basePrice,
+    quantity,
+    discount,
+    product.i_deals  // Deal string: "10%", "$5", etc.
+  );
+  
   const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
   const imageUrl = product.image_url || '/images/placeholder-product.png';
 
@@ -88,19 +97,34 @@ export default function ProductDetailModal({
                   </div>
                 )}
 
-                {/* Discount Badge on Modal */}
+                {/* Discount/Deal Badge on Modal - Shows discount, deal, or both */}
                 {appliedDiscount && appliedDiscount.isApplicable && (
-                  <div className="absolute top-3 left-3 bg-red-600 text-white text-sm font-bold px-4 py-3 rounded shadow-lg border-2 border-red-700">
+                  <div className={`absolute top-3 right-3 text-white text-sm font-bold px-4 py-3 rounded shadow-lg border-2 ${
+                    appliedDiscount.source === 'deal' 
+                      ? 'bg-orange-600 border-orange-700'
+                      : appliedDiscount.source === 'combined'
+                      ? 'bg-red-600 border-red-700'
+                      : 'bg-green-600 border-green-700'
+                  }`}>
                     <div className="text-center">
                       <div className="text-base font-bold">{appliedDiscount.discountDisplay}</div>
                       <div className="text-xs">OFF</div>
+                      {appliedDiscount.source === 'deal' && (
+                        <div className="text-xs font-semibold mt-1">🎉 SPECIAL DEAL</div>
+                      )}
+                      {appliedDiscount.source === 'discount' && (
+                        <div className="text-xs font-semibold mt-1">💰 DISCOUNT</div>
+                      )}
+                      {appliedDiscount.source === 'combined' && (
+                        <div className="text-xs font-semibold mt-1">🎊 COMBO OFFER</div>
+                      )}
                     </div>
                   </div>
                 )}
 
                 <button
                   onClick={() => setIsFavorited(!isFavorited)}
-                  className="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/90 dark:bg-gray-700/90 flex items-center justify-center hover:bg-white dark:hover:bg-gray-600 transition-all"
+                  className="absolute top-3 left-3 w-10 h-10 rounded-full bg-white/90 dark:bg-gray-700/90 flex items-center justify-center hover:bg-white dark:hover:bg-gray-600 transition-all"
                 >
                   <Heart
                     size={20}
@@ -147,21 +171,30 @@ export default function ProductDetailModal({
             </div>
 
             <div className="space-y-4">
-              {/* Price Section with Discount */}
-              <div className="bg-gradient-to-r from-accent-50 dark:from-accent-900/20 to-accent-100 dark:to-accent-800/20 p-4 rounded-lg">
-                <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Price</p>
-                <div className="flex items-center gap-3">
+              {/* PRICING SECTION - PROMINENT with Inline Strikethrough */}
+              <div className="bg-gradient-to-r from-accent-50 dark:from-accent-900/20 to-accent-100 dark:to-accent-800/20 p-6 rounded-lg border border-accent-200 dark:border-accent-700">
+                <p className="text-gray-600 dark:text-gray-400 text-sm mb-2">Price per unit</p>
+                <div className="flex flex-col gap-2">
                   {appliedDiscount && appliedDiscount.isApplicable ? (
                     <>
-                      <span className="text-lg line-through text-gray-400 dark:text-gray-500">
+                      {/* Show strikethrough original price */}
+                      <span 
+                        style={{ textDecoration: 'line-through' }}
+                        className="text-lg text-gray-400 dark:text-gray-500 font-medium"
+                      >
                         ${basePrice.toFixed(2)}
                       </span>
-                      <p className="text-3xl font-bold text-accent-600 dark:text-accent-400">
+                      {/* Show final price prominently */}
+                      <p className="text-4xl font-bold text-accent-600 dark:text-accent-400">
                         ${finalPrice.toFixed(2)}
+                      </p>
+                      {/* Show savings */}
+                      <p className="text-sm text-green-600 dark:text-green-400 font-semibold">
+                        Save ${appliedDiscount.discountValue.toFixed(2)} per unit
                       </p>
                     </>
                   ) : (
-                    <p className="text-3xl font-bold text-accent-600 dark:text-accent-400">
+                    <p className="text-4xl font-bold text-accent-600 dark:text-accent-400">
                       ${basePrice.toFixed(2)}
                     </p>
                   )}
@@ -169,9 +202,21 @@ export default function ProductDetailModal({
               </div>
 
               {/* Discount Information */}
-              {discount && discount.lines && discount.lines.length > 0 && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 p-3 rounded-lg">
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
+              {appliedDiscount && appliedDiscount.isApplicable && (
+                <div className={`p-3 rounded-lg border ${
+                  appliedDiscount.source === 'deal'
+                    ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+                    : appliedDiscount.source === 'combined'
+                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                    : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+                }`}>
+                  <p className={`text-sm font-semibold ${
+                    appliedDiscount.source === 'deal'
+                      ? 'text-orange-700 dark:text-orange-300'
+                      : appliedDiscount.source === 'combined'
+                      ? 'text-red-700 dark:text-red-300'
+                      : 'text-green-700 dark:text-green-300'
+                  }`}>
                     {discountMessage}
                   </p>
                 </div>
@@ -265,19 +310,22 @@ export default function ProductDetailModal({
                 </div>
               </div>
 
-              {/* Total Price Preview */}
+              {/* Total Price Preview with Discount */}
               {appliedDiscount && appliedDiscount.isApplicable && (
                 <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800">
                   <p className="text-xs text-green-600 dark:text-green-400 mb-1">Total with discount:</p>
                   <p className="text-2xl font-bold text-green-700 dark:text-green-300">
                     ${(finalPrice * quantity).toFixed(2)}
                   </p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                    Total savings: ${(appliedDiscount.discountValue * quantity).toFixed(2)}
+                  </p>
                 </div>
               )}
 
               <button
                 onClick={handleAddToCart}
-                className="w-full accent-bg accent-hover text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg"
+                className="w-full bg-accent-600 dark:bg-accent-500 hover:bg-accent-700 dark:hover:bg-accent-600 text-white font-semibold py-3 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg"
               >
                 Add to Cart
               </button>

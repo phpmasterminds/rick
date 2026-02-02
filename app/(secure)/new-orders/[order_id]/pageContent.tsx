@@ -57,6 +57,14 @@ interface CartItem {
   flavors?: string;
   description?: string;
   batch_id?: string | null;
+  discount?: string;
+  volume_discount?: string;
+  dealString?: string;
+  is_removed?: string;
+  is_sample?: string;
+  is_packed?: string;
+  packaged_date?: string;
+  packaged_user_id?: string;
 }
 
 interface Order {
@@ -74,6 +82,11 @@ interface Order {
   cart_tax_cost?: string | null;
   shipping_cost: string;
   invoice_discount?: string;
+  total_discount?: string;
+  volume_discount?: string;
+  promotion_discount?: string;
+  promotions?: string;
+  dealString?: string;
   order_time: string;
   order_update_time?: string;
   order_status: string;
@@ -192,6 +205,16 @@ export default function PageContent({ business, orderId }: PageContentProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const readableName = business.replace(/-/g, " ");
+
+  // Helper function to parse discount JSON safely
+  const parseDiscountData = (jsonString: string | undefined) => {
+    if (!jsonString) return null;
+    try {
+      return JSON.parse(jsonString);
+    } catch {
+      return null;
+    }
+  };
 
   // Fetch order details
   useEffect(() => {
@@ -482,7 +505,11 @@ export default function PageContent({ business, orderId }: PageContentProps) {
       const taxCost = 0;
       const shippingCost = parseFloat(editFormData.shipping_cost || order.shipping_cost || '0');
       const invoiceDiscount = parseFloat(editFormData.invoice_discount || order.invoice_discount || '0');
-      const totalCost = subtotal + taxCost + shippingCost - invoiceDiscount;
+      const volumeDiscount = parseFloat(parseDiscountData(order.volume_discount)?.discountValue || '0');
+      const promotionDiscount = parseFloat(order.promotion_discount || '0');
+      
+      // Calculate total with ALL discounts
+      const totalCost = subtotal + taxCost + shippingCost - volumeDiscount - promotionDiscount - invoiceDiscount;
 
       // Build cart items array with new quantities
       const cartItems = editFormData.cart || order.cart;
@@ -510,6 +537,10 @@ export default function PageContent({ business, orderId }: PageContentProps) {
           invoice_discount: invoiceDiscount.toFixed(2),
           cart_total_cost: totalCost.toFixed(2),
         });
+        
+        // Recalculate and update balance due
+        const newBalanceDue = (totalCost - parseFloat(totalPaid || '0')).toFixed(2);
+        setBalanceDue(newBalanceDue);
       }
     } catch (err: any) {
       const errorMessage = err.response?.data?.message || 'Failed to update order';
@@ -950,32 +981,41 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       ${parseFloat(order.cart_cost || '0').toFixed(2)}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">Shipping</span>
-                    <div className="flex items-center gap-2">
-                      
-                      <button
-                        onClick={() => {
-                          setEditFormData({
-                            ...editFormData,
-                            shipping_cost: order.shipping_cost || '0'
-                          });
-                          setShowEditModal(true);
-                        }}
-                        className="ml-2 p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition"
-                        title="Edit Shipping Cost"
-                      >
-                        <Edit3 size={16} className="text-blue-600 dark:text-blue-400" />
-                      </button>
-					  <span className="font-semibold text-gray-900 dark:text-gray-100">
-                        ${parseFloat(order.shipping_cost || '0').toFixed(2)}
+
+                  {/* Volume Discount */}
+                  {order.volume_discount && parseDiscountData(order.volume_discount) && (
+                    <div className="flex justify-between items-center bg-teal-50 dark:bg-teal-900/20 px-3 py-2 rounded border border-teal-200 dark:border-teal-800">
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-400">Volume Discount</span>
+                        <p className="text-xs text-teal-600 dark:text-teal-400 font-medium">
+                          {parseDiscountData(order.volume_discount)?.discountDisplay || ''}
+                        </p>
+                      </div>
+                      <span className="font-semibold text-teal-600 dark:text-teal-400">
+                        -${parseFloat(parseDiscountData(order.volume_discount)?.discountValue || '0').toFixed(2)}
                       </span>
                     </div>
-                  </div>
+                  )}
+
+                  {/* Promotion Discount */}
+                  {order.promotion_discount && parseFloat(order.promotion_discount) > 0 && (
+                    <div className="flex justify-between items-center bg-purple-50 dark:bg-purple-900/20 px-3 py-2 rounded border border-purple-200 dark:border-purple-800">
+                      <div>
+                        <span className="text-gray-600 dark:text-gray-400">Promotion Discount</span>
+                        <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
+                          {order.dealString && `${order.dealString} off`}
+                        </p>
+                      </div>
+                      <span className="font-semibold text-purple-600 dark:text-purple-400">
+                        -${parseFloat(order.promotion_discount || '0').toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Invoice Discount */}
                   <div className="flex justify-between items-center">
                     <span className="text-gray-600 dark:text-gray-400">Invoice Discount</span>
                     <div className="flex items-center gap-2">
-                      
                       <button
                         onClick={() => {
                           setEditFormData({
@@ -984,16 +1024,40 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                           });
                           setShowEditModal(true);
                         }}
-                        className="ml-2 p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition"
+                        className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition"
                         title="Edit Invoice Discount"
                       >
                         <Edit3 size={16} className="text-blue-600 dark:text-blue-400" />
                       </button>
-					  <span className="font-semibold text-gray-900 dark:text-gray-100">
-                        ${parseFloat(order.invoice_discount || '0').toFixed(2)}
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        -${parseFloat(order.invoice_discount || '0').toFixed(2)}
                       </span>
                     </div>
                   </div>
+
+                  {/* Shipping */}
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">Shipping</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setEditFormData({
+                            ...editFormData,
+                            shipping_cost: order.shipping_cost || '0'
+                          });
+                          setShowEditModal(true);
+                        }}
+                        className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition"
+                        title="Edit Shipping Cost"
+                      >
+                        <Edit3 size={16} className="text-blue-600 dark:text-blue-400" />
+                      </button>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">
+                        ${parseFloat(order.shipping_cost || '0').toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
                   {/*{order.total_commission && (
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">Commission</span>
@@ -1012,6 +1076,7 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       })()}
                     </span>
                   </div>*/}
+
                   <div className="border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-between items-center">
                     <span className="font-bold text-gray-900 dark:text-gray-100">Total</span>
                     <span className="font-bold text-2xl text-gray-900 dark:text-gray-100">
@@ -1019,10 +1084,12 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                         const subtotal = parseFloat(order.cart_cost || '0');
                         const shipping = parseFloat(order.shipping_cost || '0');
                         const commission = parseFloat(order.total_commission || '0');
-                        const discount = parseFloat(order.invoice_discount || '0');
-                        //const tax = (4.5 / 100) * subtotal;
+                        const volumeDiscount = parseFloat(parseDiscountData(order.volume_discount)?.discountValue || '0');
+                        const promotionDiscount = parseFloat(order.promotion_discount || '0');
+                        const invoiceDiscount = parseFloat(order.invoice_discount || '0');
                         const tax = 0;
-                        const total = subtotal + shipping + commission + tax - discount;
+						//volumeDiscount
+                        const total = subtotal + shipping + commission + tax - volumeDiscount - promotionDiscount - invoiceDiscount;
                         return total.toFixed(2);
                       })()}
                     </span>
@@ -1082,36 +1149,56 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600 dark:text-gray-400">Product</th>
                           <th className="px-4 py-3 text-center text-sm font-semibold text-gray-600 dark:text-gray-400">Quantity</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-400">Unit Price</th>
+                          <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-400">Discounts</th>
                           <th className="px-4 py-3 text-right text-sm font-semibold text-gray-600 dark:text-gray-400">Total</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {orderItems.map((item) => (
-                          <tr key={item.item_id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
-                            <td className="px-4 py-4">
-                              <div className="flex items-center gap-3">
-                                {item.product_image && (
-                                  <img src={item.product_image} alt={item.product_name} className="w-12 h-12 object-cover rounded" />
-                                )}
-                                <div>
-                                  <p className="font-semibold text-gray-900 dark:text-gray-100">{item.product_name}</p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">ID: {item.product_id}</p>
+                        {orderItems.map((item) => {
+                          const cartItem = order?.cart?.find(ci => ci.cart_id === item.item_id);
+                          const volumeDiscount = cartItem?.volume_discount ? parseDiscountData(cartItem.volume_discount) : null;
+                          
+                          return (
+                            <tr key={item.item_id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+                              <td className="px-4 py-4">
+                                <div className="flex items-center gap-3">
+                                  {item.product_image && (
+                                    <img src={item.product_image} alt={item.product_name} className="w-12 h-12 object-cover rounded" />
+                                  )}
+                                  <div>
+                                    <p className="font-semibold text-gray-900 dark:text-gray-100">{item.product_name}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">ID: {item.product_id}</p>
+                                  </div>
                                 </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 text-center text-gray-900 dark:text-gray-100 font-medium">
-                              {item.quantity}
-                            </td>
-                            <td className="px-4 py-4 text-right text-gray-900 dark:text-gray-100">
-                              ${parseFloat(item.unit_price).toFixed(2)}
-                            </td>
-                            <td className="px-4 py-4 text-right">
-                              <span className="font-bold text-gray-900 dark:text-gray-100">
-                                ${parseFloat(item.total_price).toFixed(2)}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="px-4 py-4 text-center text-gray-900 dark:text-gray-100 font-medium">
+                                {item.quantity}
+                              </td>
+                              <td className="px-4 py-4 text-right text-gray-900 dark:text-gray-100">
+                                ${parseFloat(item.unit_price).toFixed(2)}
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                <div className="flex flex-col items-end gap-1">
+                                  {volumeDiscount && (
+                                    <span className="text-xs bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 px-2 py-1 rounded font-medium">
+                                      {volumeDiscount.discountDisplay}
+                                    </span>
+                                  )}
+                                  {cartItem?.dealString && (
+                                    <span className="text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 px-2 py-1 rounded font-medium">
+                                      {cartItem.dealString} off
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-4 text-right">
+                                <span className="font-bold text-gray-900 dark:text-gray-100">
+                                  ${parseFloat(item.total_price).toFixed(2)}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -1652,6 +1739,36 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                       </span>
                     </div>
 
+                    {/* Volume Discount */}
+                    {order?.volume_discount && parseDiscountData(order.volume_discount) && (
+                      <div className="flex justify-between items-center py-2 px-2 rounded border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-900/20">
+                        <div>
+                          <span className="text-gray-700 dark:text-gray-300 font-medium">Volume Discount</span>
+                          <p className="text-xs text-teal-600 dark:text-teal-400">
+                            {parseDiscountData(order.volume_discount)?.discountDisplay}
+                          </p>
+                        </div>
+                        <span className="font-bold text-teal-600 dark:text-teal-400">
+                          -${parseFloat(parseDiscountData(order.volume_discount)?.discountValue || '0').toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Promotion Discount */}
+                    {order?.promotion_discount && parseFloat(order.promotion_discount) > 0 && (
+                      <div className="flex justify-between items-center py-2 px-2 rounded border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20">
+                        <div>
+                          <span className="text-gray-700 dark:text-gray-300 font-medium">Promotion Discount</span>
+                          <p className="text-xs text-purple-600 dark:text-purple-400">
+                            {order.dealString && `${order.dealString} off`}
+                          </p>
+                        </div>
+                        <span className="font-bold text-purple-600 dark:text-purple-400">
+                          -${parseFloat(order.promotion_discount || '0').toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Commission 
                     {(editFormData.total_commission || order?.total_commission) && (
                       <div className="flex justify-between items-center py-2 border-b border-gray-200 dark:border-gray-700">
@@ -1675,12 +1792,113 @@ export default function PageContent({ business, orderId }: PageContentProps) {
                               subtotal += unitPrice * (typeof quantity === 'string' ? parseInt(quantity) : quantity);
                             });
                           }
-                          const tax = (parseFloat(taxPercentage) / 100) * subtotal;
+                          const tax = 0;
                           const shipping = parseFloat(editFormData.shipping_cost || order?.shipping_cost || '0');
                           const commission = parseFloat(editFormData.total_commission || order?.total_commission || '0');
-                          const discount = parseFloat(editFormData.invoice_discount || order?.invoice_discount || '0');
-                          const total = subtotal + tax + shipping + commission - discount;
+                          const volumeDiscount = parseFloat(parseDiscountData(order?.volume_discount)?.discountValue || '0');
+                          const promotionDiscount = parseFloat(order?.promotion_discount || '0');
+                          const invoiceDiscount = parseFloat(editFormData.invoice_discount || order?.invoice_discount || '0');
+                          const total = subtotal + tax + shipping + commission - volumeDiscount - promotionDiscount - invoiceDiscount;
                           return total.toFixed(2);
+                        })()}
+                      </span>
+                    </div>
+
+                    {/* Balance Due */}
+                    <div className={`flex justify-between items-center py-3 px-3 rounded-lg border-2 ${
+                      (() => {
+                        let subtotal = 0;
+                        if (order && order.cart && Array.isArray(order.cart)) {
+                          order.cart.forEach((item: any, index: number) => {
+                            const unitPrice = parseFloat(item.selected_qty_price);
+                            const quantity = editFormData.cart?.[index]?.selected_qty || item.selected_qty;
+                            subtotal += unitPrice * (typeof quantity === 'string' ? parseInt(quantity) : quantity);
+                          });
+                        }
+                        const tax = 0;
+                        const shipping = parseFloat(editFormData.shipping_cost || order?.shipping_cost || '0');
+                        const commission = parseFloat(editFormData.total_commission || order?.total_commission || '0');
+                        const volumeDiscount = parseFloat(parseDiscountData(order?.volume_discount)?.discountValue || '0');
+                        const promotionDiscount = parseFloat(order?.promotion_discount || '0');
+                        const invoiceDiscount = parseFloat(editFormData.invoice_discount || order?.invoice_discount || '0');
+                        const total = subtotal + tax + shipping + commission - volumeDiscount - promotionDiscount - invoiceDiscount;
+                        const totalPaidAmount = parseFloat(totalPaid || '0');
+                        const balanceDueAmount = total - totalPaidAmount;
+                        return balanceDueAmount <= 0
+                          ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' 
+                          : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800';
+                      })()
+                    }`}>
+                      <span className={`font-bold text-lg ${
+                        (() => {
+                          let subtotal = 0;
+                          if (order && order.cart && Array.isArray(order.cart)) {
+                            order.cart.forEach((item: any, index: number) => {
+                              const unitPrice = parseFloat(item.selected_qty_price);
+                              const quantity = editFormData.cart?.[index]?.selected_qty || item.selected_qty;
+                              subtotal += unitPrice * (typeof quantity === 'string' ? parseInt(quantity) : quantity);
+                            });
+                          }
+                          const tax = 0;
+                          const shipping = parseFloat(editFormData.shipping_cost || order?.shipping_cost || '0');
+                          const commission = parseFloat(editFormData.total_commission || order?.total_commission || '0');
+                          const volumeDiscount = parseFloat(parseDiscountData(order?.volume_discount)?.discountValue || '0');
+                          const promotionDiscount = parseFloat(order?.promotion_discount || '0');
+                          const invoiceDiscount = parseFloat(editFormData.invoice_discount || order?.invoice_discount || '0');
+                          const total = subtotal + tax + shipping + commission - volumeDiscount - promotionDiscount - invoiceDiscount;
+                          const totalPaidAmount = parseFloat(totalPaid || '0');
+                          const balanceDueAmount = total - totalPaidAmount;
+                          return balanceDueAmount <= 0 
+                            ? 'text-gray-900 dark:text-gray-100' 
+                            : 'text-gray-900 dark:text-gray-100';
+                        })()
+                      }`}>
+                        Balance Due:
+                      </span>
+                      <span className={`font-bold text-2xl ${
+                        (() => {
+                          let subtotal = 0;
+                          if (order && order.cart && Array.isArray(order.cart)) {
+                            order.cart.forEach((item: any, index: number) => {
+                              const unitPrice = parseFloat(item.selected_qty_price);
+                              const quantity = editFormData.cart?.[index]?.selected_qty || item.selected_qty;
+                              subtotal += unitPrice * (typeof quantity === 'string' ? parseInt(quantity) : quantity);
+                            });
+                          }
+                          const tax = 0;
+                          const shipping = parseFloat(editFormData.shipping_cost || order?.shipping_cost || '0');
+                          const commission = parseFloat(editFormData.total_commission || order?.total_commission || '0');
+                          const volumeDiscount = parseFloat(parseDiscountData(order?.volume_discount)?.discountValue || '0');
+                          const promotionDiscount = parseFloat(order?.promotion_discount || '0');
+                          const invoiceDiscount = parseFloat(editFormData.invoice_discount || order?.invoice_discount || '0');
+                          const total = subtotal + tax + shipping + commission - volumeDiscount - promotionDiscount - invoiceDiscount;
+                          const totalPaidAmount = parseFloat(totalPaid || '0');
+                          const balanceDueAmount = total - totalPaidAmount;
+                          return balanceDueAmount <= 0 
+                            ? 'text-green-600 dark:text-green-400' 
+                            : 'text-red-600 dark:text-red-400';
+                        })()
+                      }`}>
+                        ${(() => {
+                          let subtotal = 0;
+                          if (order && order.cart && Array.isArray(order.cart)) {
+                            order.cart.forEach((item: any, index: number) => {
+                              const unitPrice = parseFloat(item.selected_qty_price);
+                              const quantity = editFormData.cart?.[index]?.selected_qty || item.selected_qty;
+                              subtotal += unitPrice * (typeof quantity === 'string' ? parseInt(quantity) : quantity);
+                            });
+                          }
+                          const tax = 0;
+                          const shipping = parseFloat(editFormData.shipping_cost || order?.shipping_cost || '0');
+                          const commission = parseFloat(editFormData.total_commission || order?.total_commission || '0');
+                          const volumeDiscount = parseFloat(parseDiscountData(order?.volume_discount)?.discountValue || '0');
+                          const promotionDiscount = parseFloat(order?.promotion_discount || '0');
+                          const invoiceDiscount = parseFloat(editFormData.invoice_discount || order?.invoice_discount || '0');
+                          const total = subtotal + tax + shipping + commission - volumeDiscount - promotionDiscount - invoiceDiscount;
+						 
+                          const totalPaidAmount = parseFloat(totalPaid || '0');
+                          const balanceDueAmount = total - totalPaidAmount;
+                          return balanceDueAmount.toFixed(2);
                         })()}
                       </span>
                     </div>

@@ -76,12 +76,33 @@ interface Order {
   contact_phone: string;
   age: string;
   total_commission: string;
-  to_address_detail_t_locs?: {
+  to_address_detail_f_locs?: {
+    trade_name?: string;
+    title?: string;
     locs_city?: string;
     locs_zip?: string;
     locs_street?: string;
-	 trade_name?: string;
+    locs_phone?: string;
+    locs_email?: string;
+    locs_state?: string;
+    license_number?: string;
+    full_name?: string;
+    pages_image_url?: string;
+	invoice_logo?: string;
+  };
+  from_address_detail_f_locs?: {
+    trade_name?: string;
     title?: string;
+    locs_city?: string;
+    locs_zip?: string;
+    locs_state?: string;
+    license_number?: string;
+    locs_street?: string;
+    locs_phone?: string;
+    locs_email?: string;
+    full_name?: string;
+	pages_image_url?: string;
+	invoice_logo?: string;
   };
 }
 
@@ -498,36 +519,85 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ order, business, onPaymentClick
 
   // Print Invoice Handler
   const handlePrintInvoice = () => {
-	  /*window.open(
-      `/api/business/invoice-pdf/?business=${business}&order_id=${order.order_id}`,
-      '_blank'
-	  );*/
-	/*if (order) {
-		console.log(business);
-		generateInvoicePDF(order, business, order.to_address_detail_t_locs?.pages_image_path);
-		setIsOpen(false);
-		toast.success('Invoice PDF opened for printing');
-	}*/
+	  //generateInvoicePDF(order, order.from_address_detail_f_locs?.trade_name || order.from_address_detail_f_locs?.title, order.from_address_detail_f_locs?.invoice_logo || order.from_address_detail_f_locs?.pages_image_url);
+	  
+	  generateInvoicePDF(
+  order,
+  order.from_address_detail_f_locs?.trade_name
+    || order.from_address_detail_f_locs?.title
+    || '',
+  order.from_address_detail_f_locs?.invoice_logo
+    || order.from_address_detail_f_locs?.pages_image_url
+    || ''
+);
+
+
+     // setShowDropdown(false);
+      toast.success('Invoice PDF opened for printing');
+	  
+	
     setIsOpen(false);
   };
 
   // Print Shipping Manifest Handler
-  const handlePrintManifest = () => {
-    window.open(
-      `/api/business/shipping-manifest/?business=${business}&order_id=${order.order_id}`,
-      '_blank'
-    );
+  /*const handlePrintManifest = () => {
+	if (order) {
+	generateShippingManifestPDF(order, order.from_address_detail_f_locs?.trade_name || order.from_address_detail_f_locs?.title, order.from_address_detail_f_locs?.invoice_logo || order.from_address_detail_f_locs?.pages_image_url);
+	toast.success('Shipping Manifest opened for printing');
+	}
     setIsOpen(false);
-  };
+  };*/
+  
+  const handlePrintManifest = () => {
+	  if (order) {
+		const businessName =
+		  order.from_address_detail_f_locs?.trade_name
+		  ?? order.from_address_detail_f_locs?.title
+		  ?? '';
+
+		const logo =
+		  order.from_address_detail_f_locs?.invoice_logo
+		  ?? order.from_address_detail_f_locs?.pages_image_url
+		  ?? '';
+
+		generateShippingManifestPDF(order, businessName, logo);
+
+		toast.success('Shipping Manifest opened for printing');
+	  }
+
+	  setIsOpen(false);
+	};
+
+
 
   // Print Pack List Handler
-  const handlePrintPackList = () => {
-    window.open(
-      `/api/business/pack-list/?business=${business}&order_id=${order.order_id}`,
-      '_blank'
-    );
+  /*const handlePrintPackList = () => {
+   if (order) {
+      generatePackListPDF(order, order.from_address_detail_f_locs?.trade_name || order.from_address_detail_f_locs?.title, order.from_address_detail_f_locs?.invoice_logo || order.from_address_detail_f_locs?.pages_image_url);
+      toast.success('Pack List opened for printing');
+    }
     setIsOpen(false);
-  };
+  };*/
+  const handlePrintPackList = () => {
+	  if (order) {
+		const businessName =
+		  order.from_address_detail_f_locs?.trade_name
+		  ?? order.from_address_detail_f_locs?.title
+		  ?? '';
+
+		const logo =
+		  order.from_address_detail_f_locs?.invoice_logo
+		  ?? order.from_address_detail_f_locs?.pages_image_url
+		  ?? '';
+
+		generatePackListPDF(order, businessName, logo);
+
+		toast.success('Pack List opened for printing');
+	  }
+
+	  setIsOpen(false);
+	};
+
 
   // Navigation Handler
   const handleViewOrder = () => {
@@ -577,7 +647,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ order, business, onPaymentClick
       handler: handleViewOrder,
       type: 'function',
     },
-    {
+   /* {
       icon: Edit,
       label: 'Edit Order',
       action: 'edit',
@@ -590,7 +660,7 @@ const ActionMenu: React.FC<ActionMenuProps> = ({ order, business, onPaymentClick
       action: 'payments',
       handler: handlePayments,
       type: 'function',
-    },
+    },*/
     {
       icon: Truck,
       label: 'Shipping Manifest (Print)',
@@ -1094,7 +1164,7 @@ export default function OrderPageContent({ business }: { business: string }) {
                 <th className="px-6 py-4 text-left font-bold text-gray-700 dark:text-gray-300 text-sm">Total</th>
                 <th className="px-6 py-4 text-left font-bold text-gray-700 dark:text-gray-300 text-sm">Sales Person</th>
                 <th className="px-6 py-4 text-left font-bold text-gray-700 dark:text-gray-300 text-sm">Status</th>
-                {/*<th className="px-6 py-4 text-left font-bold text-gray-700 dark:text-gray-300 text-sm">Actions</th>*/}
+                <th className="px-6 py-4 text-left font-bold text-gray-700 dark:text-gray-300 text-sm">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1121,7 +1191,7 @@ export default function OrderPageContent({ business }: { business: string }) {
                     </td>
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-semibold text-gray-900 dark:text-gray-100">{order.to_address_detail_t_locs?.trade_name || order.to_address_detail_t_locs?.title || '—'}</p>
+                        <p className="font-semibold text-gray-900 dark:text-gray-100">{order.to_address_detail_f_locs?.trade_name || order.to_address_detail_f_locs?.title || '—'}</p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
 							{order.full_name}
 						</p>
@@ -1178,9 +1248,9 @@ export default function OrderPageContent({ business }: { business: string }) {
                     <td className="px-6 py-4">
                       <StatusDropdown order={order} onStatusChange={handleStatusChange} />
                     </td>
-                    {/*<td className="px-6 py-4">
+                    <td className="px-6 py-4">
                       <ActionMenu business={business} order={order} onPaymentClick={() => setPaymentModal({ isOpen: true, order })} />
-                    </td>*/}
+                    </td>
                   </tr>
                 ))
               ) : (

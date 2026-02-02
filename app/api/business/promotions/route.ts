@@ -51,31 +51,43 @@ export async function POST(request: NextRequest) {
       valid_to,
       promoCodeRequired,
       code,
+      action,
+      businessId,
+      cartSubtotal,
     } = body;
+	
+	if(action === 'validate'){
+		const response = await axios.post(
+		  "/business/promotions",
+		  body
+		);
+		return NextResponse.json(response.data, { status: response.status });
+	}else{
+		if (!business || !discount_value || !valid_from || !valid_to) {
+		  return NextResponse.json(
+			{
+			  error:
+				'Missing required fields: business, discountValue, validFrom, validTo',
+			},
+			{ status: 400 }
+		  );
+		}
 
-    if (!business || !discount_value || !valid_from || !valid_to) {
-      return NextResponse.json(
-        {
-          error:
-            'Missing required fields: business, discountValue, validFrom, validTo',
-        },
-        { status: 400 }
-      );
-    }
+		if (promoCodeRequired && !code) {
+		  return NextResponse.json(
+			{ error: 'Promo code is required when promoCodeRequired is enabled' },
+			{ status: 400 }
+		  );
+		}
 
-    if (promoCodeRequired && !code) {
-      return NextResponse.json(
-        { error: 'Promo code is required when promoCodeRequired is enabled' },
-        { status: 400 }
-      );
-    }
-
-    const response = await axios.post(
-      "/business/promotions",
-      body
-    );
-
-    return NextResponse.json(response.data, { status: response.status });
+		const response = await axios.post(
+		  "/business/promotions",
+		  body
+		);
+		return NextResponse.json(response.data, { status: response.status });
+	}
+	
+    
   } catch (error) {
     console.error('Error creating promotion:', error);
     return NextResponse.json(
