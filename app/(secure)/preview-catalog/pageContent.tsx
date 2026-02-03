@@ -39,6 +39,7 @@ interface Product {
   product_id: string;
   name: string;
   cat_name: string;
+  sub_cat_name: string;
   strain?: string;
   p_offer_price: string;
   i_onhand: string;
@@ -80,7 +81,7 @@ export default function PageContent() {
   // Products state
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<{ name: string; subcategories: string[] }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,6 +95,12 @@ export default function PageContent() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState('default');
+  
+  // Infinite scroll state
+  const [displayCount, setDisplayCount] = useState(30); // How many products to display
+  const [allProductsLoaded, setAllProductsLoaded] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerTarget = useRef<HTMLDivElement>(null);
   
   // Pagination state - 30 products per page (from API)
   const [currentPage, setCurrentPage] = useState(1);
@@ -110,27 +117,168 @@ export default function PageContent() {
   const lastTotalRef = useRef<number>(0);
   const backgroundLoadingRef = useRef<boolean>(false);
 
+  // Build categories from products data - DEFINED EARLY before useEffects
+  const buildCategoriesFromProducts = useCallback((allProducts: Product[]) => {
+    const categoryMap = new Map<string, Set<string>>();
+
+    allProducts.forEach((product) => {
+      const catName = (product.cat_name || '').trim();
+      const subCatName = (product.sub_cat_name || '').trim();
+      
+      if (catName) {
+        if (!categoryMap.has(catName)) {
+          categoryMap.set(catName, new Set<string>());
+        }
+        
+        if (subCatName) {
+          categoryMap.get(catName)?.add(subCatName);
+        }
+      }
+    });
+
+    const builtCategories = Array.from(categoryMap.entries()).map(([catName, subCats]) => ({
+      name: catName,
+      subcategories: Array.from(subCats),
+    }));
+
+    console.log('📋 Built categories from products:', builtCategories);
+    setCategories(builtCategories);
+  }, []);
+
   // Initial load
   useEffect(() => {
     const initializeData = async () => {
       await fetchProducts(1);
-      fetchCategories();
-      // Start background loading of first 200 products
-      loadFirst200ProductsInBackground();
+      // Start background loading of all products
+      loadAllProductsInBackground();
     };
     initializeData();
   }, []);
 
   // Apply filters when products, search, category, subcategory, or sort changes
   useEffect(() => {
-    applyFiltersAndSort();
+    let filtered = [...products];
+
+    console.log('🔍 Applying filters:');
+    console.log(`  - Search: "${searchTerm}"`);
+    console.log(`  - Category: "${selectedCategory}"`);
+    console.log(`  - SubCategory: "${selectedSubCategory}"`);
+
+    // Filter by search term
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.cat_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      console.log(`  ✓ After search: ${filtered.length} products`);
+    }
+
+    // Filter by category and subcategory
+    if (selectedCategory !== 'All') {
+      filtered = filtered.filter((p) => p.cat_name === selectedCategory);
+      console.log(`  ✓ After category filter: ${filtered.length} products`);
+    }
+
+    // Filter by subcategory if selected
+    if (selectedSubCategory) {
+      filtered = filtered.filter((p) => p.sub_cat_name === selectedSubCategory);
+      console.log(`  ✓ After subcategory filter: ${filtered.length} products`);
+    }
+
+    // Sort
+    switch (sortBy) {
+      case 'price-asc':
+        filtered.sort((a, b) => parseFloat(a.p_offer_price || '0') - parseFloat(b.p_offer_price || '0'));
+        break;
+      case 'price-desc':
+        filtered.sort((a, b) => parseFloat(b.p_offer_price || '0') - parseFloat(a.p_offer_price || '0'));
+        break;
+      case 'name':
+        filtered.sort((a, b) => a.name.localeCompare(b.name));
+        break;
+      default:
+        break;
+    }
+
+    console.log(`📊 Final filtered result: ${filtered.length} products`);
+    setFilteredProducts(filtered);
+    setDisplayCount(30);
+    setAllProductsLoaded(false);
+    
+    if (filtered.length === 0) {
+      setCurrentPage(1);
+    }
   }, [products, searchTerm, selectedCategory, selectedSubCategory, sortBy]);
+
+  // Build categories from products when they load
+  useEffect(() => {
+    if (products.length > 0) {
+      buildCategoriesFromProducts(products);
+    }
+  }, [products, buildCategoriesFromProducts]);
 
   // Reset subcategory and page when main category changes
   useEffect(() => {
     setSelectedSubCategory(null);
     setCurrentPage(1);
+    setDisplayCount(30); // Reset display count when category changes
   }, [selectedCategory]);
+
+  // Set up infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore && !allProductsLoaded) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) {
+        observer.unobserve(observerTarget.current);
+      }
+    };
+  }, [isLoadingMore, allProductsLoaded, displayCount, filteredProducts]);
+
+  // Load more products for infinite scroll
+  const loadMore = async () => {
+    if (allProductsLoaded || isLoadingMore) return;
+
+    const nextPage = Math.ceil((displayCount + 1) / 30);
+    
+    // Check if we already have all filtered products displayed
+    if (displayCount >= filteredProducts.length) {
+      setAllProductsLoaded(true);
+      return;
+    }
+
+    setIsLoadingMore(true);
+    try {
+      // Check if we need to fetch more pages from API
+      if (nextPage > currentPage && nextPage <= totalPages) {
+        await fetchProducts(nextPage);
+      }
+
+      // Increase display count
+      setDisplayCount((prev) => Math.min(prev + 30, filteredProducts.length));
+      
+      // Check if we've reached the end
+      if (displayCount + 30 >= filteredProducts.length) {
+        setAllProductsLoaded(true);
+      }
+    } catch (err) {
+      console.error('Error loading more products:', err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
   
 	// Get vanity_url from cookies
 	const getCookie = (name: string) => {
@@ -140,9 +288,9 @@ export default function PageContent() {
 		return '';
 	};
 
-  // Load all products in background (dynamically based on total from first API response)
-  const loadFirst200ProductsInBackground = async () => {
-    if (backgroundLoadingRef.current) return; // Prevent multiple simultaneous loads
+  // Load all products in background and build categories dynamically
+  const loadAllProductsInBackground = async () => {
+    if (backgroundLoadingRef.current) return;
     
     backgroundLoadingRef.current = true;
     setIsLoadingBackground(true);
@@ -150,7 +298,6 @@ export default function PageContent() {
     setTotalLoadedInBackground(0);
 
     try {
-      // Get user_id from localStorage
       let userId = '';
       try {
         const userDataStr = localStorage.getItem('user');
@@ -177,7 +324,6 @@ export default function PageContent() {
       let accumulatedProducts: Product[] = [];
 
       for (let page = 1; page <= pagesNeeded; page++) {
-        // Check if already cached
         const cachedPage = pageCache.current.get(page);
         
         let pageProducts: Product[] = [];
@@ -187,7 +333,6 @@ export default function PageContent() {
           console.log(`📦 Using cached page ${page} for background load`);
         } else {
           try {
-            // Build query params
             const params = new URLSearchParams({
               page: page.toString(),
               limit: '30',
@@ -195,7 +340,6 @@ export default function PageContent() {
             if (userId) params.append('user_id', userId);
             if (vanityUrl) params.append('vanity_url', vanityUrl);
 
-            // Try multiple possible endpoints
             const endpoints = [
               `/api/business/business-products?${params.toString()}`,
               `/api/business/products?${params.toString()}`,
@@ -220,7 +364,6 @@ export default function PageContent() {
               throw lastError;
             }
 
-            // Parse response
             let productsData: Product[] = [];
             
             if (response.data.data?.products && Array.isArray(response.data.data.products)) {
@@ -233,14 +376,12 @@ export default function PageContent() {
               productsData = response.data;
             }
 
-            // Filter only enabled products
             const enabledProducts = productsData.filter(
               (p: any) => p.enable_catalog === '1' || p.enable_catalog === 1
             );
 
             pageProducts = enabledProducts;
 
-            // Cache this page
             const cacheData: PageCache = {
               products: enabledProducts,
               total: response.data.data?.total || response.data.total || 0,
@@ -251,37 +392,30 @@ export default function PageContent() {
             console.log(`📥 Loaded page ${page}/${pagesNeeded} with ${enabledProducts.length} products in background`);
           } catch (err) {
             console.error(`Error loading page ${page} in background:`, err);
-            // Continue to next page on error
             continue;
           }
         }
 
-        // Add products to accumulation
         accumulatedProducts = [...accumulatedProducts, ...pageProducts];
         
-        // Update progress (based on total products from API, not fixed 200)
         const loadedCount = Math.min(accumulatedProducts.length, totalProducts);
         setTotalLoadedInBackground(loadedCount);
         
-        // Calculate progress percentage based on actual total
         const progressPercentage = totalProducts > 0 
           ? Math.min((loadedCount / totalProducts) * 100, 100)
           : 0;
         setBackgroundLoadProgress(progressPercentage);
 
-        // Stop if we've loaded all products
         if (accumulatedProducts.length >= totalProducts && totalProducts > 0) {
           console.log(`✅ Background load complete: ${loadedCount} of ${totalProducts} products loaded`);
           break;
         }
 
-        // Small delay between requests to avoid overwhelming the server
         await new Promise(resolve => setTimeout(resolve, 100));
       }
 
-      // If no pages were needed (0 products), show 100% completion
       if (pagesNeeded === 0) {
-        console.log(`ℹ️ No additional products to load (all loaded already or 0 total)`);
+        console.log(`ℹ️ No additional products to load`);
         setBackgroundLoadProgress(100);
       }
 
@@ -300,15 +434,22 @@ export default function PageContent() {
       // Check if page is already cached
       const cachedPage = pageCache.current.get(page);
       if (cachedPage) {
-        setProducts(cachedPage.products);
+        setProducts((prevProducts) => {
+          // Merge new products with existing ones
+          const allProducts = [...prevProducts];
+          cachedPage.products.forEach((newProduct) => {
+            if (!allProducts.some((p) => p.product_id === newProduct.product_id)) {
+              allProducts.push(newProduct);
+            }
+          });
+          return allProducts;
+        });
         setTotalProducts(cachedPage.total);
         setTotalPages(cachedPage.totalPages);
         setCurrentPage(page);
-        setLoading(false);
         return;
       }
 
-      setLoading(true);
       setError(null);
 
       // Get user_id from localStorage
@@ -400,7 +541,17 @@ export default function PageContent() {
 
       lastTotalRef.current = total;
 
-      setProducts(enabledProducts);
+      // Merge new products with existing ones for infinite scroll
+      setProducts((prevProducts) => {
+        const allProducts = [...prevProducts];
+        enabledProducts.forEach((newProduct) => {
+          if (!allProducts.some((p) => p.product_id === newProduct.product_id)) {
+            allProducts.push(newProduct);
+          }
+        });
+        return allProducts;
+      });
+      
       setTotalProducts(total);
       setTotalPages(calculatedTotalPages);
       setCurrentPage(page);
@@ -415,126 +566,37 @@ export default function PageContent() {
     }
   };
 
-  // Fetch categories
-  const fetchCategories = async () => {
-    try {
-      console.log('📥 Fetching categories...');
-	  const vanityUrl = getCookie('vanity_url');
-	  
-      const response = await axios.get(`/api/business/non-empty-categories?business=${vanityUrl}`);
-      
-      if (response.data.data) {
-        const categoryArray = Object.values(response.data.data) as Category[];
-        setCategories(categoryArray);
-        console.log(`✅ Loaded ${categoryArray.length} categories`);
-        console.log('📋 Categories structure:', categoryArray);
-      }
-    } catch (err) {
-      console.error('Error fetching categories:', err);
+  // Build categories from products data
+
+  const calculateCategoryCount = useCallback((categoryName: string): number => {
+    if (categoryName === 'All') {
+      return products.length;
     }
-  };
+    return products.filter(p => p.cat_name === categoryName).length;
+  }, [products]);
+
+  // Calculate subcategory product counts
+  const calculateSubcategoryCount = useCallback((subcategoryName: string): number => {
+    if (subcategoryName === 'All') {
+      return filteredProducts.length;
+    }
+    return filteredProducts.filter(p => p.sub_cat_name === subcategoryName).length;
+  }, [filteredProducts]);
+
+  // Get subcategories for selected category
+  const getSubcategoriesForCategory = useCallback((): string[] => {
+    if (selectedCategory === 'All') {
+      return [];
+    }
+    
+    const categoryObj = categories.find(cat => cat.name === selectedCategory);
+    if (categoryObj?.subcategories) {
+      return categoryObj.subcategories;
+    }
+    return [];
+  }, [selectedCategory, categories]);
 
   // Apply filters and sort
-  const applyFiltersAndSort = useCallback(() => {
-    let filtered = [...products];
-
-    console.log('🔍 Applying filters:');
-    console.log(`  - Search: "${searchTerm}"`);
-    console.log(`  - Category: "${selectedCategory}"`);
-    console.log(`  - SubCategory: "${selectedSubCategory}"`);
-
-    // Filter by search term
-    if (searchTerm) {
-      filtered = filtered.filter(
-        (p) =>
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.cat_name?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      console.log(`  ✓ After search: ${filtered.length} products`);
-    }
-
-    // Filter by category and subcategory
-    if (selectedCategory !== 'All') {
-      if (selectedSubCategory) {
-        // Filtering by subcategory - match exact subcategory name
-        filtered = filtered.filter((p) => p.cat_name === selectedSubCategory);
-        console.log(`  ✓ After subcategory filter: ${filtered.length} products`);
-      } else {
-        // Filtering by main category - check category hierarchy
-        const categoryObj = categories.find(cat => cat.cat_name === selectedCategory);
-        
-        if (categoryObj) {
-          // Get all subcategory names from this category
-          const subcategoryNames = categoryObj.sub?.map(sub => sub.cat_name) || [];
-          
-          // Include both the main category name AND all its subcategories
-          const validCategoryNames = [selectedCategory, ...subcategoryNames];
-          //filtered = filtered.filter((p) => p.cat_name === selectedCategory);
-          filtered = filtered.filter((p) => validCategoryNames.includes(p.cat_name));
-          
-          console.log(`  ✓ After main category filter: ${filtered.length} products`);
-          console.log(`    Valid categories: ${validCategoryNames.join(', ')}`);
-        }
-      }
-    }
-	
-	// Filter by category and subcategory
-   /* if (selectedCategory !== 'All') {
-      if (selectedSubCategory) {
-        // If subcategory is selected, filter by subcategory name
-        filtered = filtered.filter((p) => p.cat_name === selectedSubCategory);
-      } else {
-        // If only main category is selected, filter by main category name
-        filtered = filtered.filter((p) => p.cat_name === selectedCategory);
-      }
-    }*/
-
-    // Sort
-    switch (sortBy) {
-      case 'price-asc':
-        filtered.sort((a, b) => parseFloat(a.p_offer_price || '0') - parseFloat(b.p_offer_price || '0'));
-        break;
-      case 'price-desc':
-        filtered.sort((a, b) => parseFloat(b.p_offer_price || '0') - parseFloat(a.p_offer_price || '0'));
-        break;
-      case 'name':
-        filtered.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      default:
-        break;
-    }
-
-    console.log(`📊 Final filtered result: ${filtered.length} products`);
-    setFilteredProducts(filtered);
-    
-    // Reset to page 1 if filters result in empty set
-    if (filtered.length === 0) {
-      setCurrentPage(1);
-    }
-  }, [products, searchTerm, selectedCategory, selectedSubCategory, sortBy, categories]);
-
-  // Handle previous page
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      const nextPage = currentPage - 1;
-      const isCached = pageCache.current.has(nextPage);
-      console.log(`⬅️ ${isCached ? '📦 Using cached' : '📥 Fetching'} page ${nextPage}`);
-      fetchProducts(nextPage);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  // Handle next page
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      const nextPage = currentPage + 1;
-      const isCached = pageCache.current.has(nextPage);
-      console.log(`➡️ ${isCached ? '📦 Using cached' : '📥 Fetching'} page ${nextPage}`);
-      fetchProducts(nextPage);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
   // Handle add to cart
   const handleAddToCart = (product: Product) => {
 	  console.log(product);
@@ -573,6 +635,8 @@ export default function PageContent() {
   };
 
   const displayProducts = filteredProducts.length > 0 ? filteredProducts : products;
+  const subcategories = getSubcategoriesForCategory();
+  const displayedProducts = displayProducts.slice(0, displayCount);
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
@@ -581,7 +645,12 @@ export default function PageContent() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2 dark:text-white">Preview Your Products</h1>
           
+          {/*<div className="text-gray-600 dark:text-gray-400 text-sm mb-2">
+            Manage your product inventory • {displayCount} of {displayProducts.length} products
+          </div>
 
+           Divider Line 
+          <div className="h-1 bg-gradient-to-r from-teal-500 to-teal-500 rounded-full mb-6"></div>*/}
           
           {/* Background Loading Progress Indicator */}
           {isLoadingBackground && (
@@ -598,183 +667,164 @@ export default function PageContent() {
                   style={{ width: `${backgroundLoadProgress}%` }}
                 />
               </div>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                This happens in the background - you can browse while we load more products
-              </p>
             </div>
           )}
         </div>
-
-        {/* Search and Filter Bar */}
-        <div className="mb-6 space-y-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+		
+		{/* Search and Filter Bar */}
+        <div className="mb-6 flex gap-4">
+          <div className="flex-1 relative">
+            <Search
+              size={20}
+              className="absolute left-3 top-3 text-gray-400 dark:text-gray-600"
+            />
             <input
               type="text"
-              placeholder="Search products by name, category, strain..."
+              placeholder="Search products..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg dark:border-slate-700 dark:bg-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
             />
           </div>
-
-          {/* Category Buttons */}
-          <div className="flex flex-wrap gap-2">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg dark:border-slate-700 dark:bg-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+          >
+            <option value="default">Sort by</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="price-desc">Price: High to Low</option>
+            <option value="name">Name: A to Z</option>
+          </select>
+        </div>
+		
+        {/* Category Filters - with counts */}
+        <div className="flex flex-wrap gap-2 mb-6 overflow-x-auto pb-2">
+          <button
+            key="all-category"
+            onClick={() => setSelectedCategory('All')}
+            className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all duration-300 ${
+              selectedCategory === 'All'
+                ? 'text-white shadow-lg accent-bg accent-hover bg-teal-500 hover:bg-teal-600'
+                : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+            }`}
+          >
+            All <span className="text-xs ml-1">({calculateCategoryCount('All')})</span>
+          </button>
+          {categories.map((cat, index) => (
             <button
-              onClick={() => setSelectedCategory('All')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                selectedCategory === 'All'
-                  ? 'bg-teal-500 text-white'
-                  : 'bg-gray-200 dark:bg-slate-800 dark:text-white'
+              key={`${cat.name}-${index}`}
+              onClick={() => setSelectedCategory(cat.name)}
+              className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all duration-300 ${
+                selectedCategory === cat.name
+                  ? 'text-white shadow-lg accent-bg accent-hover bg-teal-500 hover:bg-teal-600'
+                  : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
               }`}
             >
-              All
+              {cat.name} <span className="text-xs ml-1">({calculateCategoryCount(cat.name)})</span>
             </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.cat_id}
-                onClick={() => setSelectedCategory(cat.cat_name)}
-                className={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
-                  selectedCategory === cat.cat_name
-                    ? 'bg-teal-500 text-white'
-                    : 'bg-gray-200 dark:bg-slate-800 dark:text-white'
-                }`}
-              >
-                {cat.cat_name}
-              </button>
-            ))}
-          </div>
+          ))}
+        </div>
 
-          {/* SubCategories Display - ✅ KEPT ORIGINAL DESIGN */}
-          {selectedCategory !== 'All' && (
-            <div className="mt-4 flex flex-wrap gap-2">
+        {/* Subcategories - with counts */}
+        {subcategories.length > 0 && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Subcategory</label>
+            <div className="flex flex-wrap gap-2">
               <button
+                key="all-subcategory"
                 onClick={() => setSelectedSubCategory(null)}
-                className={`px-3 py-1 rounded-full text-sm font-medium transition ${
+                className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${
                   selectedSubCategory === null
-                    ? 'bg-teal-400 text-white'
-                    : 'bg-gray-100 dark:bg-slate-700 dark:text-gray-300 text-gray-700 hover:bg-gray-200 dark:hover:bg-slate-600'
+                    ? 'text-white shadow-md accent-bg accent-hover bg-teal-500 hover:bg-teal-600'
+                    : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
                 }`}
               >
-                All Subcategories
+                All <span className="text-xs ml-1">({calculateSubcategoryCount('All')})</span>
               </button>
-              {categories
-                .find((cat) => cat.cat_name === selectedCategory)
-                ?.sub?.map((subCat) => (
-                  <button
-                    key={subCat.cat_id}
-                    onClick={() => setSelectedSubCategory(subCat.cat_name)}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition whitespace-nowrap ${
-                      selectedSubCategory === subCat.cat_name
-                        ? 'bg-teal-500 text-white'
-                        : 'bg-gray-100 dark:bg-slate-700 dark:text-gray-300 text-gray-700 hover:bg-gray-200 dark:hover:bg-slate-600'
-                    }`}
-                  >
-                    {subCat.cat_name}
-                  </button>
-                ))}
+              {subcategories.map((sub, index) => (
+                <button
+                  key={`${sub}-${index}`}
+                  onClick={() => setSelectedSubCategory(sub)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${
+                    selectedSubCategory === sub
+                      ? 'text-white shadow-md accent-bg accent-hover bg-teal-500 hover:bg-teal-600'
+                      : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {sub} <span className="text-xs ml-1">({calculateSubcategoryCount(sub)})</span>
+                </button>
+              ))}
             </div>
-          )}
-
-          {/* Sort Dropdown */}
-          <div className="flex items-center gap-2">
-            <Filter size={20} className="text-gray-600 dark:text-gray-400" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-            >
-              <option value="default">Default</option>
-              <option value="price-asc">Price: Low to High</option>
-              <option value="price-desc">Price: High to Low</option>
-              <option value="name">Name: A to Z</option>
-            </select>
           </div>
-        </div>
+        )}
 
-        {/* Results Info */}
-        <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-          {filteredProducts.length === 0 && selectedCategory !== 'All' ? (
-            <span className="text-red-600 dark:text-red-400 font-medium">
-              No products found with current filters - Try adjusting your selection
-            </span>
-          ) : (
-            <span>
-              Showing {displayProducts.length > 0 ? 'filtered results' : `${displayProducts.length} of ${products.length} products`} 
-              (from {totalProducts} total products, page {currentPage} of {totalPages} available)
-            </span>
-          )}
-        </div>
+        
 
         {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin mr-2" size={24} />
-            <span className="dark:text-white">Loading products...</span>
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertCircle size={20} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-red-600 dark:text-red-400">Error</h3>
-              <p className="text-red-500 dark:text-red-300">{error}</p>
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="text-center">
+              <Loader2 className="animate-spin text-teal-500 mx-auto mb-4" size={40} />
+              <p className="text-gray-600 dark:text-gray-400 font-medium">Loading products...</p>
             </div>
           </div>
-        )}
-
-        {/* Products Grid */}
-        {!loading && filteredProducts.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 mb-8">
-            {filteredProducts.map((product) => (
-              <div
-                key={product.product_id}
-                onClick={() => handleSelectProduct(product)}
-                className="group bg-white dark:bg-slate-800 rounded-lg border dark:border-slate-700 overflow-hidden hover:shadow-lg dark:hover:shadow-lg dark:hover:shadow-teal-900/20 transition cursor-pointer"
-              >
-                {/* Image */}
-                <div className="aspect-square bg-gray-100 dark:bg-slate-700 overflow-hidden relative">
-                  <img
-                    src={getProductImageUrl(product)}
-                    alt={product.name}
-                    className="w-full h-full object-contain group-hover:scale-105 transition"
-                    onError={(e) => {
-                      e.currentTarget.src =
-                        'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
-                    }}
-                  />
-                </div>
-
-                {/* Product Info */}
-                <div className="p-4">
-                  <h3 className="font-semibold text-gray-900 dark:text-white line-clamp-2 mb-1">
-                    {product.name}
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                    {product.cat_name}
-                  </p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-teal-600 dark:text-teal-400">
-                      ${product.p_offer_price}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {product.i_onhand} in stock
-                    </span>
+        ) : error ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center text-red-600 dark:text-red-400">
+              <AlertCircle size={40} className="mx-auto mb-2" />
+              <p className="font-medium">{error}</p>
+            </div>
+          </div>
+        ) : displayProducts.length > 0 ? (
+          <div>
+            {/* Products Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+              {displayedProducts.map((product) => (
+                <div
+                  key={product.product_id}
+                  onClick={() => handleSelectProduct(product)}
+                  className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden hover:shadow-lg hover:border-teal-500 dark:hover:border-teal-500 transition cursor-pointer group"
+                >
+                  <div className="relative overflow-hidden bg-gray-100 dark:bg-slate-800 h-40 sm:h-48 flex items-center justify-center">
+                    <img
+                      src={getProductImageUrl(product)}
+                      alt={product.name}
+                      className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300"
+                      onError={(e) => {
+                        e.currentTarget.src =
+                          'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
+                      }}
+                    />
                   </div>
 
-                  {/* Action Buttons 
-                  <div className="mt-3 flex gap-2">
+                  <div className="p-3 sm:p-4">
+                    <h3 className="font-semibold text-sm sm:text-base dark:text-white line-clamp-2 mb-1">
+                      {product.name}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mb-2">
+                      {product.cat_name}
+                    </p>
+
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-xl sm:text-2xl font-bold text-teal-600 dark:text-teal-400">
+                          ${product.p_offer_price}
+                        </p>
+                        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-500">
+                          {product.i_onhand} in stock
+                        </p>
+                      </div>
+                      {/*
+                    <div className="flex gap-1">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         handleAddToCart(product);
                       }}
-                      className="flex-1 bg-teal-500 text-white py-1 rounded text-sm font-medium hover:bg-teal-600 transition"
+                      className="flex-1 bg-teal-500 dark:bg-teal-600 text-white py-1 rounded text-sm font-medium hover:bg-teal-600 dark:hover:bg-teal-700 transition"
                     >
-                      Add to Cart
+                      Add
                     </button>
                     <button
                       onClick={(e) => {
@@ -786,14 +836,32 @@ export default function PageContent() {
                       View
                     </button>
                   </div>*/}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
 
-        {/* No Products Message */}
-        {!loading && filteredProducts.length === 0 && (
+            {/* Infinite Scroll Observer Target */}
+            <div
+              ref={observerTarget}
+              className="flex items-center justify-center py-8"
+            >
+              {isLoadingMore && (
+                <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
+                  <Loader2 className="animate-spin" size={20} />
+                  <span>Loading more products...</span>
+                </div>
+              )}
+              {allProductsLoaded && displayCount >= displayProducts.length && displayProducts.length > 0 && (
+                <div className="text-center text-gray-500 dark:text-gray-500">
+                  <p className="font-medium">All products loaded</p>
+                  <p className="text-sm">Total: {displayProducts.length} products</p>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
               <AlertCircle size={40} className="text-gray-400 mx-auto mb-2" />
@@ -809,178 +877,145 @@ export default function PageContent() {
           </div>
         )}
 
-        {/* Pagination Controls */}
-        {!loading && filteredProducts.length > 0 && (
-          <div className="flex items-center justify-between py-6 border-t dark:border-slate-800">
-            <button
-              onClick={handlePreviousPage}
-              disabled={currentPage === 1}
-              className="flex items-center gap-2 px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-800 transition"
-            >
-              <ChevronLeft size={20} />
-              Previous
-            </button>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                Page {currentPage} of {totalPages}
-              </span>
-            </div>
-
-            <button
-              onClick={handleNextPage}
-              disabled={currentPage === totalPages}
-              className="flex items-center gap-2 px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-800 transition"
-            >
-              Next
-              <ChevronRight size={20} />
-            </button>
-          </div>
-        )}
-
-        <div className="text-center text-sm text-gray-600 dark:text-gray-400 py-2">
-          📦 {totalProducts} total products available • {totalPages} pages
-        </div>
-      </div>
-
-      {/* Product Detail Modal */}
-      {isModalOpen && selectedProduct && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          onClick={handleCloseModal}
-        >
+        {/* Product Detail Modal */}
+        {isModalOpen && selectedProduct && (
           <div
-            className="bg-white dark:bg-slate-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={handleCloseModal}
           >
-            {/* Modal Header */}
-            <div className="sticky top-0 flex items-center justify-between p-6 border-b dark:border-slate-700 bg-white dark:bg-slate-900">
-              <h2 className="text-2xl font-bold dark:text-white">{selectedProduct.name}</h2>
-              <button
-                onClick={handleCloseModal}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <X size={24} />
-              </button>
-            </div>
+            <div
+              className="bg-white dark:bg-slate-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="sticky top-0 flex items-center justify-between p-6 border-b dark:border-slate-700 bg-white dark:bg-slate-900">
+                <h2 className="text-2xl font-bold dark:text-white">{selectedProduct.name}</h2>
+                <button
+                  onClick={handleCloseModal}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  <X size={24} />
+                </button>
+              </div>
 
-            {/* Modal Content */}
-            <div className="p-6">
-              <div className="grid grid-cols-2 gap-6">
-                {/* Image */}
-                <div>
-                  <img
-                    src={getProductImageUrl(selectedProduct)}
-                    alt={selectedProduct.name}
-                    className="w-full h-80 object-contain rounded-lg hover:scale-105 transition"
-                    onError={(e) => {
-                      e.currentTarget.src =
-                        'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
-                    }}
-                  />
-                </div>
-
-                {/* Details */}
-                <div className="space-y-4">
+              {/* Modal Content */}
+              <div className="p-6">
+                <div className="grid grid-cols-2 gap-6">
+                  {/* Image */}
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Category</p>
-                    <p className="text-lg font-semibold dark:text-white">{selectedProduct.cat_name}</p>
+                    <img
+                      src={getProductImageUrl(selectedProduct)}
+                      alt={selectedProduct.name}
+                      className="w-full h-80 object-contain rounded-lg hover:scale-105 transition"
+                      onError={(e) => {
+                        e.currentTarget.src =
+                          'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
+                      }}
+                    />
                   </div>
 
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Price</p>
-                    <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">
-                      ${selectedProduct.p_offer_price}
+                  {/* Details */}
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Category</p>
+                      <p className="text-lg font-semibold dark:text-white">{selectedProduct.cat_name}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Price</p>
+                      <p className="text-3xl font-bold text-teal-600 dark:text-teal-400">
+                        ${selectedProduct.p_offer_price}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">In Stock</p>
+                      <p className="text-lg font-semibold dark:text-white">{selectedProduct.i_onhand} units</p>
+                    </div>
+
+                    {selectedProduct.thc && (
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">THC</p>
+                        <p className="text-lg font-semibold dark:text-white">{selectedProduct.thc}%</p>
+                      </div>
+                    )}
+
+                    {selectedProduct.cbd && (
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">CBD</p>
+                        <p className="text-lg font-semibold dark:text-white">{selectedProduct.cbd}%</p>
+                      </div>
+                    )}
+
+                    {selectedProduct.bus_title && (
+                      <div>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Seller</p>
+                        <p className="text-lg font-semibold dark:text-white">{selectedProduct.bus_title}</p>
+                      </div>
+                    )}
+
+                    {/* Add to Cart Button 
+                    <button
+                      onClick={() => {
+                        handleAddToCart(selectedProduct);
+                        handleCloseModal();
+                      }}
+                      className="w-full bg-teal-500 text-white py-3 rounded-lg font-semibold hover:bg-teal-600 transition mt-6"
+                    >
+                      Add to Cart
+                    </button>*/}
+                  </div>
+                </div>
+
+                {/* Description */}
+                {selectedProduct.text_parsed && (
+                  <div className="mt-6 pt-6 border-t dark:border-slate-700">
+                    <h3 className="font-semibold mb-2 dark:text-white">Description</h3>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm">
+                      {selectedProduct.text_parsed}
                     </p>
                   </div>
+                )}
 
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">In Stock</p>
-                    <p className="text-lg font-semibold dark:text-white">{selectedProduct.i_onhand} units</p>
-                  </div>
-
-                  {selectedProduct.thc && (
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">THC</p>
-                      <p className="text-lg font-semibold dark:text-white">{selectedProduct.thc}%</p>
-                    </div>
-                  )}
-
-                  {selectedProduct.cbd && (
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">CBD</p>
-                      <p className="text-lg font-semibold dark:text-white">{selectedProduct.cbd}%</p>
-                    </div>
-                  )}
-
-                  {selectedProduct.bus_title && (
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Seller</p>
-                      <p className="text-lg font-semibold dark:text-white">{selectedProduct.bus_title}</p>
-                    </div>
-                  )}
-
-                  {/* Add to Cart Button 
+                {/* Previous/Next Navigation Buttons */}
+                <div className="flex items-center justify-between mt-8 pt-6 border-t dark:border-slate-700">
                   <button
                     onClick={() => {
-                      handleAddToCart(selectedProduct);
-                      handleCloseModal();
+                      const currentIndex = filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id);
+                      if (currentIndex > 0) {
+                        setSelectedProduct(filteredProducts[currentIndex - 1]);
+                      }
                     }}
-                    className="w-full bg-teal-500 text-white py-3 rounded-lg font-semibold hover:bg-teal-600 transition mt-6"
+                    disabled={filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) === 0}
+                    className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
                   >
-                    Add to Cart
-                  </button>*/}
+                    <ChevronLeft size={20} />
+                    Previous
+                  </button>
+
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    {filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) + 1} of {filteredProducts.length}
+                  </span>
+
+                  <button
+                    onClick={() => {
+                      const currentIndex = filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id);
+                      if (currentIndex < filteredProducts.length - 1) {
+                        setSelectedProduct(filteredProducts[currentIndex + 1]);
+                      }
+                    }}
+                    disabled={filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) === filteredProducts.length - 1}
+                    className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    Next
+                    <ChevronRight size={20} />
+                  </button>
                 </div>
-              </div>
-
-              {/* Description */}
-              {selectedProduct.text_parsed && (
-                <div className="mt-6 pt-6 border-t dark:border-slate-700">
-                  <h3 className="font-semibold mb-2 dark:text-white">Description</h3>
-                  <p className="text-gray-600 dark:text-gray-300 text-sm">
-                    {selectedProduct.text_parsed}
-                  </p>
-                </div>
-              )}
-
-              {/* Previous/Next Navigation Buttons */}
-              <div className="flex items-center justify-between mt-8 pt-6 border-t dark:border-slate-700">
-                <button
-                  onClick={() => {
-                    const currentIndex = filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id);
-                    if (currentIndex > 0) {
-                      setSelectedProduct(filteredProducts[currentIndex - 1]);
-                    }
-                  }}
-                  disabled={filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) === 0}
-                  className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  <ChevronLeft size={20} />
-                  Previous
-                </button>
-
-                <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) + 1} of {filteredProducts.length}
-                </span>
-
-                <button
-                  onClick={() => {
-                    const currentIndex = filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id);
-                    if (currentIndex < filteredProducts.length - 1) {
-                      setSelectedProduct(filteredProducts[currentIndex + 1]);
-                    }
-                  }}
-                  disabled={filteredProducts.findIndex(p => p.product_id === selectedProduct.product_id) === filteredProducts.length - 1}
-                  className="flex items-center gap-2 px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  Next
-                  <ChevronRight size={20} />
-                </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

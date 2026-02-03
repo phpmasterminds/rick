@@ -3,7 +3,7 @@ import { usePermission } from '../app/contexts/PermissionContext';
 import { PermissionDenied } from '@/components/PermissionDenied';
 
 interface PermissionGuardProps {
-  requiredPermission: 'can_access_crm' | 'can_access_inventory' | 'can_access_production_packaging' | 'can_access_business_pages' | 'can_access_customer';
+  requiredPermission: 'can_access_crm' | 'can_access_inventory' | 'can_access_production_packaging' | 'can_access_business_pages' | 'can_access_customers' | 'can_access_dashboard' | 'can_access_messages' | 'can_access_order_section' | 'can_access_reports' | 'can_access_settings_page';
   featureName: string;
   description?: string;
   children: React.ReactNode;

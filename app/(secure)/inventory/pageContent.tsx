@@ -37,6 +37,7 @@ interface Product {
   page_id: string;
   name: string;
   cat_name: string;
+  sub_cat_name: string;
   strain_cat: string;
   tag_no: string;
   is_safe: string;
@@ -62,6 +63,7 @@ interface Product {
   med_image?: string;
   batch_id?: string;
   cat_id?: string;
+  sub_cat_id?: string;
   cat_parent_id?: string; // Parent category ID
   fla_cat_id?: string;
   fle_cat_id?: string;
@@ -250,6 +252,8 @@ export default function PageContent() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedSubcategory, setSelectedSubcategory] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
+  const [displayedCount, setDisplayedCount] = useState(30); // Initially show 30 products
+  const [categoryProductCounts, setCategoryProductCounts] = useState<{[key: string]: number}>({});
   const [showEditModal, setShowEditModal] = useState(false);
   const [isAddMode, setIsAddMode] = useState(false);
   const [isCloneMode, setIsCloneMode] = useState(false);
@@ -506,17 +510,6 @@ export default function PageContent() {
       const roomsData = firstResponse.data.data.aRooms || [];
       setRooms(roomsData);
       
-      // Transform categories data
-      const categoriesData = firstResponse.data.data.categories || {};
-      const transformedCategories = [
-        { name: 'All', subcategories: [] },
-        ...Object.values(categoriesData).map((cat: any) => ({
-          name: cat.cat_name,
-          subcategories: cat.sub?.map((s: any) => s.cat_name) || []
-        }))
-      ];
-      setCategories(transformedCategories);
-      
       totalProdCount = firstResponse.data.data.total || 0;
       const productsPerPage = firstResponse.data.data.products?.length || 10;
       
@@ -550,10 +543,60 @@ export default function PageContent() {
         }
       }
       
+      // Extract categories and subcategories directly from all loaded products
+      const categoryMap = new Map<string, Set<string>>();
+      
+      allLoadedProducts.forEach(product => {
+        const catName = (product.cat_name || '').trim();
+        const subCatName = (product.sub_cat_name || '').trim();
+        
+        if (catName) {
+          // Add category
+          if (!categoryMap.has(catName)) {
+            categoryMap.set(catName, new Set<string>());
+          }
+          
+          // Add subcategory if it exists
+          if (subCatName) {
+            categoryMap.get(catName)?.add(subCatName);
+          }
+        }
+      });
+      
+      // Transform the map into our category structure
+      const transformedCategories = [
+        { name: 'All', subcategories: [] },
+        ...Array.from(categoryMap.entries()).map(([catName, subCats]) => ({
+          name: catName,
+          subcategories: Array.from(subCats)
+        }))
+      ];
+      
+      setCategories(transformedCategories);
+      
+      // Debug: Log category structure extracted from products
+      console.log('=== CATEGORIES EXTRACTED FROM PRODUCTS ===');
+      console.log('Total products loaded:', allLoadedProducts.length);
+      console.log('Categories found:', Array.from(categoryMap.keys()));
+      console.log('Transformed categories:', transformedCategories);
+      console.log('Sample products with categories:');
+      allLoadedProducts.slice(0, 5).forEach((p, i) => {
+        console.log(`  ${i}: ${p.name} | cat_name: "${p.cat_name}" | strain_cat: "${p.strain_cat}"`);
+      });
+      
       // Set all state at once after loading is complete
       setAllProducts(allLoadedProducts);
       setProducts(allLoadedProducts);
       setTotalProducts(totalProdCount);
+      
+      // Debug logging
+      console.log('=== INVENTORY LOADED ===');
+      console.log('Total products loaded:', allLoadedProducts.length);
+      console.log('Categories:', transformedCategories.map(c => c.name));
+      console.log('First 5 products:');
+      allLoadedProducts.slice(0, 5).forEach((p, i) => {
+        console.log(`  ${i}: ${p.name} | cat_name: "${p.cat_name}" | strain_cat: "${p.strain_cat}"`);
+      });
       
       // Show success message
       if (allLoadedProducts.length > 0) {
@@ -600,6 +643,53 @@ export default function PageContent() {
     
   }, [hasInitialized]); // Run when hasInitialized changes
 
+  // Calculate product counts for categories and subcategories
+  useEffect(() => {
+    const counts: {[key: string]: number} = {};
+    
+    // Count for "All"
+    counts['All'] = allProducts.length;
+    
+    // Count products for each category
+    categories.forEach(cat => {
+      if (cat.name === 'All') return; // Skip 'All', already handled
+      
+      // Try multiple matching approaches
+      let categoryCount = 0;
+      
+      // First: Direct exact match (trimmed)
+      categoryCount = allProducts.filter(p => {
+        const pCatName = (p.cat_name || '').trim();
+        const catName = (cat.name || '').trim();
+        return pCatName === catName;
+      }).length;
+      
+      // If no match, try case-insensitive
+      if (categoryCount === 0) {
+        categoryCount = allProducts.filter(p => {
+          const pCatName = (p.cat_name || '').trim().toLowerCase();
+          const catName = (cat.name || '').trim().toLowerCase();
+          return pCatName === catName;
+        }).length;
+      }
+      
+      counts[cat.name] = categoryCount;
+      
+      // Debug log each category
+      console.log(`Category "${cat.name}": ${categoryCount} products`);
+    });
+    
+    // Debug: Log all products and their categories
+    console.log('=== PRODUCT CATEGORIES DEBUG ===');
+    console.log('Total products:', allProducts.length);
+    const productCatList = allProducts.map((p, i) => `${i}: ${p.name} → cat_name: "${p.cat_name}"`);
+    console.log('Product categories:', productCatList);
+    console.log('Filter categories:', categories.map(c => `"${c.name}"`));
+    console.log('Category counts:', counts);
+    
+    setCategoryProductCounts(counts);
+  }, [allProducts, categories]);
+
   // ============================================================
   // REMOVED: The following problematic effects that caused
   // the infinite loop have been replaced by the single effect above:
@@ -625,22 +715,43 @@ export default function PageContent() {
   const currentCategory = categories.find(c => c.name === selectedCategory);
   const subcategories = currentCategory?.subcategories || [];
 
-  const filteredProducts = products.filter(p =>
-    (selectedCategory === 'All' || p.cat_name === selectedCategory) &&
-    (selectedSubcategory === 'All' || p.strain_cat === selectedSubcategory) &&
-    (searchTerm === '' || p.name.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredProducts = products.filter(p => {
+    // Normalize strings for comparison (trim and handle case)
+    const productCat = (p.cat_name || '').trim();
+    const selectedCat = selectedCategory === 'All' ? null : selectedCategory;
+    const productSub = (p.sub_cat_name || '').trim();
+    const selectedSub = selectedSubcategory === 'All' ? null : selectedSubcategory;
+    const searchLower = searchTerm.toLowerCase();
 
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentProducts = filteredProducts.slice(startIndex, endIndex);
+    // Category filter
+    const categoryMatch = !selectedCat || productCat === selectedCat;
+
+    // Subcategory filter
+    const subcategoryMatch = !selectedSub || productSub === selectedSub;
+
+    // Search filter
+    const searchMatch = !searchTerm || p.name.toLowerCase().includes(searchLower);
+
+    return categoryMatch && subcategoryMatch && searchMatch;
+  });
+
+  // Progressive loading: show only displayedCount products
+  const displayedProducts = filteredProducts.slice(0, displayedCount);
   
-  // Reset to page 1 when filters change
+  // Load more products in background if available
   useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedCategory, selectedSubcategory, searchTerm, itemsPerPage]);
+    if (displayedCount < filteredProducts.length) {
+      const timer = setTimeout(() => {
+        setDisplayedCount(prev => Math.min(prev + 30, filteredProducts.length));
+      }, 500); // Load next batch after 500ms
+      return () => clearTimeout(timer);
+    }
+  }, [displayedCount, filteredProducts.length]);
+  
+  // Reset displayed count when filters change
+  useEffect(() => {
+    setDisplayedCount(30); // Reset to show 30 initially
+  }, [selectedCategory, selectedSubcategory, searchTerm]);
 
   /*// Fetch Shake Sale Tiers from API
   useEffect(() => {
@@ -733,7 +844,7 @@ export default function PageContent() {
       category: String(product.cat_id || ''),
       // Try to get subcategory - could be from multiple sources
       //subcategory: String(product.bne_cat_id || product.fla_sub_cat_id || product.fle_sub_cat_id || ''),
-      subcategory: String(product.cat_id),
+      subcategory: String(product.sub_cat_id),
       strainCat: product.strain_cat || '',
       flavor: product.fla_cat_id || '',
       addedFlavors: product.flavors ? product.flavors.split(',').map(f => f.trim()) : [],
@@ -787,8 +898,8 @@ export default function PageContent() {
       sku: '', // Clear SKU to let system generate new one
       batchId: product.batch_id || '',
       tagNo: '', // Clear tag_no for new product
-      category: String(product.cat_parent_id || ''),
-      subcategory: String(product.cat_id),
+      category: String(product.cat_id || ''),
+      subcategory: String(product.sub_cat_id),
       strainCat: product.strain_cat || '',
       flavor: product.fla_cat_id || '',
       addedFlavors: product.flavors ? product.flavors.split(',').map(f => f.trim()) : [],
@@ -1149,12 +1260,12 @@ export default function PageContent() {
           
           // Find and populate subcategories for the current product's category
           // Use cat_parent_id to find the parent category (same as what's set in handleEditClick line 617)
-          const selectedCategory = transformedCategories.find((cat) => String(cat.cat_id) === String(product.cat_parent_id));
+          const selectedCategory = transformedCategories.find((cat) => String(cat.cat_id) === String(product.cat_id));
           if (selectedCategory && selectedCategory.sub) {
             setEditModalSubcategories(selectedCategory.sub);
             
             // Pre-select the product's subcategory if it exists
-            const productSubcategoryId = String(product.bne_cat_id || product.fla_sub_cat_id || product.fle_sub_cat_id || product.cat_id || '');
+            const productSubcategoryId = String(product.bne_cat_id || product.fla_sub_cat_id || product.fle_sub_cat_id || product.sub_cat_id || '');
             if (productSubcategoryId && productSubcategoryId !== '0' && productSubcategoryId !== 'null') {
               // Update the form data to include the selected subcategory
               setEditFormData(prev => ({
@@ -1669,6 +1780,7 @@ console.log(rowData);
   const getPageNumbers = () => {
     const pages = [];
     const maxVisible = 5;
+    const totalPages = Math.ceil(displayedProducts.length / itemsPerPage);
     
     if (totalPages <= maxVisible) {
       for (let i = 1; i <= totalPages; i++) {
@@ -1800,52 +1912,69 @@ console.log(rowData);
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 capitalize">Inventory Management</h1>
         <p className="text-gray-500 dark:text-gray-400 mt-1">
-          Manage your product inventory • {filteredProducts.length} products
+          {selectedCategory !== 'All' ? (
+            <>
+              {selectedCategory}
+              {selectedSubcategory !== 'All' && ` • ${selectedSubcategory}`}
+              {' '} • {filteredProducts.length} products
+            </>
+          ) : (
+            <>
+              Manage your product inventory • {filteredProducts.length} of {allProducts.length} products
+            </>
+          )}
           {loading && allProducts.length > 0 && <span className="ml-2 text-blue-500">(Loading more...)</span>}
         </p>
 		<div className="h-1 bg-gradient-to-r accent-bg accent-hover"></div>
       </div>
 
-      {/* Category Filters */}
+      {/* Category Filters - with counts */}
       <div className="flex flex-wrap gap-2 mb-6 overflow-x-auto pb-2">
         {categories.map((cat) => (
           <button
             key={cat.name}
             onClick={() => handleCategoryChange(cat.name)}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all duration-300 ${
+            className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all duration-300 ${
               selectedCategory === cat.name
                 ? 'text-white shadow-lg accent-bg accent-hover'
                 : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
             }`}
           >
-            {cat.name}
+            {cat.name} <span className="text-xs ml-1">({categoryProductCounts[cat.name] || 0})</span>
           </button>
         ))}
       </div>
 
-      {/* Subcategories */}
+      {/* Subcategories - with counts */}
       {subcategories.length > 0 && (
         <div className="mb-6">
           <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Subcategory</label>
           <div className="flex flex-wrap gap-2">
-            {['All', ...subcategories].map((sub) => (
-              <button
-                key={sub}
-                onClick={() => setSelectedSubcategory(sub)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium ${
-                  selectedSubcategory === sub
-                    ? 'text-white shadow-md accent-bg accent-hover'
-                    : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
-                }`}
-              >
-                {sub}
-              </button>
-            ))}
+            {['All', ...subcategories].map((sub) => {
+              // Calculate count for subcategory
+              const subCount = sub === 'All' 
+                ? filteredProducts.length
+                : filteredProducts.filter(p => p.sub_cat_name === sub).length;
+              
+              return (
+                <button
+                  key={sub}
+                  onClick={() => setSelectedSubcategory(sub)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                    selectedSubcategory === sub
+                      ? 'text-white shadow-md accent-bg accent-hover'
+                      : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {sub} <span className="text-xs ml-1">({subCount})</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* Search + Actions + Items Per Page */}
+      {/* Search + Actions */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
         <div className="flex gap-2 items-center">
           <input
@@ -1855,16 +1984,6 @@ console.log(rowData);
             onChange={(e) => setSearchTerm(e.target.value)}
             className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
           />
-          <select
-            value={itemsPerPage}
-            onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
-            className="px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-          >
-            <option value={10}>10 per page</option>
-            <option value={30}>30 per page</option>
-            <option value={50}>50 per page</option>
-            <option value={100}>100 per page</option>
-          </select>
         </div>
         <div className="flex gap-2">
           <button
@@ -1953,8 +2072,8 @@ console.log(rowData);
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-              {currentProducts.length > 0 ? (
-                currentProducts.map((product) => (
+              {displayedProducts.length > 0 ? (
+                displayedProducts.map((product) => (
                   <tr key={product.product_id} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-3">
@@ -2182,59 +2301,28 @@ console.log(rowData);
           </table>
         </div>
         
-        {/* Pagination */}
+        {/* Progress indicator instead of pagination */}
         {filteredProducts.length > 0 && (
           <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="text-sm text-gray-600 dark:text-gray-400">
-                Showing {startIndex + 1} to {Math.min(endIndex, filteredProducts.length)} of {filteredProducts.length} products
+                Showing {displayedProducts.length} of {filteredProducts.length} products
+                {displayedCount < filteredProducts.length && (
+                  <span className="ml-2 text-blue-500 flex items-center gap-1">
+                    <Loader2 size={14} className="animate-spin" />
+                    Loading more in background...
+                  </span>
+                )}
               </div>
               
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className={`p-2 rounded-lg border ${
-                    currentPage === 1
-                      ? 'border-gray-200 dark:border-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
-                      : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  <ChevronLeft size={18} />
-                </button>
-                
-                <div className="flex gap-1">
-                  {getPageNumbers().map((page, index) => (
-                    page === '...' ? (
-                      <span key={`ellipsis-${index}`} className="px-3 py-2 text-gray-400">...</span>
-                    ) : (
-                      <button
-                        key={page}
-                        onClick={() => handlePageChange(page as number)}
-                        className={`px-3 py-2 rounded-lg font-medium ${
-                          currentPage === page
-                            ? 'text-white accent-bg'
-                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    )
-                  ))}
+              {displayedCount < filteredProducts.length && (
+                <div className="w-full sm:w-48 h-1 bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full accent-bg transition-all duration-300"
+                    style={{width: `${(displayedCount / filteredProducts.length) * 100}%`}}
+                  ></div>
                 </div>
-                
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className={`p-2 rounded-lg border ${
-                    currentPage === totalPages
-                      ? 'border-gray-200 dark:border-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
-                      : 'border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  <ChevronRight size={18} />
-                </button>
-              </div>
+              )}
             </div>
           </div>
         )}

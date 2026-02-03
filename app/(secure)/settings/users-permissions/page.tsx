@@ -1,17 +1,14 @@
-import type { Metadata } from "next";
-import PageContent from "./pageContent";
 import { cookies } from "next/headers";
+import UserPermissionPageWrapper from "./page-wrapper";
 
-export async function generateMetadata(): Promise<Metadata> {
-  
-  return {
-    title: `Users Permission`,
-  };
+export async function generateMetadata() {
+  return { title: `Users Permission` };
 }
 
 export default async function Page() {
-	const cookieStore = await cookies();
-	const slug = cookieStore.get('vanity_url')?.value || '';
+  const cookieStore = await cookies();
+  const slug = cookieStore.get('vanity_url')?.value || '';
   
-  return <PageContent business={slug} />;
+  // ✅ Pass to wrapper
+  return <UserPermissionPageWrapper business={slug} />;
 }

@@ -3,12 +3,12 @@
 import { PermissionGuard } from '@/components/PermissionGuard';
 import PageContent from './pageContent';
 
-export default function InventoryPageWrapper() {
+export default function DashboardPageWrapper() {
   return (
     <PermissionGuard
-      requiredPermission="can_access_customers"
-      featureName="Customer"
-      description="You need Customer access permission."
+      requiredPermission="can_access_dashboard"
+      featureName="Dashboard"
+      description="You need Dashboard access permission."
     >
       <PageContent />
     </PermissionGuard>

@@ -25,8 +25,8 @@ interface Product {
   slug?: string;
   image?: string;
   category?: string;
-  text_parsed?: string;
   subcategory?: string;
+  text_parsed?: string;
   strain_type?: 'indica' | 'sativa' | 'hybrid';
   thc_percentage?: number;
   cbd_percentage?: number;
@@ -56,6 +56,7 @@ interface MedicineProduct {
   product_id: string;
   name: string;
   cat_name: string;
+  sub_cat_name: string;
   category?: string;
   value1: string; // unit (e.g., "Each")
   value2: string; // price (e.g., "0.25")
@@ -185,6 +186,8 @@ interface APIProduct {
   name_url: string;
   cat_id: string;
   cat_name: string;
+  sub_cat_id: string;
+  sub_cat_name: string;
   med_value: string;
   med_image: string;
   med_image_path?: string;
@@ -444,6 +447,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
   const [isFavorite, setIsFavorite] = useState(false);
   const [activeTab, setActiveTab] = useState<'menu' | 'reviews' | 'about' | 'dispensary-orders'>('menu');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedSubCategory, setSelectedSubCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [sortBy, setSortBy] = useState('popular');
   const [showAllHours, setShowAllHours] = useState(false);
@@ -693,6 +697,8 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 							product_id: String(prod.product_id ?? ''),
 							name: prod.name ?? 'Unknown Product',
 							cat_name: (prod.cat_name && String(prod.cat_name).trim() ? String(prod.cat_name).trim() : 'Uncategorized'),
+							sub_cat_name: (prod.sub_cat_name && String(prod.sub_cat_name).trim() ? String(prod.sub_cat_name).trim() : 'Uncategorized'),
+							sub_cat_id: String(prod.sub_cat_id ?? ''),
 							value1: String(prod.value1 ?? prod.med_value?.split(',')[0] ?? 'Each'),
 							value2: String(prod.value2 ?? prod.i_price ?? prod.p_offer_price ?? '0'),
 							image: prod.med_image_path ?? prod.med_image ?? null,
@@ -846,6 +852,9 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
             name: prod.name ?? 'Unknown Product',
             cat_name: (prod.cat_name && String(prod.cat_name).trim() 
               ? String(prod.cat_name).trim() 
+              : 'Uncategorized'),
+			sub_cat_name: (prod.sub_cat_name && String(prod.sub_cat_name).trim()
+              ? String(prod.sub_cat_name).trim()
               : 'Uncategorized'),
             value1: String(prod.value1 ?? prod.med_value?.split(',')[0] ?? 'Each'),
             value2: String(prod.value2 ?? prod.i_price ?? prod.p_offer_price ?? '0'),
@@ -1069,34 +1078,41 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
     }
   };
 
-  // FIX: Filter products by selected category using normalized cat_id and cat_name matching
-  const filteredMedicineProducts = useMemo(() => {
-    if (selectedCategory === 'all') {
-      return medicineProducts;
-    }
-    
-    // Find the category object that matches the selected cat_id
-    const selectedCategoryObj = categories.find(c => c.cat_id === selectedCategory);
-    
-    if (!selectedCategoryObj) {
-      // If category not found, return empty array
-      return [];
-    }
-    
-    // Filter products by matching the normalized cat_name
-    return medicineProducts.filter(product => {
-      const normalizedProductCatName = product.cat_name && String(product.cat_name).trim() 
-        ? String(product.cat_name).trim() 
-        : 'Uncategorized';
-      
-      const normalizedSelectedCatName = selectedCategoryObj.cat_name && String(selectedCategoryObj.cat_name).trim()
-        ? String(selectedCategoryObj.cat_name).trim()
-        : 'Uncategorized';
-      
-      // Case-insensitive comparison for robustness
-      return normalizedProductCatName.toLowerCase() === normalizedSelectedCatName.toLowerCase();
-    });
-  }, [selectedCategory, categories, medicineProducts]);
+	  // FIX: Filter products by selected category using normalized cat_id and cat_name matching
+	  const filteredMedicineProducts = useMemo(() => {
+		let filtered = medicineProducts;
+		
+		// Filter by category
+		if (selectedCategory !== 'all') {
+		  const selectedCategoryObj = categories.find(c => c.cat_id === selectedCategory);
+		  
+		  if (!selectedCategoryObj) {
+			return [];
+		  }
+		  
+		  filtered = filtered.filter(product => {
+			const normalizedProductCatName = product.cat_name && String(product.cat_name).trim() 
+			  ? String(product.cat_name).trim() 
+			  : 'Uncategorized';
+			
+			const normalizedSelectedCatName = selectedCategoryObj.cat_name && String(selectedCategoryObj.cat_name).trim()
+			  ? String(selectedCategoryObj.cat_name).trim()
+			  : 'Uncategorized';
+			
+			return normalizedProductCatName.toLowerCase() === normalizedSelectedCatName.toLowerCase();
+		  });
+		}
+		
+		// Filter by subcategory (only if a specific category is selected and subcategory is not 'all')
+		if (selectedCategory !== 'all' && selectedSubCategory !== 'all') {
+		  filtered = filtered.filter(product => {
+			const productSubCatId = product.sub_cat_id ? String(product.sub_cat_id).trim() : '';
+			return productSubCatId === String(selectedSubCategory).trim();
+		  });
+		}
+		
+		return filtered;
+	  }, [selectedCategory, selectedSubCategory, categories, medicineProducts]);
 
   // FIX: Sort products based on sortBy selection
   const sortedAndFilteredProducts = useMemo(() => {
@@ -1364,7 +1380,10 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                 {/* All Products button - always shown first */}
                 <button
                   key="all-products"
-                  onClick={() => setSelectedCategory('all')}
+                  onClick={() => {
+					  setSelectedCategory('all');
+					  setSelectedSubCategory('all');
+					}}
                   className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${
                     selectedCategory === 'all'
                       ? 'bg-teal-600 text-white'
@@ -1391,7 +1410,10 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                   return (
                     <button
                       key={category.cat_id}
-                      onClick={() => setSelectedCategory(category.cat_id)}
+                      onClick={() => {
+						  setSelectedCategory(category.cat_id);
+						  setSelectedSubCategory('all');
+						}}
                       className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${
                         selectedCategory === category.cat_id
                           ? 'bg-teal-600 text-white'
@@ -1406,7 +1428,58 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                   );
                 })}
               </div>
+			  
+			  {/* Subcategory Pills - Show when a specific category is selected */}
+              {selectedCategory !== 'all' && (
+                <div className="flex overflow-x-auto gap-2 pb-4 mb-6 -mx-6 px-6 scrollbar-hide">
+                  {/* All Subcategories button for selected category */}
+                  <button
+                    key="all-subcats"
+                    onClick={() => setSelectedSubCategory('all')}
+                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${
+                      selectedSubCategory === 'all'
+                        ? 'bg-amber-600 text-white'
+                        : `${isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`
+                    }`}
+                  >
+                    All Subcategories
+                  </button>
 
+                  {/* Get unique subcategories for selected category */}
+                  {Array.from(
+                    new Map(
+                      filteredMedicineProducts
+                        .filter(p => p.sub_cat_id && String(p.sub_cat_id).trim()) // ← Only products WITH sub_cat_id
+                        .map(p => [p.sub_cat_id, {
+                          id: p.sub_cat_id,
+                          name: p.sub_cat_name || p.sub_cat_id // ← Use ID as fallback, not "Uncategorized"
+                        }])
+                    ).values()
+                  ).map((subCat) => {
+                    const subCatCount = filteredMedicineProducts.filter(p => 
+                      p.sub_cat_id && String(p.sub_cat_id).trim() === String(subCat.id).trim()
+                    ).length;
+                    
+                    return (
+                      <button
+                        key={subCat.id}
+                        onClick={() => setSelectedSubCategory(subCat.id)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-2 ${
+                          selectedSubCategory === subCat.id
+                            ? 'bg-amber-600 text-white'
+                            : `${isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`
+                        }`}
+                      >
+                        {subCat.name}
+                        <span className={`text-xs ${selectedSubCategory === subCat.id ? 'text-amber-200' : `${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}`}>
+                          ({subCatCount})
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+			  
               {/* Filters Bar */}
               <div className="flex items-center justify-between mb-6">
                 <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>

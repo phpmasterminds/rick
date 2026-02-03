@@ -40,6 +40,7 @@ interface Product {
   product_id: string;
   name: string;
   cat_name: string;
+  sub_cat_name: string;
   strain?: string;
   p_offer_price: string;
   i_onhand: string;
@@ -69,6 +70,19 @@ interface Category {
   sub?: Category[];
 }
 
+interface CategoryWithCount {
+  cat_id: string;
+  cat_name: string;
+  count: number;
+  subcategories: SubcategoryWithCount[];
+}
+
+interface SubcategoryWithCount {
+  sub_cat_id: string;
+  sub_cat_name: string;
+  count: number;
+}
+
 interface PageCache {
   products: Product[];
   total: number;
@@ -80,14 +94,17 @@ export default function PageContent({ business }: { business: string }) {
 
   // Products state
   const [products, setProducts] = useState<Product[]>([]);
+  const [allProducts, setAllProducts] = useState<Product[]>([]); // Store all loaded products for filtering
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<CategoryWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedSubcategory, setSelectedSubcategory] = useState('All');
   const [sortBy, setSortBy] = useState('default');
   const [sellers, setSellers] = useState<string[]>([]);
   const [selectedSeller, setSelectedSeller] = useState('All');
@@ -105,17 +122,58 @@ export default function PageContent({ business }: { business: string }) {
   // Cache for page data to avoid redundant API calls
   const pageCache = useRef<Map<number, PageCache>>(new Map());
   const lastTotalRef = useRef<number>(0);
+  const allProductsLoadedRef = useRef(false);
 
   // Initial load
   useEffect(() => {
     fetchProducts(1);
-    fetchCategories();
   }, [business]);
 
-  // Apply filters when products, search, category, sort, or seller changes
+  // Apply filters when products, search, category, subcategory, sort, or seller changes
   useEffect(() => {
     applyFiltersAndSort();
-  }, [products, searchTerm, selectedCategory, sortBy, selectedSeller]);
+  }, [products, searchTerm, selectedCategory, selectedSubcategory, sortBy, selectedSeller]);
+
+  // Build categories from all products (extracted from loaded products)
+  useEffect(() => {
+    if (allProducts.length > 0) {
+      const categoryMap = new Map<string, Map<string, number>>();
+
+      allProducts.forEach((product) => {
+        const catName = product.cat_name || 'Uncategorized';
+        const subCatName = product.sub_cat_name || 'All';
+
+        if (!categoryMap.has(catName)) {
+          categoryMap.set(catName, new Map());
+        }
+
+        const subCategoryMap = categoryMap.get(catName)!;
+        subCategoryMap.set(subCatName, (subCategoryMap.get(subCatName) || 0) + 1);
+      });
+
+      // Convert map to array format
+      const categoriesArray: CategoryWithCount[] = Array.from(categoryMap.entries()).map(
+        ([catName, subCategoryMap]) => {
+          const subcategories = Array.from(subCategoryMap.entries()).map(([subCatName, count]) => ({
+            sub_cat_id: `${catName}_${subCatName}`,
+            sub_cat_name: subCatName,
+            count,
+          }));
+
+          const totalCount = subcategories.reduce((sum, sub) => sum + sub.count, 0);
+
+          return {
+            cat_id: catName,
+            cat_name: catName,
+            count: totalCount,
+            subcategories: subcategories.sort((a, b) => a.sub_cat_name.localeCompare(b.sub_cat_name)),
+          };
+        }
+      );
+
+      setCategories(categoriesArray.sort((a, b) => a.cat_name.localeCompare(b.cat_name)));
+    }
+  }, [allProducts]);
 
   // Fetch products for a specific page with caching
   const fetchProducts = async (page: number = 1) => {
@@ -131,11 +189,11 @@ export default function PageContent({ business }: { business: string }) {
         return;
       }*/
 
-      setLoading(true);
+      page === 1 ? setLoading(true) : setLoadingMore(true);
       setError(null);
       // Try multiple possible endpoints
       let response;
-		
+			
       const endpoints = [
         `/api/business/business-products?page=${page}&limit=30&section=buy-again&slug=${business}`,
         `/api/business/products?page=${page}&limit=30`,
@@ -202,6 +260,17 @@ export default function PageContent({ business }: { business: string }) {
       lastTotalRef.current = total;
 
       setProducts(enabledProducts);
+      
+      // Accumulate all products for category extraction
+      setAllProducts((prevProducts) => {
+        const combinedProducts = page === 1 ? enabledProducts : [...prevProducts, ...enabledProducts];
+        // Remove duplicates based on product_id
+        const uniqueProducts = Array.from(
+          new Map(combinedProducts.map((p) => [p.product_id, p])).values()
+        );
+        return uniqueProducts;
+      });
+
       setTotalProducts(total);
       setTotalPages(calculatedTotalPages);
       setCurrentPage(page);
@@ -213,21 +282,7 @@ export default function PageContent({ business }: { business: string }) {
         autoClose: 3000,
       });
     } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch categories
-  const fetchCategories = async () => {
-    try {
-      const response = await axios.get('/api/business/non-empty-categories');
-      
-      if (response.data.data) {
-        const categoryArray = Object.values(response.data.data) as Category[];
-        setCategories(categoryArray);
-      }
-    } catch (err) {
-      console.error('Error fetching categories:', err);
+      page === 1 ? setLoading(false) : setLoadingMore(false);
     }
   };
 
@@ -254,13 +309,19 @@ export default function PageContent({ business }: { business: string }) {
       filtered = filtered.filter(
         (p) =>
           p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.cat_name?.toLowerCase().includes(searchTerm.toLowerCase())
+          p.cat_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.sub_cat_name?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
     // Filter by category
     if (selectedCategory !== 'All') {
       filtered = filtered.filter((p) => p.cat_name === selectedCategory);
+    }
+
+    // Filter by subcategory
+    if (selectedSubcategory !== 'All') {
+      filtered = filtered.filter((p) => p.sub_cat_name === selectedSubcategory);
     }
 
     // Filter by seller
@@ -284,7 +345,7 @@ export default function PageContent({ business }: { business: string }) {
     }
 
     setFilteredProducts(filtered);
-  }, [products, searchTerm, selectedCategory, sortBy, selectedSeller]);
+  }, [products, searchTerm, selectedCategory, selectedSubcategory, sortBy, selectedSeller]);
 
   // Handle previous page
   const handlePreviousPage = () => {
@@ -385,6 +446,83 @@ export default function PageContent({ business }: { business: string }) {
     }
   };
 
+  // Get subcategories for selected category
+  const getSubcategoriesForSelectedCategory = (): SubcategoryWithCount[] => {
+    if (selectedCategory === 'All') {
+      return [];
+    }
+    const category = categories.find((c) => c.cat_name === selectedCategory);
+    return category ? category.subcategories : [];
+  };
+
+  // Count products for each category based on current filters (excluding category filter)
+  const countProductsForCategory = (categoryName: string): number => {
+    let filtered = [...products];
+
+    // Apply all filters except category
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.cat_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.sub_cat_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (selectedSeller !== 'All') {
+      filtered = filtered.filter((p) => p.bus_title === selectedSeller);
+    }
+
+    // Count products in this category
+    return filtered.filter((p) => p.cat_name === categoryName).length;
+  };
+
+  // Count products for each subcategory based on current filters (excluding subcategory filter)
+  const countProductsForSubcategory = (categoryName: string, subcategoryName: string): number => {
+    let filtered = [...products];
+
+    // Apply all filters except category and subcategory
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.cat_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.sub_cat_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (selectedCategory !== 'All') {
+      filtered = filtered.filter((p) => p.cat_name === selectedCategory);
+    }
+
+    if (selectedSeller !== 'All') {
+      filtered = filtered.filter((p) => p.bus_title === selectedSeller);
+    }
+
+    // Count products in this subcategory
+    return filtered.filter((p) => p.cat_name === categoryName && p.sub_cat_name === subcategoryName).length;
+  };
+
+  // Get total count across all categories
+  const getTotalCategoryCount = (): number => {
+    let filtered = [...products];
+
+    if (searchTerm) {
+      filtered = filtered.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.cat_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.sub_cat_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (selectedSeller !== 'All') {
+      filtered = filtered.filter((p) => p.bus_title === selectedSeller);
+    }
+
+    return filtered.length;
+  };
+
   const displayProducts = filteredProducts.length > 0 ? filteredProducts : products;
 
   // Calculate current product index and total for modal
@@ -415,33 +553,79 @@ export default function PageContent({ business }: { business: string }) {
             />
           </div>
 
+          {/* Category Section Header with Count */}
+          {selectedCategory !== 'All' && (
+            <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+              {selectedCategory} • {countProductsForCategory(selectedCategory)} product{countProductsForCategory(selectedCategory) !== 1 ? 's' : ''}
+            </div>
+          )}
+
           {/* Category Buttons */}
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => setSelectedCategory('All')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
+              onClick={() => {
+                setSelectedCategory('All');
+                setSelectedSubcategory('All');
+              }}
+              className={`px-4 py-2 rounded-full font-medium transition whitespace-nowrap ${
                 selectedCategory === 'All'
                   ? 'bg-teal-500 text-white'
-                  : 'bg-gray-200 dark:bg-slate-800 dark:text-white'
+                  : 'bg-gray-200 dark:bg-slate-800 dark:text-white hover:bg-gray-300 dark:hover:bg-slate-700'
               }`}
             >
-              All
+              All ({getTotalCategoryCount()})
             </button>
             {categories.map((cat) => (
               <button
                 key={cat.cat_id}
-                onClick={() => setSelectedCategory(cat.cat_name)}
-                className={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
+                onClick={() => {
+                  setSelectedCategory(cat.cat_name);
+                  setSelectedSubcategory('All');
+                }}
+                className={`px-4 py-2 rounded-full font-medium transition whitespace-nowrap ${
                   selectedCategory === cat.cat_name
                     ? 'bg-teal-500 text-white'
-                    : 'bg-gray-200 dark:bg-slate-800 dark:text-white'
+                    : 'bg-gray-200 dark:bg-slate-800 dark:text-white hover:bg-gray-300 dark:hover:bg-slate-700'
                 }`}
               >
-                {cat.cat_name}
+                {cat.cat_name} ({countProductsForCategory(cat.cat_name)})
               </button>
             ))}
           </div>
 
+          {/* Subcategory Section (shows when category selected) */}
+          {selectedCategory !== 'All' && (
+            <>
+              <div className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                Subcategory
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setSelectedSubcategory('All')}
+                  className={`px-4 py-2 rounded-full font-medium transition whitespace-nowrap ${
+                    selectedSubcategory === 'All'
+                      ? 'bg-teal-500 text-white'
+                      : 'bg-gray-200 dark:bg-slate-800 dark:text-white hover:bg-gray-300 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  All ({countProductsForCategory(selectedCategory)})
+                </button>
+                {getSubcategoriesForSelectedCategory().map((subcat) => (
+                  <button
+                    key={subcat.sub_cat_id}
+                    onClick={() => setSelectedSubcategory(subcat.sub_cat_name)}
+                    className={`px-4 py-2 rounded-full font-medium transition whitespace-nowrap ${
+                      selectedSubcategory === subcat.sub_cat_name
+                        ? 'bg-teal-500 text-white'
+                        : 'bg-gray-200 dark:bg-slate-800 dark:text-white hover:bg-gray-300 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {subcat.sub_cat_name} ({countProductsForSubcategory(selectedCategory, subcat.sub_cat_name)})
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
           {/* Sort Dropdown */}
           <div className="flex items-center gap-2">
@@ -451,83 +635,80 @@ export default function PageContent({ business }: { business: string }) {
               onChange={(e) => setSortBy(e.target.value)}
               className="px-4 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
             >
-              <option value="default">Default</option>
+              <option value="default">Sort by default</option>
               <option value="price-asc">Price: Low to High</option>
               <option value="price-desc">Price: High to Low</option>
               <option value="name">Name: A to Z</option>
             </select>
 
-            {/* Seller Dropdown */}
-            <select
-              value={selectedSeller}
-              onChange={(e) => setSelectedSeller(e.target.value)}
-              className="px-4 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+            {sellers.length > 0 && (
+              <select
+                value={selectedSeller}
+                onChange={(e) => setSelectedSeller(e.target.value)}
+                className="px-4 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+              >
+                <option value="All">All Sellers</option>
+                {sellers.map((seller) => (
+                  <option key={seller} value={seller}>
+                    {seller}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+
+        {/* Products Grid or Loading State */}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="animate-spin text-teal-500 mb-4" size={40} />
+            <p className="text-gray-600 dark:text-gray-400">Loading products...</p>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <AlertCircle className="text-red-500 mb-4" size={40} />
+            <p className="text-red-600 dark:text-red-400 mb-4">{error}</p>
+            <button
+              onClick={() => fetchProducts(1)}
+              className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600 transition"
             >
-              <option value="All">All Sellers</option>
-              {sellers.map((seller) => (
-                <option key={seller} value={seller}>
-                  {seller}
-                </option>
-              ))}
-            </select>
+              Retry
+            </button>
           </div>
-        </div>
-
-        {/* Results Info */}
-        <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-          Showing {displayProducts.length > 0 ? 'filtered results' : `${displayProducts.length} of ${products.length} products`} 
-          (from {totalProducts} total products, page {currentPage} of {totalPages} available)
-        </div>
-
-        {/* Loading State */}
-        {loading && (
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="animate-spin mr-2" size={24} />
-            <span className="dark:text-white">Loading products...</span>
+        ) : displayProducts.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12">
+            <AlertCircle className="text-gray-400 mb-4" size={40} />
+            <p className="text-gray-600 dark:text-gray-400">No products found matching your filters</p>
           </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6 flex items-start gap-3">
-            <AlertCircle size={20} className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-red-600 dark:text-red-400">Error</h3>
-              <p className="text-red-500 dark:text-red-300">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* No Products State */}
-        {!loading && !error && displayProducts.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-600 dark:text-gray-400 text-lg">No products found</p>
-          </div>
-        )}
-
-        {/* Products Grid - Display 30 per page */}
-        {!loading && !error && displayProducts.length > 0 && (
+        ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
+            {/* Products Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
               {displayProducts.map((product) => (
                 <div
                   key={product.product_id}
-                  className="bg-gray-50 dark:bg-slate-900 rounded-lg overflow-hidden hover:shadow-lg transition cursor-pointer"
-                  onClick={() => handleSelectProduct(product)}
+                  className="bg-white dark:bg-slate-900 rounded-lg shadow hover:shadow-lg transition overflow-hidden cursor-pointer border dark:border-slate-800"
                 >
                   {/* Product Image */}
-                  <div className="relative h-48 bg-gray-200 dark:bg-slate-800 overflow-hidden">
+                  <div className="relative aspect-[1/1] overflow-hidden">
                     <img
                       src={getProductImageUrl(product)}
                       alt={product.name}
-                      className="w-full h-full object-cover hover:scale-105 transition"
+                      className="w-full h-full object-cover"
                       onError={(e) => {
                         e.currentTarget.src =
                           'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
                       }}
                     />
+
+                    {/* Stock Badge */}
+                    <div className="absolute top-2 right-2 bg-teal-500 text-white px-3 py-1 rounded-full text-xs font-semibold">
+                      {product.i_onhand} in stock
+                    </div>
+
+                    {/* THC Badge (if available) */}
                     {product.thc && (
-                      <div className="absolute top-2 left-2 bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold">
+                      <div className="absolute top-2 left-2 bg-green-600 text-white px-3 py-1 rounded-full text-xs font-semibold">
                         THC: {product.thc}%
                       </div>
                     )}

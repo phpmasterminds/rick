@@ -61,14 +61,21 @@ interface UserRequestBody {
 
 // ==================== PERMISSION OPTIONS ====================
 const PERMISSION_OPTIONS = [
+  'Can Access Dashboard',
+  'Can Access Messages',
+  'Can Access Customers',
+  'Can Access Orders Section',
   'Can Manage Business Pages',
-  'Can Access Inventory',
   'Can Access Production Packaging',
+  'Can Access Inventory',
   'Can Access METRC',
-  'Can Access CRM',
+  'Can Access Reports',
   'Can Access Settings',
-  'Can Access Marketplace Orders',
- /* 'Is Sales Person',
+  
+ /* 
+ 'Can Access Marketplace Orders',
+	'Can Access CRM',
+'Is Sales Person',
   'Is Registered Cashier',
   'Can View Products',
   'Can Manually Add Products',
@@ -130,6 +137,11 @@ export default function UsersPage({ business }: UserListPageProps) {
     is_point_of_contact: false,
   });
 
+  // ==================== AUTO-SELECT ALL PERMISSIONS FOR ADMIN ====================
+  const getAdminPermissions = (): string[] => {
+    return PERMISSION_OPTIONS.filter(perm => perm !== ''); // Return all non-empty permissions
+  };
+
   const [filters, setFilters] = useState({
     accountType: '',
     lastLoginFrom: '',
@@ -159,9 +171,15 @@ export default function UsersPage({ business }: UserListPageProps) {
           phone: row.office_phone || row.mobile || '',
           account_type: row.account_type,
           permissions: [
+		  
             row.can_manage_business_pages === '1' && 'Can Manage Business Pages',
+            row.can_access_dashboard === '1' && 'Can Access Dashboard',
+            row.can_access_messages === '1' && 'Can Access Messages',
+            row.can_access_customers === '1' && 'Can Access Customers',
+            row.can_access_order_section === '1' && 'Can Access Orders Section',
             row.can_access_inventory === '1' && 'Can Access Inventory',
             row.can_access_metrc === '1' && 'Can Access METRC',
+            row.can_access_reports === '1' && 'Can Access Reports',
             row.can_access_crm === '1' && 'Can Access CRM',
             row.can_access_settings_page === '1' && 'Can Access Settings',
             row.can_access_marketplace_orders === '1' && 'Can Access Marketplace Orders',
@@ -239,10 +257,17 @@ export default function UsersPage({ business }: UserListPageProps) {
       const method = editingUser ? 'put' : 'post';
 
       // Convert permission names back to API field format
+	  
+			
       const permissionData = {
         can_manage_business_pages: formData.permissions.includes('Can Manage Business Pages') ? '1' : '0',
+        can_access_dashboard: formData.permissions.includes('Can Access Dashboard') ? '1' : '0',
+        can_access_messages: formData.permissions.includes('Can Access Messages') ? '1' : '0',
+        can_access_customers: formData.permissions.includes('Can Access Customers') ? '1' : '0',
+        can_access_order_section: formData.permissions.includes('Can Access Orders Section') ? '1' : '0',
         can_access_inventory: formData.permissions.includes('Can Access Inventory') ? '1' : '0',
         can_access_metrc: formData.permissions.includes('Can Access METRC') ? '1' : '0',
+        can_access_reports: formData.permissions.includes('Can Access Reports') ? '1' : '0',
         can_access_crm: formData.permissions.includes('Can Access CRM') ? '1' : '0',
         can_access_settings_page: formData.permissions.includes('Can Access Settings') ? '1' : '0',
         can_access_marketplace_orders: formData.permissions.includes('Can Access Marketplace Orders') ? '1' : '0',
@@ -395,6 +420,7 @@ export default function UsersPage({ business }: UserListPageProps) {
   const handleEditUser = (user: User) => {
 	  console.log(user);
     setEditingUser(user);
+    const permissions = user.account_type === 'admin' ? getAdminPermissions() : user.permissions;
     setFormData({
       email: user.email,
       first_name: user.first_name,
@@ -402,13 +428,19 @@ export default function UsersPage({ business }: UserListPageProps) {
       position: user.position,
       phone: user.phone,
       account_type: user.account_type,
-      permissions: user.permissions,
+      permissions: permissions,
       is_point_of_contact: user.is_point_of_contact,
     });
     setShowForm(true);
   };
 
   const handlePermissionToggle = (permission: string) => {
+    // Prevent permission changes if account type is admin
+    if (formData.account_type === 'admin') {
+      toast.warning('Admin users have all permissions by default and cannot be modified');
+      return;
+    }
+    
     setFormData(prev => ({
       ...prev,
       permissions: prev.permissions.includes(permission)
@@ -537,7 +569,14 @@ export default function UsersPage({ business }: UserListPageProps) {
                   <button
                     key={type.value}
                     type="button"
-                    onClick={() => setFormData({ ...formData, account_type: type.value as any })}
+                    onClick={() => {
+                      const newPermissions = type.value === 'admin' ? getAdminPermissions() : [];
+                      setFormData({ 
+                        ...formData, 
+                        account_type: type.value as any,
+                        permissions: newPermissions
+                      });
+                    }}
                     className={`px-4 py-3 rounded-lg border-2 font-semibold transition ${
                       formData.account_type === type.value
                         ? 'border-teal-500 bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300'
@@ -566,19 +605,42 @@ export default function UsersPage({ business }: UserListPageProps) {
 
             {/* Permissions */}
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Shield className="w-5 h-5" />
-                Permissions ({formData.permissions.length} selected)
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Shield className="w-5 h-5" />
+                  Permissions ({formData.permissions.length} selected)
+                </h3>
+                {formData.account_type === 'admin' && (
+                  <span className="px-3 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs font-semibold rounded-full">
+                    All permissions assigned
+                  </span>
+                )}
+              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {formData.account_type === 'admin' && (
+                <p className="text-sm text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20 p-3 rounded-lg">
+                  ✓ Admin users automatically have access to all permissions and cannot be modified.
+                </p>
+              )}
+
+              <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${formData.account_type === 'admin' ? 'opacity-60 pointer-events-none' : ''}`}>
                 {PERMISSION_OPTIONS.map(permission => (
-                  <label key={permission} className="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer">
+                  <label 
+                    key={permission} 
+                    className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition ${
+                      formData.account_type === 'admin'
+                        ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50'
+                        : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                    }`}
+                  >
                     <input
                       type="checkbox"
                       checked={formData.permissions.includes(permission)}
                       onChange={() => handlePermissionToggle(permission)}
-                      className="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                      disabled={formData.account_type === 'admin'}
+                      className={`w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 ${
+                        formData.account_type === 'admin' ? 'cursor-not-allowed' : ''
+                      }`}
                     />
                     <span className="text-sm">{permission}</span>
                   </label>

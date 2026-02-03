@@ -18,21 +18,18 @@ import { calculateApplicableDiscount, calculateFinalPrice, type Discount } from 
 
 // Helper function to get product image URL
 const getProductImageUrl = (product: any): string => {
-  // Try med_image_path first (from API)
   if (product.med_image_path && typeof product.med_image_path === 'string') {
     if (product.med_image_path.trim()) {
       return product.med_image_path;
     }
   }
   
-  // Try image_url
   if (product.image_url && typeof product.image_url === 'string') {
     if (product.image_url.trim()) {
       return product.image_url;
     }
   }
   
-  // Default fallback
   return 'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
 };
 
@@ -40,6 +37,7 @@ interface Product {
   product_id: string;
   name: string;
   cat_name: string;
+  sub_cat_name: string;
   strain?: string;
   i_price: string;
   i_deals: string;
@@ -62,13 +60,12 @@ interface Product {
   page_id?: string;
   is_sample?: string | number;
   med_image?: string;
-   discounts?: Discount;
+  discounts?: Discount;
 }
 
 interface Category {
-  cat_id: string;
-  cat_name: string;
-  sub?: Category[];
+  name: string;
+  subcategories: string[];
 }
 
 interface PageCache {
@@ -77,11 +74,10 @@ interface PageCache {
   totalPages: number;
 }
 
-
 export default function PageContent() {
   const { addToCart } = useShopCart();
 
-  // Products state
+  // Products state - ALL products loaded in background
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -93,65 +89,158 @@ export default function PageContent() {
   const [backgroundLoadProgress, setBackgroundLoadProgress] = useState(0);
   const [totalLoadedInBackground, setTotalLoadedInBackground] = useState(0);
 
-  // Filter state - UPDATED with selectedSubCategory ✅
+  // Filter state
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null);
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string>('All');
   const [sortBy, setSortBy] = useState('default');
   const [sellers, setSellers] = useState<string[]>([]);
   const [selectedSeller, setSelectedSeller] = useState('All');
   
-  // Pagination state - 30 products per page (from API)
-  const [currentPage, setCurrentPage] = useState(1);
+  // INFINITE SCROLL STATE
+  const [displayedCount, setDisplayedCount] = useState(30);
   const [totalProducts, setTotalProducts] = useState(0);
-  const [totalPages, setTotalPages] = useState(1);
-  const itemsPerPage = 30; // Display 30 per page (API limit)
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const observerTarget = useRef<HTMLDivElement>(null);
 
   // Modal state
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Cache for page data to avoid redundant API calls
+  // Cache for page data
   const pageCache = useRef<Map<number, PageCache>>(new Map());
-  const lastTotalRef = useRef<number>(0);
   const backgroundLoadingRef = useRef<boolean>(false);
 
   // Initial load
   useEffect(() => {
     const initializeData = async () => {
       await fetchProducts(1);
-      fetchCategories();
-      // Start background loading
       loadAllProductsInBackground();
     };
     initializeData();
   }, []);
 
-  // Apply filters when products, search, category, subcategory, sort, or seller changes - UPDATED ✅
+  // Calculate categories from products whenever products change
+  useEffect(() => {
+    if (products.length > 0) {
+      calculateCategoriesFromProducts();
+    }
+  }, [products]);
+
+  // Apply filters when products, search, category, subcategory, sort, or seller changes
   useEffect(() => {
     applyFiltersAndSort();
-  }, [products, searchTerm, selectedCategory, selectedSubCategory, sortBy, selectedSeller, categories]);
+  }, [products, searchTerm, selectedCategory, selectedSubCategory, sortBy, selectedSeller]);
 
-  // Reset subcategory and page when main category changes - UPDATED ✅
+  // Reset displayed count when filters change
   useEffect(() => {
-    setSelectedSubCategory(null);
-    setCurrentPage(1);
-  }, [selectedCategory]);
+    setDisplayedCount(30);
+  }, [selectedCategory, selectedSubCategory, selectedSeller, searchTerm]);
 
-  // Reset page when seller/search changes
+  // INFINITE SCROLL: Setup Intersection Observer
   useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedSeller, searchTerm]);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !isLoadingMore && displayedCount < filteredProducts.length) {
+          loadMoreProducts();
+        }
+      },
+      { threshold: 0.1 }
+    );
 
-	const getProductDiscount = (product: any): Discount | null => {
-		
-		if (product.discounts && typeof product.discounts === 'object') {
-		return product.discounts as Discount;
-		}
-		return null;
-	};
+    const target = observerTarget.current;
+    if (target) {
+      observer.observe(target);
+    }
 
-  // Load all products in background
+    return () => {
+      if (target) {
+        observer.unobserve(target);
+      }
+    };
+  }, [displayedCount, filteredProducts.length, isLoadingMore]);
+
+  // Load more products for infinite scroll
+  const loadMoreProducts = () => {
+    setIsLoadingMore(true);
+    setTimeout(() => {
+      setDisplayedCount((prev) => Math.min(prev + 30, filteredProducts.length));
+      setIsLoadingMore(false);
+    }, 300);
+  };
+
+  const getProductDiscount = (product: any): Discount | null => {
+    if (product.discounts && typeof product.discounts === 'object') {
+      return product.discounts as Discount;
+    }
+    return null;
+  };
+
+  // Calculate categories from products using the working pattern from inventory
+  const calculateCategoriesFromProducts = () => {
+    console.log('📥 Calculating categories from products...');
+    
+    const categoryMap = new Map<string, Set<string>>();
+
+    products.forEach((product) => {
+      const catName = (product.cat_name || '').trim();
+      const subCatName = (product.sub_cat_name || '').trim();
+      
+      if (catName) {
+        // Add category
+        if (!categoryMap.has(catName)) {
+          categoryMap.set(catName, new Set<string>());
+        }
+        
+        // Add subcategory if it exists
+        if (subCatName) {
+          categoryMap.get(catName)?.add(subCatName);
+        }
+      }
+    });
+    
+    // Transform the map into our category structure
+    const transformedCategories = [
+      { name: 'All', subcategories: [] },
+      ...Array.from(categoryMap.entries()).map(([catName, subCats]) => ({
+        name: catName,
+        subcategories: Array.from(subCats)
+      }))
+    ];
+    
+    setCategories(transformedCategories);
+    console.log(`✅ Calculated ${transformedCategories.length - 1} categories from products`);
+  };
+
+  // Get subcategories for selected category
+  const getSubcategoriesForCategory = (): string[] => {
+    if (selectedCategory === 'All') {
+      return [];
+    }
+    const category = categories.find(cat => cat.name === selectedCategory);
+    return category?.subcategories || [];
+  };
+
+  // Calculate category product counts
+  const getCategoryProductCount = (catName: string): number => {
+    if (catName === 'All') {
+      return products.length;
+    }
+    return products.filter(p => (p.cat_name || '').trim() === catName).length;
+  };
+
+  // Calculate subcategory product counts
+  const getSubcategoryProductCount = (subCatName: string): number => {
+    if (subCatName === 'All') {
+      if (selectedCategory === 'All') {
+        return filteredProducts.length;
+      }
+      return filteredProducts.filter(p => (p.cat_name || '').trim() === selectedCategory).length;
+    }
+    return filteredProducts.filter(p => (p.sub_cat_name || '').trim() === subCatName).length;
+  };
+
+  // Load ALL products in background and accumulate them
   const loadAllProductsInBackground = async () => {
     if (backgroundLoadingRef.current) return;
     
@@ -162,10 +251,10 @@ export default function PageContent() {
 
     try {
       const firstPageCache = pageCache.current.get(1);
-      const totalProducts = firstPageCache?.total || 0;
-      const pagesNeeded = totalProducts > 0 ? Math.ceil(totalProducts / 30) : 0;
+      const totalProductsCount = firstPageCache?.total || 0;
+      const pagesNeeded = totalProductsCount > 0 ? Math.ceil(totalProductsCount / 30) : 0;
       
-      console.log(`📊 Total products available: ${totalProducts}`);
+      console.log(`📊 Total products available: ${totalProductsCount}`);
       console.log(`📄 Pages needed to load all products: ${pagesNeeded}`);
       
       let accumulatedProducts: Product[] = [];
@@ -238,21 +327,30 @@ export default function PageContent() {
           }
         }
 
+        // ACCUMULATE products from all pages
         accumulatedProducts = [...accumulatedProducts, ...pageProducts];
-        const loadedCount = Math.min(accumulatedProducts.length, totalProducts);
+        const loadedCount = Math.min(accumulatedProducts.length, totalProductsCount);
         setTotalLoadedInBackground(loadedCount);
         
-        const progressPercentage = totalProducts > 0 
-          ? Math.min((loadedCount / totalProducts) * 100, 100)
+        const progressPercentage = totalProductsCount > 0 
+          ? Math.min((loadedCount / totalProductsCount) * 100, 100)
           : 0;
         setBackgroundLoadProgress(progressPercentage);
 
-        if (accumulatedProducts.length >= totalProducts && totalProducts > 0) {
-          console.log(`✅ Background load complete: ${loadedCount} of ${totalProducts} products`);
+        if (accumulatedProducts.length >= totalProductsCount && totalProductsCount > 0) {
+          console.log(`✅ Background load complete: ${loadedCount} of ${totalProductsCount} products`);
+          // UPDATE main products state with ALL accumulated products
+          setProducts(accumulatedProducts);
           break;
         }
 
         await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      // Make sure products are set even if loop completes normally
+      if (accumulatedProducts.length > 0) {
+        console.log(`🎉 Setting ${accumulatedProducts.length} total products`);
+        setProducts(accumulatedProducts);
       }
 
       if (pagesNeeded === 0) {
@@ -268,17 +366,14 @@ export default function PageContent() {
     }
   };
 
-  // Fetch products for a specific page with caching
+  // Fetch products for initial page load
   const fetchProducts = async (page: number = 1) => {
     try {
-      // Check if page is already cached
       const cachedPage = pageCache.current.get(page);
       if (cachedPage) {
         console.log(`📦 Using cached data for page ${page}`);
         setProducts(cachedPage.products);
         setTotalProducts(cachedPage.total);
-        setTotalPages(cachedPage.totalPages);
-        setCurrentPage(page);
         setLoading(false);
         return;
       }
@@ -288,7 +383,6 @@ export default function PageContent() {
 
       console.log(`📥 Fetching products for page ${page}...`);
 
-      // Try multiple possible endpoints
       let response;
       const endpoints = [
         `/api/business/business-products?page=${page}&limit=30`,
@@ -300,109 +394,64 @@ export default function PageContent() {
       let lastError: any = null;
       for (const endpoint of endpoints) {
         try {
-          console.log(`🔍 Trying endpoint: ${endpoint}`);
           response = await axios.get(endpoint);
-          console.log(`✅ Success! Endpoint: ${endpoint}`);
           break;
         } catch (err) {
           lastError = err;
-          console.log(`❌ Failed: ${endpoint}`);
           continue;
         }
       }
 
       if (!response) {
-        throw lastError;
+        throw lastError || new Error('No response from any endpoint');
       }
 
       let productsData: Product[] = [];
       let total = 0;
 
-      // Parse response based on structure
       if (response.data.data?.products && Array.isArray(response.data.data.products)) {
         productsData = response.data.data.products;
         total = response.data.data.total || 0;
-        console.log(`✅ Extracted from: data.data.products`);
       } else if (response.data.products && Array.isArray(response.data.products)) {
         productsData = response.data.products;
         total = response.data.total || 0;
-        console.log(`✅ Extracted from: data.products`);
       } else if (response.data.data && Array.isArray(response.data.data)) {
         productsData = response.data.data;
         total = response.data.total || 0;
-        console.log(`✅ Extracted from: data.data`);
       } else if (Array.isArray(response.data)) {
         productsData = response.data;
-        total = response.data.length;
-        console.log(`✅ Extracted from: direct array`);
+        total = productsData.length;
       }
 
-      console.log(`📊 Page ${page}: ${productsData.length} products received`);
-      console.log(`📊 Total available: ${total}`);
-
-      // Filter only enabled products
       const enabledProducts = productsData.filter(
         (p: any) => p.enable_catalog === '1' || p.enable_catalog === 1
       );
 
-      console.log(`✅ Enabled products: ${enabledProducts.length}`);
-
-      // Calculate total pages
-      const calculatedTotalPages = total > 0 ? Math.ceil(total / 30) : 1;
-
-      // Store in cache
-      const cacheData: PageCache = {
-        products: enabledProducts,
-        total: total,
-        totalPages: calculatedTotalPages,
-      };
-      pageCache.current.set(page, cacheData);
-
-      // Check if total changed - if so, clear cache and update pagination
-      if (lastTotalRef.current !== 0 && lastTotalRef.current !== total) {
-        console.log(`⚠️ Total products changed from ${lastTotalRef.current} to ${total}. Updating pagination...`);
-        pageCache.current.clear();
-        pageCache.current.set(page, cacheData);
-      }
-
-      lastTotalRef.current = total;
+      // Extract unique sellers
+      const uniqueSellers = [...new Set(enabledProducts.map((p) => p.bus_title).filter(Boolean))];
+      setSellers(uniqueSellers as string[]);
 
       setProducts(enabledProducts);
       setTotalProducts(total);
-      setTotalPages(calculatedTotalPages);
-      setCurrentPage(page);
+
+      const cacheData: PageCache = {
+        products: enabledProducts,
+        total,
+        totalPages: Math.ceil(total / 30),
+      };
+      pageCache.current.set(page, cacheData);
+
+      console.log(`✅ Fetched page ${page}: ${enabledProducts.length} enabled products, ${total} total`);
     } catch (err: any) {
-      console.error('❌ Error fetching products:', err.message);
-      console.error('Error response:', err.response?.data);
-      
-      setError(err.message || 'Failed to fetch products');
-      toast.error('Failed to load products', {
-        position: 'bottom-center',
-        autoClose: 3000,
-      });
+      console.error('Error fetching products:', err);
+      setError('Failed to load products. Please try again.');
+      toast.error('Failed to load products');
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch categories
-  const fetchCategories = async () => {
-    try {
-      console.log('📥 Fetching categories...');
-      const response = await axios.get('/api/business/non-empty-categories');
-      
-      if (response.data.data) {
-        const categoryArray = Object.values(response.data.data) as Category[];
-        setCategories(categoryArray);
-        console.log(`✅ Loaded ${categoryArray.length} categories`);
-        console.log('📋 Categories structure:', categoryArray);
-      }
-    } catch (err) {
-      console.error('Error fetching categories:', err);
-    }
-  };
-
-  // Extract unique sellers from products
+  // Extract unique sellers
   useEffect(() => {
     if (products.length > 0) {
       const uniqueSellers = Array.from(
@@ -417,50 +466,39 @@ export default function PageContent() {
     }
   }, [products]);
 
-  // Apply filters and sort - UPDATED with subcategory support ✅
+  // Apply filters and sorting
   const applyFiltersAndSort = useCallback(() => {
     let filtered = [...products];
 
-    console.log('🔍 Applying filters:');
-    console.log(`  - Search: "${searchTerm}"`);
-    console.log(`  - Category: "${selectedCategory}"`);
-    console.log(`  - SubCategory: "${selectedSubCategory}"`);
+    console.log('🔍 Applying filters to', products.length, 'products');
 
     // Filter by search term
-    if (searchTerm) {
+    if (searchTerm.trim()) {
+      const lowerSearch = searchTerm.toLowerCase();
       filtered = filtered.filter(
         (p) =>
-          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.cat_name?.toLowerCase().includes(searchTerm.toLowerCase())
+          p.name.toLowerCase().includes(lowerSearch) ||
+          p.cat_name?.toLowerCase().includes(lowerSearch) ||
+          p.strain?.toLowerCase().includes(lowerSearch)
       );
       console.log(`  ✓ After search: ${filtered.length} products`);
     }
 
-    // Filter by category and subcategory - FIXED with hierarchy ✅
+    // Filter by category
     if (selectedCategory !== 'All') {
-      if (selectedSubCategory && selectedSubCategory !== null) {
-        // If subcategory is selected, filter by subcategory name only
-        filtered = filtered.filter((p) => p.cat_name === selectedSubCategory);
-        console.log(`  ✓ After subcategory filter: ${filtered.length} products`);
-      } else {
-        // If only main category is selected, include main category + all subcategories
-        const categoryObj = categories.find(cat => cat.cat_name === selectedCategory);
-        
-        if (categoryObj) {
-          const subcategoryNames = categoryObj.sub?.map(sub => sub.cat_name) || [];
-          const validCategoryNames = [selectedCategory, ...subcategoryNames];
-          
-          filtered = filtered.filter((p) => validCategoryNames.includes(p.cat_name));
-          
-          console.log(`  ✓ After category filter: ${filtered.length} products`);
-          console.log(`    Valid categories: ${validCategoryNames.join(', ')}`);
-        }
-      }
+      filtered = filtered.filter((product) => (product.cat_name || '').trim() === selectedCategory);
+      console.log(`  ✓ After category filter: ${filtered.length} products`);
+    }
+
+    // Filter by subcategory
+    if (selectedSubCategory && selectedSubCategory !== 'All') {
+      filtered = filtered.filter((product) => (product.sub_cat_name || '').trim() === selectedSubCategory);
+      console.log(`  ✓ After subcategory filter: ${filtered.length} products`);
     }
 
     // Filter by seller
     if (selectedSeller !== 'All') {
-      filtered = filtered.filter((p) => p.bus_title === selectedSeller);
+      filtered = filtered.filter((product) => product.bus_title === selectedSeller);
       console.log(`  ✓ After seller filter: ${filtered.length} products`);
     }
 
@@ -481,86 +519,59 @@ export default function PageContent() {
 
     console.log(`📊 Final filtered result: ${filtered.length} products`);
     setFilteredProducts(filtered);
-  }, [products, searchTerm, selectedCategory, selectedSubCategory, sortBy, selectedSeller, categories]);
+  }, [products, searchTerm, selectedCategory, selectedSubCategory, sortBy, selectedSeller]);
 
-  // Handle previous page
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      const nextPage = currentPage - 1;
-      const isCached = pageCache.current.has(nextPage);
-      console.log(`⬅️ ${isCached ? '📦 Using cached' : '📥 Fetching'} page ${nextPage}`);
-      fetchProducts(nextPage);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  // Handle next page
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      const nextPage = currentPage + 1;
-      const isCached = pageCache.current.has(nextPage);
-      console.log(`➡️ ${isCached ? '📦 Using cached' : '📥 Fetching'} page ${nextPage}`);
-      fetchProducts(nextPage);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  };
-
-  // Handle add to cart
-  const handleAddToCart = (product: Product) => {
-	  try {
-		const basePrice = parseFloat(product.i_price || '0');
-		const productDiscount = getProductDiscount(product);
-		//const appliedDiscount = calculateApplicableDiscount(basePrice, 1, productDiscount);
-		const appliedDiscount = calculateApplicableDiscount(
-							basePrice,
-							1,
-							productDiscount,
-							product.i_deals
-							);
-							
-		const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
-
-		const cartItem: CartItem = {
-		  cartItemId: `${product.product_id}_${Date.now()}`,
-		  productId: product.product_id,
-		  productName: product.name,
-		  brand: product.cat_name,
-		  price: finalPrice,
-		  basePrice: basePrice,
-		  quantity: 1,
-		  imageUrl: getProductImageUrl(product),
-		  business: product.bus_title || 'Nature\'s High',
-		  business_user_id: product.business_user_id ? parseInt(product.business_user_id) : undefined,
-		  page_id: product.page_id ? parseInt(product.page_id) : undefined,
-		  discount: productDiscount || undefined,
-		  appliedDiscount: appliedDiscount || undefined,
-		  dealString: product.i_deals || undefined,  // Deal string ("10%" or "$5")
-		};
-
-		addToCart(cartItem);
-		toast.success(`Added ${product.name} to cart!`, {
-		  position: 'top-right',
-		  autoClose: 2000,
-		});
-	  } catch (error) {
-		console.error('Error adding to cart:', error);
-		toast.error('Failed to add item to cart', {
-		  position: 'top-right',
-		  autoClose: 2000,
-		});
-	  }
-	};
-
-  // Handle product selection
   const handleSelectProduct = (product: Product) => {
     setSelectedProduct(product);
     setIsModalOpen(true);
   };
 
-  // Handle modal close
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setSelectedProduct(null);
+  };
+
+  const handleAddToCart = (product: Product) => {
+    try {
+      const basePrice = parseFloat(product.i_price || '0');
+      const productDiscount = getProductDiscount(product);
+      const appliedDiscount = calculateApplicableDiscount(
+        basePrice,
+        1,
+        productDiscount,
+        product.i_deals
+      );
+      const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
+
+      const cartItem: CartItem = {
+        cartItemId: `${product.product_id}_${Date.now()}`,
+        productId: product.product_id,
+        productName: product.name,
+        brand: product.cat_name,
+        price: finalPrice,
+        basePrice: basePrice,
+        quantity: 1,
+        imageUrl: getProductImageUrl(product),
+        business: product.bus_title || 'Nature\'s High',
+        business_user_id: product.business_user_id ? parseInt(product.business_user_id) : undefined,
+        page_id: product.page_id ? parseInt(product.page_id) : undefined,
+        discount: productDiscount || undefined,
+        appliedDiscount: appliedDiscount || undefined,
+        dealString: product.i_deals || undefined,
+      };
+
+      addToCart(cartItem);
+      toast.success(`Added ${product.name} to cart!`, {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      toast.error('Failed to add item to cart', {
+        position: 'top-right',
+        autoClose: 2000,
+      });
+    }
   };
 
   // Handle previous product in modal
@@ -583,7 +594,8 @@ export default function PageContent() {
     }
   };
 
-  const displayProducts = filteredProducts.length > 0 ? filteredProducts : [];
+  // Display products with infinite scroll
+  const displayProducts = filteredProducts.slice(0, displayedCount);
 
   // Calculate current product index and total for modal
   const currentProductIndex = displayProducts.findIndex(
@@ -591,9 +603,8 @@ export default function PageContent() {
   );
   const totalProductsInModal = displayProducts.length;
 
-  // Get current category object for subcategories - NEW ✅
-  const currentCategoryObj = categories.find(cat => cat.cat_name === selectedCategory);
-  const currentSubCategories = currentCategoryObj?.sub || [];
+  // Get subcategories for selected category
+  const subcategories = getSubcategoriesForCategory();
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950">
@@ -618,16 +629,12 @@ export default function PageContent() {
                   style={{ width: `${backgroundLoadProgress}%` }}
                 />
               </div>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-2">
-                This happens in the background - you can browse while we load more products
-              </p>
             </div>
           )}
         </div>
 
-        {/* Search and Filter Bar */}
-        <div className="mb-6 space-y-4">
-          {/* Search */}
+        {/* Search Bar */}
+        <div className="mb-6">
           <div className="relative">
             <Search className="absolute left-3 top-3 text-gray-400" size={20} />
             <input
@@ -638,78 +645,68 @@ export default function PageContent() {
               className="w-full pl-10 pr-4 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
             />
           </div>
+        </div>
 
-          {/* Category Buttons */}
-          <div className="flex flex-wrap gap-2">
+        {/* Category Filters - with counts */}
+        <div className="flex flex-wrap gap-2 mb-6 overflow-x-auto pb-2">
+          {categories.map((cat) => (
             <button
-              onClick={() => setSelectedCategory('All')}
-              className={`px-4 py-2 rounded-lg font-medium transition ${
-                selectedCategory === 'All'
-                  ? 'bg-teal-500 text-white'
-                  : 'bg-gray-200 dark:bg-slate-800 dark:text-white'
+              key={cat.name}
+              onClick={() => {
+                setSelectedCategory(cat.name);
+                setSelectedSubCategory('All');
+              }}
+              className={`px-4 py-2 rounded-full font-medium whitespace-nowrap transition-all duration-300 ${
+                selectedCategory === cat.name
+                  ? 'text-white shadow-lg accent-bg accent-hover'
+                  : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
               }`}
             >
-              All
+              {cat.name} <span className="text-xs ml-1">({getCategoryProductCount(cat.name)})</span>
             </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.cat_id}
-                onClick={() => setSelectedCategory(cat.cat_name)}
-                className={`px-4 py-2 rounded-lg font-medium transition whitespace-nowrap ${
-                  selectedCategory === cat.cat_name
-                    ? 'bg-teal-500 text-white'
-                    : 'bg-gray-200 dark:bg-slate-800 dark:text-white'
-                }`}
-              >
-                {cat.cat_name}
-              </button>
-            ))}
-          </div>
+          ))}
+        </div>
 
-          {/* SubCategories Display - NEW ✅ Show when category selected */}
-          {selectedCategory !== 'All' && currentSubCategories.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2 border-t pt-3 dark:border-slate-700">
-              <button
-                onClick={() => setSelectedSubCategory(null)}
-                className={`px-3 py-1 rounded-full text-sm font-medium transition ${
-                  selectedSubCategory === null
-                    ? 'bg-teal-400 text-white'
-                    : 'bg-gray-100 dark:bg-slate-700 dark:text-gray-300 text-gray-700 hover:bg-gray-200 dark:hover:bg-slate-600'
-                }`}
-              >
-                All {selectedCategory}
-              </button>
-              {currentSubCategories.map((subCat) => (
-                <button
-                  key={subCat.cat_id}
-                  onClick={() => setSelectedSubCategory(subCat.cat_name)}
-                  className={`px-3 py-1 rounded-full text-sm font-medium transition whitespace-nowrap ${
-                    selectedSubCategory === subCat.cat_name
-                      ? 'bg-teal-500 text-white'
-                      : 'bg-gray-100 dark:bg-slate-700 dark:text-gray-300 text-gray-700 hover:bg-gray-200 dark:hover:bg-slate-600'
-                  }`}
-                >
-                  {subCat.cat_name}
-                </button>
-              ))}
+        {/* Subcategories - with counts */}
+        {subcategories.length > 0 && (
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Subcategory</label>
+            <div className="flex flex-wrap gap-2">
+              {['All', ...subcategories].map((sub) => {
+                const subCount = getSubcategoryProductCount(sub);
+                
+                return (
+                  <button
+                    key={sub}
+                    onClick={() => setSelectedSubCategory(sub)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium ${
+                      selectedSubCategory === sub
+                        ? 'text-white shadow-md accent-bg accent-hover'
+                        : 'bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {sub} <span className="text-xs ml-1">({subCount})</span>
+                  </button>
+                );
+              })}
             </div>
-          )}
+          </div>
+        )}
 
-          {/* Sort Dropdown */}
-          <div className="flex items-center gap-2">
-            <Filter size={20} className="text-gray-600 dark:text-gray-400" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="px-4 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-            >
-              <option value="default">Default</option>
-              <option value="price-asc">Price: Low to High</option>
-              <option value="price-desc">Price: High to Low</option>
-              <option value="name">Name: A to Z</option>
-            </select>
+        {/* Sort and Seller Filter */}
+        <div className="flex gap-4 mb-6">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-4 py-2 border rounded-lg dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+          >
+            <option value="default">Sort: Default</option>
+            <option value="price-asc">Sort: Price Low to High</option>
+            <option value="price-desc">Sort: Price High to Low</option>
+            <option value="name">Sort: Name A-Z</option>
+          </select>
 
-            {/* Seller Dropdown */}
+          {sellers.length > 0 && (
             <select
               value={selectedSeller}
               onChange={(e) => setSelectedSeller(e.target.value)}
@@ -722,19 +719,18 @@ export default function PageContent() {
                 </option>
               ))}
             </select>
-          </div>
+          )}
         </div>
 
         {/* Results Info */}
         <div className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-          {filteredProducts.length === 0 && (selectedCategory !== 'All' || selectedSubCategory !== null) ? (
+          {filteredProducts.length === 0 && (selectedCategory !== 'All' || selectedSubCategory !== 'All') ? (
             <span className="text-red-600 dark:text-red-400 font-medium">
               No products found with current filters - Try adjusting your selection
             </span>
           ) : (
             <span>
-              Showing {displayProducts.length > 0 ? 'filtered results' : `${displayProducts.length} of ${products.length} products`} 
-              (from {totalProducts} total products, page {currentPage} of {totalPages} available)
+              Showing {displayProducts.length} of {filteredProducts.length} filtered products (Total: {products.length})
             </span>
           )}
         </div>
@@ -764,7 +760,7 @@ export default function PageContent() {
             <AlertCircle size={40} className="text-gray-400 mx-auto mb-2" />
             <p className="text-gray-600 dark:text-gray-400 text-lg">No products found</p>
             <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">
-              {selectedCategory !== 'All' || selectedSubCategory !== null || selectedSeller !== 'All'
+              {selectedCategory !== 'All' || selectedSubCategory !== 'All' || selectedSeller !== 'All'
                 ? 'Try adjusting your filters'
                 : searchTerm
                 ? 'Try a different search term'
@@ -773,7 +769,7 @@ export default function PageContent() {
           </div>
         )}
 
-        {/* Products Grid - Display 30 per page */}
+        {/* Products Grid */}
         {!loading && !error && displayProducts.length > 0 && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
@@ -789,6 +785,8 @@ export default function PageContent() {
                       src={getProductImageUrl(product)}
                       alt={product.name}
                       className="w-full h-full object-contain hover:scale-105 transition"
+                      loading="lazy"
+                      decoding="async"
                       onError={(e) => {
                         e.currentTarget.src =
                           'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
@@ -799,27 +797,25 @@ export default function PageContent() {
                         THC: {product.thc}%
                       </div>
                     )}
-					
-					{(() => {
-					  const basePrice = parseFloat(product.i_price || '0');
-					  const appliedDiscount = calculateApplicableDiscount(
-							basePrice,
-							1,
-							getProductDiscount(product),
-							product.i_deals
-							);
-  
-					 
+                    
+                    {(() => {
+                      const basePrice = parseFloat(product.i_price || '0');
+                      const appliedDiscount = calculateApplicableDiscount(
+                        basePrice,
+                        1,
+                        getProductDiscount(product),
+                        product.i_deals
+                      );
 
-					  return appliedDiscount && appliedDiscount.isApplicable ? (
-						<div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold border border-red-700 shadow-md">
-						  <div className="text-center">
-							<div className="font-bold text-sm">{appliedDiscount.discountDisplay}</div>
-							<div className="text-xs leading-tight">OFF</div>
-						  </div>
-						</div>
-					  ) : null;
-					})()}
+                      return appliedDiscount && appliedDiscount.isApplicable ? (
+                        <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold border border-red-700 shadow-md">
+                          <div className="text-center">
+                            <div className="font-bold text-sm">{appliedDiscount.discountDisplay}</div>
+                            <div className="text-xs leading-tight">OFF</div>
+                          </div>
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
 
                   {/* Product Info */}
@@ -828,42 +824,41 @@ export default function PageContent() {
                     <h3 className="font-semibold text-sm dark:text-white line-clamp-2 mb-2">
                       {product.name}
                     </h3>
-					{product.bus_title && (
+                    {product.bus_title && (
                       <p className="text-xs text-gray-600 dark:text-gray-300 mb-2 font-medium">
                         {product.bus_title}
                       </p>
                     )}
                     <div className="flex justify-between items-center">
-					  {(() => {
-						const basePrice = parseFloat(product.i_price || '0');
-						//const appliedDiscount = calculateApplicableDiscount(basePrice, 1, getProductDiscount(product));
-						const appliedDiscount = calculateApplicableDiscount(
-							basePrice,
-							1,
-							getProductDiscount(product),
-							product.i_deals
-							);
-						const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
-						
-						return appliedDiscount && appliedDiscount.isApplicable ? (
-						  <div className="flex items-center gap-2">
-							<span className="text-xs line-through text-gray-400 dark:text-gray-500">
-							  ${basePrice.toFixed(2)}
-							</span>
-							<span className="text-lg font-bold text-teal-600 dark:text-teal-400">
-							  ${finalPrice.toFixed(2)}
-							</span>
-						  </div>
-						) : (
-						  <span className="text-lg font-bold text-teal-600 dark:text-teal-400">
-							${basePrice.toFixed(2)}
-						  </span>
-						);
-					  })()}
-					  <span className="text-xs text-gray-500 dark:text-gray-400">
-						{product.i_onhand} in stock
-					  </span>
-					</div>
+                      {(() => {
+                        const basePrice = parseFloat(product.i_price || '0');
+                        const appliedDiscount = calculateApplicableDiscount(
+                          basePrice,
+                          1,
+                          getProductDiscount(product),
+                          product.i_deals
+                        );
+                        const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
+                        
+                        return appliedDiscount && appliedDiscount.isApplicable ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs line-through text-gray-400 dark:text-gray-500">
+                              ${basePrice.toFixed(2)}
+                            </span>
+                            <p className="text-lg font-bold text-teal-600 dark:text-teal-400">
+                              ${finalPrice.toFixed(2)}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-lg font-bold text-teal-600 dark:text-teal-400">
+                            ${basePrice.toFixed(2)}
+                          </p>
+                        );
+                      })()}
+                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                        {product.i_onhand} in stock
+                      </span>
+                    </div>
 
                     {/* Action Buttons */}
                     <div className="mt-3 flex gap-2">
@@ -891,35 +886,24 @@ export default function PageContent() {
               ))}
             </div>
 
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between py-6 border-t dark:border-slate-800">
-              <button
-                onClick={handlePreviousPage}
-                disabled={currentPage === 1}
-                className="flex items-center gap-2 px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-800 transition"
-              >
-                <ChevronLeft size={20} />
-                Previous
-              </button>
-
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                  Page {currentPage} of {totalPages}
-                </span>
-              </div>
-
-              <button
-                onClick={handleNextPage}
-                disabled={currentPage === totalPages}
-                className="flex items-center gap-2 px-4 py-2 border rounded-lg disabled:opacity-50 disabled:cursor-not-allowed dark:border-slate-700 dark:text-white hover:bg-gray-50 dark:hover:bg-slate-800 transition"
-              >
-                Next
-                <ChevronRight size={20} />
-              </button>
-            </div>
-
-            <div className="text-center text-sm text-gray-600 dark:text-gray-400 py-2">
-              📦 {totalProducts} total products available • {totalPages} pages
+            {/* INFINITE SCROLL TRIGGER */}
+            <div ref={observerTarget} className="text-center py-8">
+              {displayedCount < filteredProducts.length && (
+                <>
+                  {isLoadingMore ? (
+                    <Loader2 className="animate-spin text-teal-500 mx-auto mb-4" size={32} />
+                  ) : (
+                    <p className="text-gray-600 dark:text-gray-400 text-sm">
+                      ⬇️ Scroll down to load more products...
+                    </p>
+                  )}
+                </>
+              )}
+              {displayedCount >= filteredProducts.length && filteredProducts.length > 0 && (
+                <p className="text-gray-500 dark:text-gray-500 text-sm">
+                  ✅ Showing all {filteredProducts.length} products
+                </p>
+              )}
             </div>
           </>
         )}
@@ -955,6 +939,8 @@ export default function PageContent() {
                     src={getProductImageUrl(selectedProduct)}
                     alt={selectedProduct.name}
                     className="w-full h-full object-contain hover:scale-105 transition"
+                    loading="lazy"
+                    decoding="async"
                     onError={(e) => {
                       e.currentTarget.src =
                         'https://www.api.natureshigh.com/PF.Site/Apps/core-business/assets/no_image.png';
@@ -963,11 +949,7 @@ export default function PageContent() {
                 </div>
 
                 {/* Details */}
-				
-				
                 <div className="space-y-4">
-					
-				
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Category</p>
                     <p className="text-lg font-semibold dark:text-white">{selectedProduct.cat_name}</p>
@@ -975,83 +957,62 @@ export default function PageContent() {
 
                   <div>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Price</p>
-					{(() => {
-					  const basePrice = parseFloat(selectedProduct.i_price || '0');
-					  //const appliedDiscount = calculateApplicableDiscount(basePrice, 1, getProductDiscount(selectedProduct));
-					  const appliedDiscount = calculateApplicableDiscount(
-							basePrice,
-							1,
-							getProductDiscount(selectedProduct),
-							selectedProduct.i_deals
-							);
-							
-					  const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
-					  
-					  return appliedDiscount && appliedDiscount.isApplicable ? (
-						<div className="flex items-center gap-2">
-						  <span className="text-lg line-through text-gray-400 dark:text-gray-500">
-							${basePrice.toFixed(2)}
-						  </span>
-						  <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
-							${finalPrice.toFixed(2)}
-						  </p>
-						</div>
-					  ) : (
-						<p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
-						  ${basePrice.toFixed(2)}
-						</p>
-					  );
-					})()}
+                    {(() => {
+                      const basePrice = parseFloat(selectedProduct.i_price || '0');
+                      const appliedDiscount = calculateApplicableDiscount(
+                        basePrice,
+                        1,
+                        getProductDiscount(selectedProduct),
+                        selectedProduct.i_deals
+                      );
+                      const finalPrice = calculateFinalPrice(basePrice, appliedDiscount);
+                      
+                      return appliedDiscount && appliedDiscount.isApplicable ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg line-through text-gray-400 dark:text-gray-500">
+                            ${basePrice.toFixed(2)}
+                          </span>
+                          <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+                            ${finalPrice.toFixed(2)}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-2xl font-bold text-teal-600 dark:text-teal-400">
+                          ${basePrice.toFixed(2)}
+                        </p>
+                      );
+                    })()}
                   </div>
-				  
-				  {/* Details Grid */}
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                  {selectedProduct.strain && (
-                    <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
-                      <p className="text-xs text-green-600 dark:text-green-400 font-semibold">Strain</p>
-                      <p className="text-sm font-medium text-green-900 dark:text-green-200">{selectedProduct.strain}</p>
-                    </div>
-                  )}
+                  
+                  {/* Details Grid */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    {selectedProduct.strain && (
+                      <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
+                        <p className="text-xs text-green-600 dark:text-green-400 font-semibold">Strain</p>
+                        <p className="text-sm font-medium text-green-900 dark:text-green-200">{selectedProduct.strain}</p>
+                      </div>
+                    )}
 
-                  {selectedProduct.thc && (
-                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                      <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">THC</p>
-                      <p className="text-sm font-medium text-blue-900 dark:text-blue-200">{selectedProduct.thc}%</p>
-                    </div>
-                  )}
+                    {selectedProduct.thc && (
+                      <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                        <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">THC</p>
+                        <p className="text-sm font-medium text-blue-900 dark:text-blue-200">{selectedProduct.thc}%</p>
+                      </div>
+                    )}
 
-                  {selectedProduct.cbd && (
-                    <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg">
-                      <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold">CBD</p>
-                      <p className="text-sm font-medium text-purple-900 dark:text-purple-200">{selectedProduct.cbd}%</p>
-                    </div>
-                  )}
+                    {selectedProduct.cbd && (
+                      <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg">
+                        <p className="text-xs text-purple-600 dark:text-purple-400 font-semibold">CBD</p>
+                        <p className="text-sm font-medium text-purple-900 dark:text-purple-200">{selectedProduct.cbd}%</p>
+                      </div>
+                    )}
 
-                  <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg">
-                    <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold">In Stock</p>
-                    <p className="text-sm font-medium text-orange-900 dark:text-orange-200">{selectedProduct.i_onhand}</p>
-                  </div>
-                </div>
-				{/*
-                  <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">In Stock</p>
-                    <p className="text-lg font-semibold dark:text-white">{selectedProduct.i_onhand} units</p>
+                    <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-lg">
+                      <p className="text-xs text-orange-600 dark:text-orange-400 font-semibold">In Stock</p>
+                      <p className="text-sm font-medium text-orange-900 dark:text-orange-200">{selectedProduct.i_onhand}</p>
+                    </div>
                   </div>
 
-                  {selectedProduct.thc && (
-					<div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                      <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">THC</p>
-                      <p className="text-sm font-medium text-blue-900 dark:text-blue-200">{selectedProduct.thc}%</p>
-                    </div>
-					
-                  )}
-
-                  {selectedProduct.cbd && (
-                    <div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">CBD</p>
-                      <p className="text-lg font-semibold dark:text-white">{selectedProduct.cbd}%</p>
-                    </div>
-				)}*/}
                   {selectedProduct.bus_title && (
                     <div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Seller</p>

@@ -9,7 +9,12 @@ export interface PermissionState {
   can_access_inventory: boolean;
   can_access_production_packaging: boolean;
   can_access_business_pages: boolean;
-  can_access_customer: boolean;
+  can_access_customers: boolean;
+  can_access_dashboard: boolean;
+  can_access_messages: boolean;
+  can_access_order_section: boolean;
+  can_access_reports: boolean;
+  can_access_settings_page: boolean;
   // ✅ Flag to detect if user is owner/admin (no localStorage)
   isOwnerOrAdmin: boolean;
 }
@@ -34,7 +39,12 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     can_access_inventory: false,
     can_access_production_packaging: false,
     can_access_business_pages: false,
-    can_access_customer: false,
+    can_access_customers: false,
+    can_access_dashboard: false,
+    can_access_messages: false,
+    can_access_order_section: false,
+    can_access_reports: false,
+    can_access_settings_page: false,
     isOwnerOrAdmin: false,
   });
 
@@ -67,7 +77,12 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       const canCRM = getCookie('current_permission_can_access_crm');
       const canInventory = getCookie('current_permission_can_access_inventory');
       const canProductionPackaging = getCookie('current_permission_can_access_production_packaging');
-      const canCustomer = getCookie('current_permission_can_access_customer');
+      const canCustomer = getCookie('current_permission_can_access_customers');
+      const canDashboard = getCookie('current_permission_can_access_dashboard');
+      const canMessages = getCookie('current_permission_can_access_messages');
+      const canOrderSection = getCookie('current_permission_can_access_order_section');
+      const canReports = getCookie('current_permission_can_access_reports');
+      const canSettings = getCookie('current_permission_can_access_settings_page');
 
       // ✅ NEW LOGIC: If NO permission cookies → Owner/Admin
       if (
@@ -84,7 +99,12 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
           can_access_inventory: true,
           can_access_production_packaging: true,
           can_access_business_pages: true,
-          can_access_customer: true,
+          can_access_customers: true,
+          can_access_dashboard: true,
+          can_access_messages: true,
+          can_access_order_section: true,
+          can_access_reports: true,
+          can_access_settings_page: true,
           isOwnerOrAdmin: true,
         });
         setIsLoading(false);
@@ -102,7 +122,12 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         can_access_inventory: canInventory === '1' || canInventory === 'true',
         can_access_production_packaging:
           canProductionPackaging === '1' || canProductionPackaging === 'true',
-        can_access_customer: canCustomer === '1' || canCustomer === 'true',
+        can_access_customers: canCustomer === '1' || canCustomer === 'true',
+        can_access_dashboard: canDashboard === '1' || canDashboard === 'true',
+        can_access_messages:  canMessages === '1' || canMessages === 'true',
+        can_access_order_section:  canOrderSection === '1' || canOrderSection === 'true',
+        can_access_reports:  canReports === '1' || canReports === 'true',
+        can_access_settings_page:  canSettings === '1' || canSettings === 'true',
         isOwnerOrAdmin: false,
       });
     } catch (error) {
@@ -115,7 +140,12 @@ export const PermissionProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         can_access_inventory: true,
         can_access_production_packaging: true,
         can_access_business_pages: true,
-        can_access_customer: true,
+        can_access_customers: true,
+        can_access_dashboard: true,
+        can_access_messages: true,
+        can_access_order_section: true,
+        can_access_reports: true,
+        can_access_settings_page: true,
         isOwnerOrAdmin: true,
       });
     } finally {

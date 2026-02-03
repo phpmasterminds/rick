@@ -86,26 +86,17 @@ export default function LoginPage() {
 							);
 
 							if (currentPermission) {
-								Cookies.set(
-								"current_permission_account_type",
-								currentPermission.account_type
-								);
-								Cookies.set(
-								"current_permission_can_access_crm",
-								currentPermission.can_access_crm
-								);
-								Cookies.set(
-								"current_permission_can_access_inventory",
-								currentPermission.can_access_inventory
-								);
-								Cookies.set(
-								"current_permission_can_access_production_packaging",
-								currentPermission.can_access_production_packaging
-								);
-								Cookies.set(
-								"current_permission_can_access_business_pages",
-								currentPermission.can_manage_business_pages
-								);
+								Cookies.set("current_permission_account_type",currentPermission.account_type);
+								Cookies.set("current_permission_can_access_crm",currentPermission.can_access_crm);
+								Cookies.set("current_permission_can_access_inventory",currentPermission.can_access_inventory);
+								Cookies.set("current_permission_can_access_production_packaging",currentPermission.can_access_production_packaging);
+								Cookies.set("current_permission_can_access_business_pages",currentPermission.can_manage_business_pages);
+								Cookies.set("current_permission_can_access_customers",currentPermission.can_access_customers);
+								Cookies.set("current_permission_can_access_dashboard",currentPermission.can_access_dashboard);
+								Cookies.set("current_permission_can_access_messages",currentPermission.can_access_messages);
+								Cookies.set("current_permission_can_access_order_section",currentPermission.can_access_order_section);
+								Cookies.set("current_permission_can_access_reports",currentPermission.can_access_reports);
+								Cookies.set("current_permission_can_access_settings_page",currentPermission.can_access_settings_page);
 							}
 						}
 					} catch (e) {
