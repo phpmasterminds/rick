@@ -2119,6 +2119,7 @@ console.log(rowData);
                             {product.tag_no} 
                           </div>
                           <div className="text-xs text-gray-400 dark:text-gray-500">{product.cat_name}</div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500">{product.sub_cat_name}</div>
                           <button
                             onClick={() => handleOpenCoaModal(product.product_id)}
                             className="text-xs text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 font-medium mt-1 transition-colors"
