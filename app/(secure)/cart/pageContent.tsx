@@ -200,10 +200,10 @@ export default function PageContent() {
         autoClose: 3000,
       });
       
-     // clearCart();
+      clearCart();
       
       // Optional: Redirect to payment or order confirmation page
-      //window.location.href = result.redirectUrl || '/open-orders';
+      window.location.href = result.redirectUrl || '/open-orders';
     } catch (error) {
       console.error('Checkout error:', error);
       toast.error('Failed to process checkout. Please try again.', {
