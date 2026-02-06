@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/hooks/useTheme';
 import { Bell, Mail, ShoppingCart, MessageSquare, Package, UserCheck, UserX, FileText, Download, UserPlus, Shield, AtSign, X, LucideIcon } from 'lucide-react';
+import axios from 'axios';
+import { toast } from 'react-toastify';
 
 interface NotificationState {
   newOrders: boolean;
@@ -34,25 +36,99 @@ interface UserListPageProps {
 
 export default function Notifications({ business }: UserListPageProps) {
   const { isDark } = useTheme();
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const hasFetched = useRef<boolean>(false);
 
   const [notifications, setNotifications] = useState<NotificationState>({
-    newOrders: true,
-    messages: true,
+    newOrders: false,
+    messages: false,
     itemBelowPar: false,
-    userLogin: true,
+    userLogin: false,
     userLogout: false,
-    newUserAdded: true,
+    newUserAdded: false,
     userPermissionsChanged: false,
-    dailyRecap: true,
+    dailyRecap: false,
     metrcImport: false
   });
 
-  const [emailRecipients, setEmailRecipients] = useState<string[]>([
-    'john@example.com',
-    'admin@business.com'
-  ]);
+  const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
 
   const [newEmail, setNewEmail] = useState<string>('');
+
+  // Fetch notification settings on component mount
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      // Skip if already fetched or no business ID
+      if (hasFetched.current || !business) {
+        if (!business) setIsLoading(false);
+        return;
+      }
+
+      // Mark as fetched immediately to prevent duplicate calls
+      hasFetched.current = true;
+
+      try {
+        setIsLoading(true);
+        const response = await axios.get(
+          `/api/business/settings/company?business=${business}&ipage=notifications`,
+          {
+            timeout: 10000,
+          }
+        );
+
+        console.log('Notifications API response:', response.data);
+
+        // Handle nested response structure
+        if (response.data.success && response.data.data?.status === 'success' && response.data.data?.data) {
+          const apiData = response.data.data.data;
+          
+          // Update notifications if data exists (API field: notification_settings)
+          if (apiData.notification_settings) {
+            const parsedNotifications = typeof apiData.notification_settings === 'string' 
+              ? JSON.parse(apiData.notification_settings) 
+              : apiData.notification_settings;
+            
+            console.log('Parsed notification settings:', parsedNotifications);
+            
+            // Only update if parsed data is not null
+            if (parsedNotifications && typeof parsedNotifications === 'object') {
+              setNotifications(parsedNotifications);
+            }
+          }
+
+          // Update email recipients if data exists (API field: notification_emails)
+          if (apiData.notification_emails) {
+            const parsedEmails = typeof apiData.notification_emails === 'string'
+              ? JSON.parse(apiData.notification_emails)
+              : apiData.notification_emails;
+            
+            console.log('Parsed notification emails:', parsedEmails);
+            
+            // Only update if parsed data is a valid array
+            if (Array.isArray(parsedEmails) && parsedEmails.length > 0) {
+              setEmailRecipients(parsedEmails);
+            }
+          }
+          
+          toast.success('Notification settings loaded successfully');
+        }
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+        const errorMsg =
+          axios.isAxiosError(error) && error.response?.data?.message
+            ? error.response.data.message
+            : 'Failed to load notification settings';
+        toast.error(errorMsg);
+        // Reset flag on error so retry is possible
+        hasFetched.current = false;
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchNotifications();
+  }, [business]);
 
   const toggleNotification = (key: keyof NotificationState): void => {
     setNotifications(prev => ({
@@ -77,6 +153,48 @@ export default function Notifications({ business }: UserListPageProps) {
 
   const isValidEmail = (email: string): boolean => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  const handleSave = async (): Promise<void> => {
+    if (!business) {
+      toast.error('Business ID not found');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      // Prepare data for API with correct field names
+      const dataToSave = {
+        notification_settings: notifications,
+        notification_emails: emailRecipients,
+        businessId: business,
+        ipage: 'notifications'
+      };
+
+      console.log('Saving notification settings:', dataToSave);
+
+      const response = await axios.put(
+        `/api/business/settings/company?business=${business}`, 
+        dataToSave,
+        {
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.success) {
+        toast.success('Notification settings updated successfully');
+      }
+    } catch (error) {
+      console.error('Error saving notification settings:', error);
+      const errorMsg =
+        axios.isAxiosError(error) && error.response?.data?.message
+          ? error.response.data.message
+          : 'Failed to save notification settings';
+      toast.error(errorMsg);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const notificationGroups: NotificationGroup[] = [
@@ -155,8 +273,8 @@ export default function Notifications({ business }: UserListPageProps) {
   const totalCount = Object.keys(notifications).length;
 
   return (
-    <div className={`min-h-screen transition-colors duration-200 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      <div className="max-w-4xl mx-auto px-8 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-12">
           <div className="flex items-center gap-4 mb-3">
@@ -176,7 +294,24 @@ export default function Notifications({ business }: UserListPageProps) {
           </p>
         </div>
 
-        {/* Email Recipients Section */}
+        {/* Loading State */}
+        {isLoading && (
+          <div className={`rounded-lg border shadow-sm transition-colors duration-200 p-12 flex flex-col items-center justify-center ${
+            isDark
+              ? 'bg-gray-800 border-gray-700'
+              : 'bg-white border-gray-200'
+          }`}>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mb-4"></div>
+            <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              Loading notification settings...
+            </p>
+          </div>
+        )}
+
+        {/* Content - Hidden while loading */}
+        {!isLoading && (
+          <>
+            {/* Email Recipients Section */}
         <div className="mb-8">
           <div className={`rounded-lg border shadow-sm transition-colors duration-200 p-8 ${
             isDark
@@ -407,11 +542,21 @@ export default function Notifications({ business }: UserListPageProps) {
 
         {/* Save Button */}
         <div className="mt-8 flex justify-end">
-          <button className="px-10 py-3 accent-bg text-white rounded-lg font-semibold text-lg transition-all hover:opacity-90 transform hover:-translate-y-0.5 shadow-md flex items-center gap-2">
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className={`px-10 py-3 accent-bg text-white rounded-lg font-semibold text-lg transition-all shadow-md flex items-center gap-2 ${
+              isSaving 
+                ? 'opacity-50 cursor-not-allowed' 
+                : 'hover:opacity-90 transform hover:-translate-y-0.5'
+            }`}
+          >
             <Mail size={20} />
-            Save Preferences
+            {isSaving ? 'Saving...' : 'Save Preferences'}
           </button>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

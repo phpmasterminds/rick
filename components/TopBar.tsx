@@ -16,6 +16,7 @@ import {
   Moon,
   Sun,
   ChevronDown,
+  ArrowLeft,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
@@ -107,6 +108,7 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
   const [businesses, setBusinesses] = useState<BusinessData[]>([]);
   const [showBusinessDropdown, setShowBusinessDropdown] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
+  const [isAdminMode, setIsAdminMode] = useState(false);
 
   // ===== SHOP CART (CART PANEL) =====
   const [shopCartItems, setShopCartItems] = useState<ShopCartItem[]>([]);
@@ -192,6 +194,12 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     } catch (error) {
       console.error("Failed to load businesses from localStorage:", error);
     }
+  }, []);
+  
+  // ===== CHECK ADMIN MODE =====
+  useEffect(() => {
+    const adminUserId = Cookies.get("admin_user_id");
+    setIsAdminMode(!!adminUserId);
   }, []);
   
 	const { theme, setTheme, accentColor, setAccentColor } = useThemeContext();
@@ -436,6 +444,86 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
     router.push("/");
   };
 
+  // ===== BACK TO ADMIN =====
+  const handleBackToAdmin = () => {
+    try {
+      toast.info('Switching back to admin...', {
+        position: 'bottom-center',
+        autoClose: 2000,
+      });
+
+      // Remove all current user cookies
+      Cookies.remove("user_id", { path: "/" });
+      Cookies.remove("user_theme", { path: "/" });
+      Cookies.remove("user_group_id", { path: "/" });
+      Cookies.remove("page_id", { path: "/" });
+      Cookies.remove("vanity_url", { path: "/" });
+      Cookies.remove("type_id", { path: "/" });
+      Cookies.remove("business_title", { path: "/" });
+      Cookies.remove("trade_name", { path: "/" });
+      Cookies.remove("business_logo", { path: "/" });
+
+      // Remove all permission cookies
+      const permissionCookies = [
+        "current_permission_account_type",
+        "current_permission_can_access_crm",
+        "current_permission_can_access_inventory",
+        "current_permission_can_access_production_packaging",
+        "current_permission_can_access_business_pages",
+        "current_permission_can_access_customers",
+        "current_permission_can_access_dashboard",
+        "current_permission_can_access_messages",
+        "current_permission_can_access_order_section",
+        "current_permission_can_access_reports",
+        "current_permission_can_access_settings_page",
+      ];
+      permissionCookies.forEach((c) => Cookies.remove(c, { path: "/" }));
+
+      // Restore admin user cookies
+      const adminUserId = Cookies.get("admin_user_id");
+      const adminUserGroupId = Cookies.get("admin_user_group_id");
+      const adminUserTheme = Cookies.get("admin_user_theme");
+
+      if (adminUserId) Cookies.set("user_id", adminUserId);
+      if (adminUserGroupId) Cookies.set("user_group_id", adminUserGroupId);
+      if (adminUserTheme) Cookies.set("user_theme", adminUserTheme);
+
+      // Remove admin backup cookies
+      Cookies.remove("admin_user_id", { path: "/" });
+      Cookies.remove("admin_user_group_id", { path: "/" });
+      Cookies.remove("admin_user_theme", { path: "/" });
+
+      // Restore admin user from localStorage
+      const adminUser = localStorage.getItem("admin_user");
+      if (adminUser) {
+        localStorage.setItem("user", adminUser);
+        localStorage.removeItem("admin_user");
+      }
+
+      // Clear business data
+      localStorage.removeItem("business");
+      localStorage.removeItem("business_variants");
+      localStorage.removeItem("permissions");
+
+      toast.success('Switched back to admin successfully', {
+        position: 'bottom-center',
+        autoClose: 2000,
+      });
+
+      // Redirect to admin registrations page
+      setTimeout(() => {
+        window.location.href = '/admin/registrations';
+      }, 1500);
+
+    } catch (error) {
+      console.error('Error switching back to admin:', error);
+      toast.error('Failed to switch back to admin', {
+        position: 'bottom-center',
+        autoClose: 3000,
+      });
+    }
+  };
+
   // ===== SHOP CART (CART PANEL) FUNCTIONS =====
   const groupShopCartByDispensary = (): ShopCartGroup => {
     return shopCartItems.reduce((acc, item) => {
@@ -621,6 +709,18 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
           <div className="flex items-center gap-1.5">
             {loggedIn ? (
               <>
+                {/* Back to Admin Button - Show if in admin mode */}
+                {isAdminMode && (
+                  <button
+                    onClick={handleBackToAdmin}
+                    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                    title="Back to Admin"
+                  >
+                    <ArrowLeft size={18} />
+                    <span className="hidden md:inline">Back to Admin</span>
+                  </button>
+                )}
+
                 {/* Notifications */}
                 <div className="relative">
                   <button

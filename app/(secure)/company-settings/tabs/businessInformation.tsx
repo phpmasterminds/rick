@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Clock, Info, Globe, ShoppingBag, Bold, Italic, Underline, Type, Palette, ChevronDown, Eye, EyeOff, LucideIcon } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
+import axios from 'axios';
+import { toast } from 'react-toastify';
 
 interface HoursDay {
   open: string;
@@ -19,13 +21,6 @@ interface Hours {
   friday: HoursDay;
   saturday: HoursDay;
   sunday: HoursDay;
-}
-
-interface Location {
-  name: string;
-  hours: Hours;
-  aboutUsPublic: string;
-  aboutUsMarketplace: string;
 }
 
 interface FontSize {
@@ -46,9 +41,15 @@ interface UserListPageProps {
 
 export default function BusinessInformation({ business }: UserListPageProps) {
   const { isDark } = useTheme();
-  const [activeLocation, setActiveLocation] = useState<number>(0);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const hasFetched = useRef<boolean>(false); // Track if data has been fetched
   const publicTextareaRef = useRef<HTMLDivElement>(null);
   const marketplaceTextareaRef = useRef<HTMLDivElement>(null);
+  const publicFontSizeRef = useRef<HTMLDivElement>(null);
+  const publicColorRef = useRef<HTMLDivElement>(null);
+  const marketplaceFontSizeRef = useRef<HTMLDivElement>(null);
+  const marketplaceColorRef = useRef<HTMLDivElement>(null);
+  
   const [showPublicFontSize, setShowPublicFontSize] = useState<boolean>(false);
   const [showPublicColor, setShowPublicColor] = useState<boolean>(false);
   const [showMarketplaceFontSize, setShowMarketplaceFontSize] = useState<boolean>(false);
@@ -72,61 +73,170 @@ export default function BusinessInformation({ business }: UserListPageProps) {
     { label: 'Pink', value: '#DB2777' }
   ];
 
-  const [locations, setLocations] = useState<Location[]>([
-    {
-      name: 'Location 1',
-      hours: {
-        monday: { open: '09:00', close: '17:00', closed: false, display: true },
-        tuesday: { open: '09:00', close: '17:00', closed: false, display: true },
-        wednesday: { open: '09:00', close: '17:00', closed: false, display: true },
-        thursday: { open: '09:00', close: '17:00', closed: false, display: true },
-        friday: { open: '09:00', close: '17:00', closed: false, display: true },
-        saturday: { open: '10:00', close: '14:00', closed: false, display: true },
-        sunday: { open: '', close: '', closed: true, display: true }
-      },
-      aboutUsPublic: 'Public-facing information about this location...',
-      aboutUsMarketplace: 'Marketplace-specific information about this location...'
-    },
-    {
-      name: 'Location 2',
-      hours: {
-        monday: { open: '09:00', close: '17:00', closed: false, display: true },
-        tuesday: { open: '09:00', close: '17:00', closed: false, display: true },
-        wednesday: { open: '09:00', close: '17:00', closed: false, display: true },
-        thursday: { open: '09:00', close: '17:00', closed: false, display: true },
-        friday: { open: '09:00', close: '17:00', closed: false, display: true },
-        saturday: { open: '10:00', close: '14:00', closed: false, display: true },
-        sunday: { open: '', close: '', closed: true, display: true }
-      },
-      aboutUsPublic: 'Public-facing information about this location...',
-      aboutUsMarketplace: 'Marketplace-specific information about this location...'
-    }
-  ]);
+  const [hours, setHours] = useState<Hours>({
+    monday: { open: '09:00', close: '17:00', closed: false, display: true },
+    tuesday: { open: '09:00', close: '17:00', closed: false, display: true },
+    wednesday: { open: '09:00', close: '17:00', closed: false, display: true },
+    thursday: { open: '09:00', close: '17:00', closed: false, display: true },
+    friday: { open: '09:00', close: '17:00', closed: false, display: true },
+    saturday: { open: '10:00', close: '14:00', closed: false, display: true },
+    sunday: { open: '', close: '', closed: true, display: true }
+  });
+
+  const [aboutUsPublic, setAboutUsPublic] = useState<string>('Public-facing information about this location...');
+  const [aboutUsMarketplace, setAboutUsMarketplace] = useState<string>('Marketplace-specific information about this location...');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const days: DayOfWeek[] = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
-  const updateHours = (locationIndex: number, day: DayOfWeek, field: 'open' | 'close', value: string): void => {
-    const updated = [...locations];
-    updated[locationIndex].hours[day][field] = value;
-    setLocations(updated);
+  // Fetch business information on component mount
+  useEffect(() => {
+    const fetchBusinessInfo = async () => {
+      // Skip if already fetched or no business ID
+      if (hasFetched.current || !business) {
+        if (!business) setIsLoading(false);
+        return;
+      }
+
+      // Mark as fetched immediately to prevent duplicate calls
+      hasFetched.current = true;
+
+      try {
+        setIsLoading(true);
+        const response = await axios.get(
+          `/api/business/settings/company?business=${business}&ipage=business_information`,
+          {
+            timeout: 10000,
+          }
+        );
+
+        // Handle nested response structure: response.data.data.data
+        if (response.data.success && response.data.data?.status === 'success' && response.data.data?.data) {
+          const { aboutus_public, aboutus_marketplace, hours: hoursData } = response.data.data.data;
+
+          console.log('Loaded business data:', {
+            aboutus_public,
+            aboutus_marketplace,
+            hours: hoursData
+          });
+
+          // Update aboutus fields
+          if (aboutus_public) {
+            setAboutUsPublic(aboutus_public);
+          }
+          if (aboutus_marketplace) {
+            setAboutUsMarketplace(aboutus_marketplace);
+          }
+
+          // Parse and update hours if available
+          if (hoursData) {
+            try {
+              const parsedHours = typeof hoursData === 'string' ? JSON.parse(hoursData) : hoursData;
+              console.log('Parsed hours:', parsedHours);
+              setHours(parsedHours);
+            } catch (parseError) {
+              console.error('Error parsing hours data:', parseError);
+              toast.error('Failed to parse business hours data');
+            }
+          }
+          
+          toast.success('Business information loaded successfully');
+        } else {
+          console.warn('Unexpected API response structure:', response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching business information:', error);
+        const errorMsg =
+          axios.isAxiosError(error) && error.response?.data?.message
+            ? error.response.data.message
+            : 'Failed to load business information';
+        toast.error(errorMsg);
+        // Reset flag on error so retry is possible
+        hasFetched.current = false;
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchBusinessInfo();
+  }, [business]);
+
+  // Click outside handler to close dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Check public font size dropdown
+      if (publicFontSizeRef.current && !publicFontSizeRef.current.contains(event.target as Node)) {
+        setShowPublicFontSize(false);
+      }
+      // Check public color dropdown
+      if (publicColorRef.current && !publicColorRef.current.contains(event.target as Node)) {
+        setShowPublicColor(false);
+      }
+      // Check marketplace font size dropdown
+      if (marketplaceFontSizeRef.current && !marketplaceFontSizeRef.current.contains(event.target as Node)) {
+        setShowMarketplaceFontSize(false);
+      }
+      // Check marketplace color dropdown
+      if (marketplaceColorRef.current && !marketplaceColorRef.current.contains(event.target as Node)) {
+        setShowMarketplaceColor(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Initialize contentEditable divs when data changes
+  useEffect(() => {
+    if (publicTextareaRef.current && !isLoading) {
+      const currentContent = publicTextareaRef.current.innerHTML;
+      if (currentContent !== aboutUsPublic) {
+        console.log('Updating public textarea with:', aboutUsPublic);
+        publicTextareaRef.current.innerHTML = aboutUsPublic;
+      }
+    }
+  }, [aboutUsPublic, isLoading]);
+
+  useEffect(() => {
+    if (marketplaceTextareaRef.current && !isLoading) {
+      const currentContent = marketplaceTextareaRef.current.innerHTML;
+      if (currentContent !== aboutUsMarketplace) {
+        console.log('Updating marketplace textarea with:', aboutUsMarketplace);
+        marketplaceTextareaRef.current.innerHTML = aboutUsMarketplace;
+      }
+    }
+  }, [aboutUsMarketplace, isLoading]);
+
+  const updateHours = (day: DayOfWeek, field: 'open' | 'close', value: string): void => {
+    setHours(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        [field]: value
+      }
+    }));
   };
 
-  const toggleClosed = (locationIndex: number, day: DayOfWeek): void => {
-    const updated = [...locations];
-    updated[locationIndex].hours[day].closed = !updated[locationIndex].hours[day].closed;
-    setLocations(updated);
+  const toggleClosed = (day: DayOfWeek): void => {
+    setHours(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        closed: !prev[day].closed
+      }
+    }));
   };
 
-  const toggleDisplay = (locationIndex: number, day: DayOfWeek): void => {
-    const updated = [...locations];
-    updated[locationIndex].hours[day].display = !updated[locationIndex].hours[day].display;
-    setLocations(updated);
-  };
-
-  const updateAboutUs = (locationIndex: number, field: 'aboutUsPublic' | 'aboutUsMarketplace', text: string): void => {
-    const updated = [...locations];
-    updated[locationIndex][field] = text;
-    setLocations(updated);
+  const toggleDisplay = (day: DayOfWeek): void => {
+    setHours(prev => ({
+      ...prev,
+      [day]: {
+        ...prev[day],
+        display: !prev[day].display
+      }
+    }));
   };
 
   const applyFormatting = (field: string, command: string, value: string | undefined = undefined): void => {
@@ -154,14 +264,74 @@ export default function BusinessInformation({ business }: UserListPageProps) {
 
   const handleContentChange = (field: 'aboutUsPublic' | 'aboutUsMarketplace', e: React.FormEvent<HTMLDivElement>): void => {
     const content = e.currentTarget.innerHTML;
-    updateAboutUs(activeLocation, field, content);
+    if (field === 'aboutUsPublic') {
+      setAboutUsPublic(content);
+    } else {
+      setAboutUsMarketplace(content);
+    }
   };
 
-  const currentLocation = locations[activeLocation];
+  const handleSave = async (): Promise<void> => {
+    if (!business) {
+      toast.error('Business ID not found');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      // Prepare data for API
+      const dataToSave = {
+        hours: hours,
+        aboutUsPublic: aboutUsPublic,
+        aboutUsMarketplace: aboutUsMarketplace,
+        businessId: business,
+        ipage: 'business_information'
+      };
+
+      const response = await axios.put(
+        `/api/business/settings/company?business=${business}`, 
+        dataToSave,
+        {
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.success) {
+        toast.success('Business information updated successfully');
+      }
+    } catch (error) {
+      const errorMsg =
+        axios.isAxiosError(error) && error.response?.data?.message
+          ? error.response.data.message
+          : 'Failed to update business information';
+      toast.error(errorMsg);
+      console.error('Save error:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <div className={`transition-colors duration-200 ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      {/* About Us - Public Section */}
+      {/* Loading State */}
+      {isLoading && (
+        <div className={`mb-8 rounded-lg border transition-colors p-12 flex flex-col items-center justify-center ${
+          isDark
+            ? 'bg-gray-800 border-gray-700'
+            : 'bg-white border-gray-200'
+        }`}>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mb-4"></div>
+          <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+            Loading business information...
+          </p>
+        </div>
+      )}
+
+      {/* Content - Hidden while loading */}
+      {!isLoading && (
+        <>
+          {/* About Us - Public Section */}
       <div className={`mb-8 rounded-lg border transition-colors p-6 ${
         isDark
           ? 'bg-gray-800 border-gray-700'
@@ -228,7 +398,7 @@ export default function BusinessInformation({ business }: UserListPageProps) {
           <div className={`h-6 w-px ${isDark ? 'bg-gray-600' : 'bg-gray-300'} mx-1`}></div>
 
           {/* Font Size Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={publicFontSizeRef}>
             <button
               onClick={() => setShowPublicFontSize(!showPublicFontSize)}
               className={`p-2 rounded-lg transition-all border-2 border-transparent flex items-center gap-1 ${
@@ -268,7 +438,7 @@ export default function BusinessInformation({ business }: UserListPageProps) {
           </div>
 
           {/* Color Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={publicColorRef}>
             <button
               onClick={() => setShowPublicColor(!showPublicColor)}
               className={`p-2 rounded-lg transition-all border-2 border-transparent flex items-center gap-1 ${
@@ -316,7 +486,7 @@ export default function BusinessInformation({ business }: UserListPageProps) {
                 ? 'bg-gray-600 text-gray-200'
                 : 'bg-white text-gray-700'
             }`}>
-              {currentLocation.aboutUsPublic.replace(/<[^>]*>/g, '').length} chars
+              {aboutUsPublic.replace(/<[^>]*>/g, '').length} chars
             </span>
           </div>
         </div>
@@ -325,8 +495,8 @@ export default function BusinessInformation({ business }: UserListPageProps) {
         <div
           ref={publicTextareaRef}
           contentEditable
+          suppressContentEditableWarning
           onInput={(e) => handleContentChange('aboutUsPublic', e)}
-          dangerouslySetInnerHTML={{ __html: currentLocation.aboutUsPublic }}
           className={`w-full min-h-[300px] px-5 py-4 border-2 rounded-lg transition-colors focus:outline-none leading-relaxed ${
             isDark
               ? 'bg-gray-700 text-white border-gray-600 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20'
@@ -414,7 +584,7 @@ export default function BusinessInformation({ business }: UserListPageProps) {
           <div className={`h-6 w-px ${isDark ? 'bg-gray-600' : 'bg-gray-300'} mx-1`}></div>
 
           {/* Font Size Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={marketplaceFontSizeRef}>
             <button
               onClick={() => setShowMarketplaceFontSize(!showMarketplaceFontSize)}
               className={`p-2 rounded-lg transition-all border-2 border-transparent flex items-center gap-1 ${
@@ -454,7 +624,7 @@ export default function BusinessInformation({ business }: UserListPageProps) {
           </div>
 
           {/* Color Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={marketplaceColorRef}>
             <button
               onClick={() => setShowMarketplaceColor(!showMarketplaceColor)}
               className={`p-2 rounded-lg transition-all border-2 border-transparent flex items-center gap-1 ${
@@ -502,7 +672,7 @@ export default function BusinessInformation({ business }: UserListPageProps) {
                 ? 'bg-gray-600 text-gray-200'
                 : 'bg-white text-gray-700'
             }`}>
-              {currentLocation.aboutUsMarketplace.replace(/<[^>]*>/g, '').length} chars
+              {aboutUsMarketplace.replace(/<[^>]*>/g, '').length} chars
             </span>
           </div>
         </div>
@@ -511,8 +681,8 @@ export default function BusinessInformation({ business }: UserListPageProps) {
         <div
           ref={marketplaceTextareaRef}
           contentEditable
+          suppressContentEditableWarning
           onInput={(e) => handleContentChange('aboutUsMarketplace', e)}
-          dangerouslySetInnerHTML={{ __html: currentLocation.aboutUsMarketplace }}
           className={`w-full min-h-[300px] px-5 py-4 border-2 rounded-lg transition-colors focus:outline-none leading-relaxed ${
             isDark
               ? 'bg-gray-700 text-white border-gray-600 focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20'
@@ -565,12 +735,12 @@ export default function BusinessInformation({ business }: UserListPageProps) {
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
-                  checked={currentLocation.hours[day].display}
-                  onChange={() => toggleDisplay(activeLocation, day)}
+                  checked={hours[day].display}
+                  onChange={() => toggleDisplay(day)}
                   className={`w-4 h-4 rounded cursor-pointer accent-bg`}
                   title="Display this day"
                 />
-                {currentLocation.hours[day].display ? (
+                {hours[day].display ? (
                   <Eye size={16} className="accent-text" />
                 ) : (
                   <EyeOff size={16} className={isDark ? 'text-gray-500' : 'text-gray-400'} />
@@ -580,8 +750,8 @@ export default function BusinessInformation({ business }: UserListPageProps) {
               <div className="flex items-center gap-2 w-24">
                 <input
                   type="checkbox"
-                  checked={!currentLocation.hours[day].closed}
-                  onChange={() => toggleClosed(activeLocation, day)}
+                  checked={!hours[day].closed}
+                  onChange={() => toggleClosed(day)}
                   className={`w-4 h-4 rounded cursor-pointer accent-bg`}
                 />
                 <span className={`font-semibold capitalize text-sm ${
@@ -591,7 +761,7 @@ export default function BusinessInformation({ business }: UserListPageProps) {
                 </span>
               </div>
 
-              {currentLocation.hours[day].closed ? (
+              {hours[day].closed ? (
                 <div className="flex-1 flex items-center justify-center">
                   <span className={`text-sm font-medium px-4 py-1.5 rounded-lg italic transition-colors ${
                     isDark
@@ -605,8 +775,8 @@ export default function BusinessInformation({ business }: UserListPageProps) {
                 <div className="flex items-center gap-2 flex-1 justify-center">
                   <input
                     type="time"
-                    value={currentLocation.hours[day].open}
-                    onChange={(e) => updateHours(activeLocation, day, 'open', e.target.value)}
+                    value={hours[day].open}
+                    onChange={(e) => updateHours(day, 'open', e.target.value)}
                     className={`px-3 py-1.5 border-2 font-medium text-sm rounded-lg transition-colors focus:outline-none ${
                       isDark
                         ? 'bg-gray-600 text-white border-gray-500 focus:border-teal-500'
@@ -618,8 +788,8 @@ export default function BusinessInformation({ business }: UserListPageProps) {
                   </span>
                   <input
                     type="time"
-                    value={currentLocation.hours[day].close}
-                    onChange={(e) => updateHours(activeLocation, day, 'close', e.target.value)}
+                    value={hours[day].close}
+                    onChange={(e) => updateHours(day, 'close', e.target.value)}
                     className={`px-3 py-1.5 border-2 font-medium text-sm rounded-lg transition-colors focus:outline-none ${
                       isDark
                         ? 'bg-gray-600 text-white border-gray-500 focus:border-teal-500'
@@ -645,10 +815,20 @@ export default function BusinessInformation({ business }: UserListPageProps) {
 
       {/* Save Button */}
       <div className="flex justify-end pt-6 border-t" style={{ borderColor: isDark ? '#374151' : '#e5e7eb' }}>
-        <button className="px-10 py-3 rounded-lg font-semibold text-lg text-white accent-bg hover:opacity-90 transition-all transform hover:-translate-y-0.5 shadow-md">
-          Save Changes
+        <button 
+          onClick={handleSave}
+          disabled={isSaving}
+          className={`px-10 py-3 rounded-lg font-semibold text-lg text-white accent-bg transition-all transform shadow-md ${
+            isSaving 
+              ? 'opacity-50 cursor-not-allowed' 
+              : 'hover:opacity-90 hover:-translate-y-0.5'
+          }`}
+        >
+          {isSaving ? 'Saving...' : 'Save Changes'}
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 }

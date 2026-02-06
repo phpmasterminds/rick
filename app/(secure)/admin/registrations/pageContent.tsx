@@ -2,10 +2,12 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  Loader2, AlertCircle, Search, Clock, CheckCircle, XCircle, Eye, Trash2, ChevronRight, X, Upload, Download
+  Loader2, AlertCircle, Search, Clock, CheckCircle, XCircle, Eye, Trash2, ChevronRight, X, Upload, Download, LogIn
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
+import Cookies from 'js-cookie';
 
 interface UserData {
   user_group_id: number | string;
@@ -41,6 +43,7 @@ export default function AdminRegistrationsPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | number | null>(null);
   const [deleteTargetName, setDeleteTargetName] = useState('');
+  const [loggingInAs, setLoggingInAs] = useState<string | number | null>(null);
 
   // === IMPORT FEATURE STATE (ADDITIVE) ===
   const [showImportModal, setShowImportModal] = useState(false);
@@ -263,6 +266,114 @@ export default function AdminRegistrationsPage() {
       });
     } finally {
       setDeleting(null);
+    }
+  };
+
+  // Handle Login As User
+  const handleLoginAs = async (userId: string | number, businessName: string) => {
+    try {
+      setLoggingInAs(userId);
+      
+      // 1️⃣ Backup current admin user data
+      const currentUser = localStorage.getItem("user");
+      if (currentUser) {
+        localStorage.setItem("admin_user", currentUser);
+      }
+      
+      // Backup admin cookies
+      const adminUserId = Cookies.get("user_id");
+      const adminUserGroupId = Cookies.get("user_group_id");
+      const adminUserTheme = Cookies.get("user_theme");
+      
+      if (adminUserId) Cookies.set("admin_user_id", adminUserId);
+      if (adminUserGroupId) Cookies.set("admin_user_group_id", adminUserGroupId);
+      if (adminUserTheme) Cookies.set("admin_user_theme", adminUserTheme);
+      
+      toast.info(`Logging in as ${businessName}...`, {
+        position: 'bottom-center',
+        autoClose: 2000,
+      });
+
+      // Fetch business details for this user
+      const aUserBusinessDetails = await axios.get(
+        `/api/business/mine?user_id=${userId}`
+      );
+      
+      // 2️⃣ Store user details in localStorage and cookie
+      localStorage.setItem("user", JSON.stringify(aUserBusinessDetails.data.data.customer));
+      Cookies.set("user_id", aUserBusinessDetails.data.data.customer.user_id);
+      Cookies.set("user_theme", aUserBusinessDetails.data.data.customer.theme);
+      Cookies.set("user_group_id", aUserBusinessDetails.data.data.customer.user_group_id);
+      
+      // Store business data in localStorage
+      localStorage.setItem("business_variants", JSON.stringify(
+        aUserBusinessDetails.data.data.business_variants, null, 2
+      ));
+      
+      localStorage.setItem("business", JSON.stringify(
+        aUserBusinessDetails.data.data.business, null, 2
+      ));
+      
+      localStorage.setItem("permissions", JSON.stringify(
+        aUserBusinessDetails.data.data.permissions, null, 2
+      ));
+      
+      const business = aUserBusinessDetails.data.data.business[0];
+      if (business?.page_id) {
+        // Set business cookies
+        Cookies.set("page_id", business.page_id);
+        Cookies.set("vanity_url", business.vanity_url);
+        Cookies.set("type_id", business.type_id);
+        Cookies.set("business_title", business.title);
+        Cookies.set("trade_name", business.trade_name);
+        Cookies.set("business_logo", business.image_path);
+        
+        // Handle permissions
+        const permissionsRaw = localStorage.getItem("permissions");
+        if (permissionsRaw) {
+          try {
+            const permissions = JSON.parse(permissionsRaw);
+            if (Array.isArray(permissions)) {
+              const currentPermission = permissions.find(
+                (perm) => perm.page_id === business.page_id
+              );
+              if (currentPermission) {
+                Cookies.set("current_permission_account_type", currentPermission.account_type);
+                Cookies.set("current_permission_can_access_crm", currentPermission.can_access_crm);
+                Cookies.set("current_permission_can_access_inventory", currentPermission.can_access_inventory);
+                Cookies.set("current_permission_can_access_production_packaging", currentPermission.can_access_production_packaging);
+                Cookies.set("current_permission_can_access_business_pages", currentPermission.can_manage_business_pages);
+                Cookies.set("current_permission_can_access_customers", currentPermission.can_access_customers);
+                Cookies.set("current_permission_can_access_dashboard", currentPermission.can_access_dashboard);
+                Cookies.set("current_permission_can_access_messages", currentPermission.can_access_messages);
+                Cookies.set("current_permission_can_access_order_section", currentPermission.can_access_order_section);
+                Cookies.set("current_permission_can_access_reports", currentPermission.can_access_reports);
+                Cookies.set("current_permission_can_access_settings_page", currentPermission.can_access_settings_page);
+              }
+            }
+          } catch (e) {
+            console.warn("Invalid permissions in localStorage", e);
+          }
+        }
+      }
+
+      toast.success(`Successfully logged in as ${businessName}`, {
+        position: 'bottom-center',
+        autoClose: 2000,
+      });
+
+      // Redirect to dashboard after a short delay
+      setTimeout(() => {
+		window.location.href = '/dashboard';
+      }, 1500);
+
+    } catch (error) {
+      console.error('Error logging in as user:', error);
+      toast.error('Failed to log in as user', {
+        position: 'bottom-center',
+        autoClose: 3000,
+      });
+      setLoggingInAs(null);
     }
   };
 
@@ -546,6 +657,18 @@ Sophia,Reynolds,sophia.reynolds@highridgecan.com,+1-555-402-6699,+1-555-402-7788
                             title="View details"
                           >
                             <Eye className="w-4 h-4 text-teal-600" />
+                          </button>
+                          <button
+                            onClick={() => handleLoginAs(registration.user_id, registration.company_name || registration.business_name)}
+                            disabled={loggingInAs === registration.user_id}
+                            className="p-2 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Log in as this business"
+                          >
+                            {loggingInAs === registration.user_id ? (
+                              <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
+                            ) : (
+                              <LogIn className="w-4 h-4 text-blue-600" />
+                            )}
                           </button>
                           <button
                             onClick={() => showDeleteConfirmation(registration.user_id, registration.company_name)}

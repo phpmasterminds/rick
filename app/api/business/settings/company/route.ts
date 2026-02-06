@@ -260,6 +260,7 @@ export async function GET(req: Request) {
 	
 	const { searchParams } = new URL(req.url);
     const business = searchParams.get("business");
+    const ipage = searchParams.get("ipage");
     	
 		
     if (!business) {
@@ -273,9 +274,8 @@ export async function GET(req: Request) {
     }
 	
 	const response = await axios.get("/business/company", {
-	  params: { business },
+	  params: { business, ipage },
 	});
-	
 
     if (!response.data || response.data.status === 'error') {
       return NextResponse.json(
@@ -286,6 +286,12 @@ export async function GET(req: Request) {
         { status: 404 }
       );
     }
+	if(ipage === 'business_information' || ipage === 'payment_methods' || ipage === 'notifications'){
+		return NextResponse.json({
+		  success: true,
+		  data: response.data,
+		});
+	}
 
     const parsedHours = parseHoursOfOperation(response.data.data.hours_of_operation);
 
@@ -341,6 +347,7 @@ export async function PUT(
 	const axios = await createServerAxios();
 	
     const businessId = body.businessId || body.id;
+    const ipage = body.ipage;
     	
     if (!businessId) {
       return NextResponse.json(
@@ -351,7 +358,27 @@ export async function PUT(
         { status: 400 }
       );
     }
-
+	
+	
+	if(ipage === 'business_information' || ipage === 'payment_methods' || ipage === 'notifications'){
+		
+		const response = await axios.put(`/business/company`, body);
+		if (!response.data || response.data.status === 'error') {
+		  return NextResponse.json(
+			{
+			  success: false,
+			  message: response.data?.message || 'Failed to update company data',
+			},
+			{ status: 400 }
+		  );
+		}
+console.log(response);
+		return NextResponse.json({
+		  success: true,
+		  message: 'Business Information updated successfully',
+		  data: response.data.data,
+		});
+	}else{
     // Transform frontend schema to PHPFox schema
     const phpfoxPayload = {
       id: body.id,
@@ -397,6 +424,7 @@ export async function PUT(
       message: 'Company details updated successfully',
       data: response.data.data,
     });
+	}
   } catch (error: any) {
     return NextResponse.json(
       { message: error.response?.data?.message || "Failed to fetch data" },

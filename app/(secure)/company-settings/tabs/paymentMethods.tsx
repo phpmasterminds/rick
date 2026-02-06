@@ -1,13 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { CreditCard, Plus, X } from 'lucide-react';
 import { useTheme } from '@/hooks/useTheme';
-
-interface Location {
-  name: string;
-  paymentOptions: string[];
-}
+import axios from 'axios';
+import { toast } from 'react-toastify';
 
 interface UserListPageProps {
   business: string;
@@ -15,7 +12,9 @@ interface UserListPageProps {
 
 export default function PaymentMethods({ business }: UserListPageProps) {
   const { isDark } = useTheme();
-  const [activeLocation, setActiveLocation] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const hasFetched = useRef<boolean>(false); // Track if data has been fetched
 
   const availablePaymentMethods: string[] = [
     'Credit Card',
@@ -31,48 +30,141 @@ export default function PaymentMethods({ business }: UserListPageProps) {
     'Cryptocurrency'
   ];
 
-  const [locations, setLocations] = useState<Location[]>([
-    {
-      name: 'Location 1',
-      paymentOptions: ['Credit Card', 'Debit Card', 'Cash', 'ACH Transfer', 'Wire Transfer', 'Check']
-    },
-    {
-      name: 'Location 2',
-      paymentOptions: ['Credit Card', 'Debit Card', 'ACH Transfer', 'Check']
-    }
+  const [paymentOptions, setPaymentOptions] = useState<string[]>([
+    'Credit Card',
+    'Debit Card',
+    'Cash',
+    'ACH Transfer',
+    'Wire Transfer',
+    'Check'
   ]);
 
   const [newPayment, setNewPayment] = useState<string>('');
 
-  const addPaymentOption = (locationIndex: number): void => {
+  // Fetch payment methods on component mount
+  useEffect(() => {
+    const fetchPaymentMethods = async () => {
+      // Skip if already fetched or no business ID
+      if (hasFetched.current || !business) {
+        if (!business) setIsLoading(false);
+        return;
+      }
+
+      // Mark as fetched immediately to prevent duplicate calls
+      hasFetched.current = true;
+
+      try {
+        setIsLoading(true);
+        const response = await axios.get(
+          `/api/business/settings/company?business=${business}&ipage=payment_methods`,
+          {
+            timeout: 10000,
+          }
+        );
+
+        console.log('Payment methods API response:', response.data);
+
+        // Handle nested response structure
+        if (response.data.success && response.data.data?.status === 'success' && response.data.data?.data) {
+          const apiData = response.data.data.data;
+          
+          // Update payment methods if data exists
+          if (apiData.payment_methods) {
+            // Parse if it's a JSON string, otherwise use as-is
+            const parsedMethods = typeof apiData.payment_methods === 'string' 
+              ? JSON.parse(apiData.payment_methods) 
+              : apiData.payment_methods;
+            
+            console.log('Parsed payment methods:', parsedMethods);
+            
+            // Update payment options with API data
+            if (Array.isArray(parsedMethods)) {
+              setPaymentOptions(parsedMethods);
+            }
+          }
+          
+          toast.success('Payment methods loaded successfully');
+        }
+      } catch (error) {
+        console.error('Error fetching payment methods:', error);
+        const errorMsg =
+          axios.isAxiosError(error) && error.response?.data?.message
+            ? error.response.data.message
+            : 'Failed to load payment methods';
+        toast.error(errorMsg);
+        // Reset flag on error so retry is possible
+        hasFetched.current = false;
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchPaymentMethods();
+  }, [business]);
+
+  const addPaymentOption = (): void => {
     if (newPayment.trim()) {
-      const updated = [...locations];
-      if (!updated[locationIndex].paymentOptions.includes(newPayment.trim())) {
-        updated[locationIndex].paymentOptions.push(newPayment.trim());
-        setLocations(updated);
+      if (!paymentOptions.includes(newPayment.trim())) {
+        // Add to the top of the array
+        setPaymentOptions([newPayment.trim(), ...paymentOptions]);
       }
       setNewPayment('');
     }
   };
 
-  const togglePaymentOption = (locationIndex: number, option: string): void => {
-    const updated = [...locations];
-    const index = updated[locationIndex].paymentOptions.indexOf(option);
-    if (index > -1) {
-      updated[locationIndex].paymentOptions.splice(index, 1);
+  const togglePaymentOption = (option: string): void => {
+    if (paymentOptions.includes(option)) {
+      setPaymentOptions(paymentOptions.filter(item => item !== option));
     } else {
-      updated[locationIndex].paymentOptions.push(option);
+      // Add to the top when selecting from available options
+      setPaymentOptions([option, ...paymentOptions]);
     }
-    setLocations(updated);
   };
 
-  const currentLocation = locations[activeLocation];
+  const handleSave = async (): Promise<void> => {
+    if (!business) {
+      toast.error('Business ID not found');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      // Prepare data for API
+      const dataToSave = {
+        payment_methods: paymentOptions,
+        businessId: business,
+        ipage: 'payment_methods'
+      };
+
+      console.log('Saving payment methods:', dataToSave);
+
+      const response = await axios.put(
+        `/api/business/settings/company?business=${business}`, 
+        dataToSave,
+        {
+          timeout: 10000,
+        }
+      );
+
+      if (response.data.success) {
+        toast.success('Payment methods updated successfully');
+      }
+    } catch (error) {
+      console.error('Error saving payment methods:', error);
+      const errorMsg =
+        axios.isAxiosError(error) && error.response?.data?.message
+          ? error.response.data.message
+          : 'Failed to save payment methods';
+      toast.error(errorMsg);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
-    <div className={`min-h-screen p-8 transition-colors duration-200 ${
-      isDark ? 'bg-gray-900' : 'bg-gray-50'
-    }`}>
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
+      <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-12">
           <h1 className={`text-4xl font-bold mb-3 transition-colors duration-200 ${
@@ -87,7 +179,24 @@ export default function PaymentMethods({ business }: UserListPageProps) {
           </p>
         </div>
 
-        {/* Payment Methods Card */}
+        {/* Loading State */}
+        {isLoading && (
+          <div className={`rounded-lg border shadow-sm transition-colors duration-200 p-12 flex flex-col items-center justify-center ${
+            isDark
+              ? 'bg-gray-800 border-gray-700'
+              : 'bg-white border-gray-200'
+          }`}>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500 mb-4"></div>
+            <p className={`text-sm font-medium ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+              Loading payment methods...
+            </p>
+          </div>
+        )}
+
+        {/* Content - Hidden while loading */}
+        {!isLoading && (
+          <>
+            {/* Payment Methods Card */}
         <div className={`rounded-lg border shadow-sm transition-colors duration-200 p-8 ${
           isDark
             ? 'bg-gray-800 border-gray-700'
@@ -114,28 +223,26 @@ export default function PaymentMethods({ business }: UserListPageProps) {
             }`}>
               Currently selected payment methods
             </p>
-            {currentLocation.paymentOptions.length > 0 ? (
+            {paymentOptions.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {availablePaymentMethods
-                  .filter(method => currentLocation.paymentOptions.includes(method))
-                  .map((method, index) => (
-                    <button
-                      key={index}
-                      onClick={() => togglePaymentOption(activeLocation, method)}
-                      className={`px-4 py-3 rounded-lg font-medium text-sm transition-all flex items-center gap-3 border-2 ${
-                        isDark
-                          ? 'bg-gray-700 border-teal-500/50 text-gray-100 hover:border-teal-400 hover:bg-gray-600'
-                          : 'bg-teal-50 border-teal-500 text-teal-900 hover:border-teal-600 hover:bg-teal-100'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all accent-bg border-transparent`}>
-                        <svg className="w-3 h-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" stroke="currentColor">
-                          <path d="M5 13l4 4L19 7"></path>
-                        </svg>
-                      </div>
-                      <span className="flex-1 text-left">{method}</span>
-                    </button>
-                  ))}
+                {paymentOptions.map((method, index) => (
+                  <button
+                    key={index}
+                    onClick={() => togglePaymentOption(method)}
+                    className={`px-4 py-3 rounded-lg font-medium text-sm transition-all flex items-center gap-3 border-2 ${
+                      isDark
+                        ? 'bg-gray-700 border-teal-500/50 text-gray-100 hover:border-teal-400 hover:bg-gray-600'
+                        : 'bg-teal-50 border-teal-500 text-teal-900 hover:border-teal-600 hover:bg-teal-100'
+                    }`}
+                  >
+                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all accent-bg border-transparent`}>
+                      <svg className="w-3 h-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" viewBox="0 0 24 24" stroke="currentColor">
+                        <path d="M5 13l4 4L19 7"></path>
+                      </svg>
+                    </div>
+                    <span className="flex-1 text-left">{method}</span>
+                  </button>
+                ))}
               </div>
             ) : (
               <p className={`text-sm italic transition-colors duration-200 ${
@@ -158,11 +265,11 @@ export default function PaymentMethods({ business }: UserListPageProps) {
             </p>
             <div className="flex flex-wrap gap-2">
               {availablePaymentMethods
-                .filter(method => !currentLocation.paymentOptions.includes(method))
+                .filter(method => !paymentOptions.includes(method))
                 .map((method, index) => (
                   <button
                     key={index}
-                    onClick={() => togglePaymentOption(activeLocation, method)}
+                    onClick={() => togglePaymentOption(method)}
                     className={`px-3 py-2 rounded-lg font-medium text-sm transition-all ${
                       isDark
                         ? 'bg-gray-700 border border-gray-600 text-gray-300 hover:border-teal-500/50 hover:bg-gray-600 hover:text-teal-300'
@@ -187,7 +294,7 @@ export default function PaymentMethods({ business }: UserListPageProps) {
                 type="text"
                 value={newPayment}
                 onChange={(e) => setNewPayment(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addPaymentOption(activeLocation)}
+                onKeyPress={(e) => e.key === 'Enter' && addPaymentOption()}
                 placeholder="e.g., Invoice, Store Credit..."
                 className={`flex-1 px-4 py-3 border-2 rounded-lg transition-colors focus:outline-none ${
                   isDark
@@ -196,7 +303,7 @@ export default function PaymentMethods({ business }: UserListPageProps) {
                 }`}
               />
               <button
-                onClick={() => addPaymentOption(activeLocation)}
+                onClick={addPaymentOption}
                 className="px-6 py-3 accent-bg text-white rounded-lg font-medium transition-all hover:opacity-90 transform hover:-translate-y-0.5 shadow-md flex items-center gap-2 whitespace-nowrap"
               >
                 <Plus size={20} />
@@ -208,10 +315,20 @@ export default function PaymentMethods({ business }: UserListPageProps) {
 
         {/* Save Button */}
         <div className="mt-8 flex justify-end">
-          <button className="px-10 py-3 accent-bg text-white rounded-lg font-semibold text-lg transition-all hover:opacity-90 transform hover:-translate-y-0.5 shadow-md">
-            Save Changes
+          <button 
+            onClick={handleSave}
+            disabled={isSaving}
+            className={`px-10 py-3 accent-bg text-white rounded-lg font-semibold text-lg transition-all shadow-md ${
+              isSaving 
+                ? 'opacity-50 cursor-not-allowed' 
+                : 'hover:opacity-90 transform hover:-translate-y-0.5'
+            }`}
+          >
+            {isSaving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
+          </>
+        )}
       </div>
     </div>
   );

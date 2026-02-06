@@ -542,7 +542,8 @@ export default function Sidebar({
       { id: "metrc", icon: Folder, label: "Metrc", path: "/metrc" },
       { id: "reports", icon: BarChart, label: "Reports & Analytics", path: "/reports" },
       { id: "preview-business", icon: Briefcase, label: "My Public Page", path: "/preview-business" },
-      {
+      { id: "company-settings", icon: Settings, label: "Settings", path: "/company-settings" },
+      /*{
         id: "settings",
         icon: Settings,
         label: "Settings",
@@ -555,7 +556,7 @@ export default function Sidebar({
           { id: "notification", label: "Notifications", path: "/settings/notifications" },
           { id: "preferences", label: "Preferences", path: "/settings/preferences" }
         ],
-      },
+      },*/
     ];
   }, []);
 
@@ -660,7 +661,8 @@ export default function Sidebar({
 		  { id: "order_history", icon: FileText, label: "Order History", path: `/order-history` },
 		  { id: "vendors", icon: Building, label: "My Vendors", path: `/vendors` },
 		  { id: "reports", icon: BarChart, label: "Reports", path: `/reports` },
-		  {
+		  { id: "company-settings", icon: Settings, label: "Settings", path: "/company-settings" },
+		  /*{
 			id: "settings",
 			icon: Settings,
 			label: "Settings",
@@ -671,7 +673,7 @@ export default function Sidebar({
 			  { id: "notification", label: "Notification", path: `/settings/notification` },
 			  { id: "licenses", label: "Licenses", path: `/settings/licenses` }
 			],
-		  },
+		  },*/
 		];
     /*return [
       // General buyer menus

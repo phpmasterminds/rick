@@ -1057,7 +1057,7 @@ export default function basicInformation({ business }: UserListPageProps) {
                               <Eye className="w-4 h-4" />
                             </a>
                           )}
-                          <button
+                          {/*<button
                             onClick={() => {
                               setEditingLicenseId(license.license_id);
                               setLicenseFormData({
@@ -1080,7 +1080,7 @@ export default function basicInformation({ business }: UserListPageProps) {
                             title="Delete license"
                           >
                             <Trash2 className="w-4 h-4" />
-                          </button>
+                          </button>*/}
                         </div>
                       </div>
                     </div>
