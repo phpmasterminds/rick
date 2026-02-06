@@ -235,7 +235,8 @@ export default function Sidebar({
 	  "buy-again",
 	  "open-orders",
 	  "messages",
-	  "promotions-discounts"
+	  "promotions-discounts",
+	  "company-settings",
     ];
     
     // First segment that is not a known route is the vanity URL

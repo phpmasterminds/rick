@@ -423,12 +423,12 @@ export default function UnifiedTopBar({ isMobileOpen: propIsMobileOpen, setIsMob
 	  "current_permission_can_access_inventory",
 	  "current_permission_can_access_production_packaging",
 	  "current_permission_can_access_business_pages",
-	  "can_access_customers",
-	  "can_access_dashboard",
-	  "can_access_messages",
-	  "can_access_order_section",
-	  "can_access_reports",
-	  "can_access_settings_page",
+	  "current_permission_can_access_customers",
+	  "current_permission_can_access_dashboard",
+	  "current_permission_can_access_messages",
+	  "current_permission_can_access_order_section",
+	  "current_permission_can_access_reports",
+	  "current_permission_can_access_settings_page",
 	];
 
 	permissionCookies.forEach((c) => Cookies.remove(c));
