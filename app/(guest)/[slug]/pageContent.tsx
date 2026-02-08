@@ -102,6 +102,7 @@ interface Dispensary {
   logo?: string | null;
   cover_image?: string | null;
   description?: string | null;
+  aboutus_public?: string | null;
   address?: string | null;
   city?: string | null;
   state?: string | null;
@@ -531,11 +532,53 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
       return null;
     };
 
-    // Parse hours: try to build from locs_hr_* fields, otherwise use store_hours string
+    // Parse hours: try to build from JSON hours field first, then locs_hr_* fields, otherwise use store_hours string
     const buildHours = (): Hour[] => {
-      const days = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
       const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+      // First, try to parse the JSON hours field if it exists
+      if (api.hours) {
+        try {
+          const hoursObj = typeof api.hours === 'string' ? JSON.parse(api.hours) : api.hours;
+          
+          const parsedHours = dayNames.map((dayName, idx) => {
+            const dayKey = days[idx];
+            const dayData = hoursObj[dayKey];
+            
+            // If no data for this day, mark as closed
+            if (!dayData) {
+              return {
+                day: dayName,
+                open: null,
+                close: null,
+                is_closed: true,
+              };
+            }
+            
+            // Check if closed field is explicitly true OR if open/close times are empty
+            const isClosed = dayData.closed === true || 
+                           !dayData.open || 
+                           !dayData.close || 
+                           dayData.open === '' || 
+                           dayData.close === '';
+            
+            return {
+              day: dayName,
+              open: isClosed ? null : dayData.open,
+              close: isClosed ? null : dayData.close,
+              is_closed: isClosed,
+            };
+          });
+          
+          return parsedHours;
+        } catch (e) {
+          console.warn('Failed to parse hours JSON:', e);
+          // Continue to fallback logic below
+        }
+      }
+
+      // Fallback to existing locs_hr_* field logic
       let hasHrFields = false;
       const hours: Hour[] = days.map((d, idx) => {
         const op = api[`locs_hr_${d}_op`];
@@ -543,21 +586,14 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
         const status = api[`locs_${d}_status`]; // '0' or '1'
         if ((op && op !== '0') || (cl && cl !== '0')) hasHrFields = true;
 
-        /*return {
+        return {
           day: dayNames[idx],
-          open: op && op !== '0' ? normalizeTimeFormat(op) : null,
-          close: cl && cl !== '0' ? normalizeCloseTimePM(cl) : null,
-          is_closed: status !== undefined ? status !== '2' : !(op && op !== '0'),
-        };*/
-		
-		return {
-			day: dayNames[idx],
-			open: status !== '2' && op && op !== '0' ? normalizeTimeFormat(op) : null,
-			close: status !== '2' && cl && cl !== '0' ? normalizeCloseTimePM(cl) : null,
-			is_closed: status === '2',
-		  };
+          open: status !== '2' && op && op !== '0' ? normalizeTimeFormat(op) : null,
+          close: status !== '2' && cl && cl !== '0' ? normalizeCloseTimePM(cl) : null,
+          is_closed: status === '2',
+        };
       });
-	  
+      
       // If no hr fields populated, handle store_hours like "Open 24hours"
       if (!hasHrFields) {
         const sh = api.store_hours ? String(api.store_hours).toLowerCase() : '';
@@ -590,6 +626,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
       logo: api.pages_image_path && String(api.pages_image_path).startsWith('https') ? api.pages_image_path : (api.owner_user_image ? `https://www.api.natureshigh.com/PF.Base/file/pic/pages/${api.owner_user_image.replace('%s', '')}` : null),
       cover_image: tryResolveCover(),
       description: sanitizeDescription(api.text_parsed || api.text_parsed || ''),
+      aboutus_public: api.aboutus_public ? sanitizeDescription(api.aboutus_public) : null,
       address: api.locs_street || null,
       city: api.locs_city || null,
       state: api.locs_state || null,
@@ -1168,6 +1205,70 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
     };
   };
 
+  // Check if business is currently open based on current time and hours
+  const isCurrentlyOpen = useMemo(() => {
+    if (!dispensary || !dispensary.hours || dispensary.hours.length === 0) {
+      return false;
+    }
+
+    // Check if open 24/7
+    if (dispensary.hours.every(h => h.open === '00:00' && h.close === '23:59' && !h.is_closed)) {
+      return true;
+    }
+
+    const now = new Date();
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const currentDay = days[now.getDay()];
+    
+    // Find today's hours
+    const todaySchedule = dispensary.hours.find((h) => h.day === currentDay);
+    
+    if (!todaySchedule || todaySchedule.is_closed || !todaySchedule.open || !todaySchedule.close) {
+      return false;
+    }
+
+    // Parse current time
+    const currentHours = now.getHours();
+    const currentMinutes = now.getMinutes();
+    const currentTimeInMinutes = currentHours * 60 + currentMinutes;
+
+    // Parse open time (format: "09:00" or "09:00 AM")
+    const parseTime = (timeStr: string): number => {
+      const cleanTime = timeStr.trim().toUpperCase();
+      let hours = 0;
+      let minutes = 0;
+
+      if (cleanTime.includes('AM') || cleanTime.includes('PM')) {
+        // 12-hour format
+        const isPM = cleanTime.includes('PM');
+        const timePart = cleanTime.replace(/AM|PM/g, '').trim();
+        const [h, m] = timePart.split(':').map(s => parseInt(s.trim(), 10));
+        hours = h === 12 ? (isPM ? 12 : 0) : (isPM ? h + 12 : h);
+        minutes = m || 0;
+      } else {
+        // 24-hour format
+        const [h, m] = timeStr.split(':').map(s => parseInt(s.trim(), 10));
+        hours = h;
+        minutes = m || 0;
+      }
+
+      return hours * 60 + minutes;
+    };
+
+    const openTimeInMinutes = parseTime(todaySchedule.open);
+    const closeTimeInMinutes = parseTime(todaySchedule.close);
+
+    // Check if current time is within open hours
+    // Handle cases where close time is after midnight (e.g., open 9:00, close 2:00)
+    if (closeTimeInMinutes < openTimeInMinutes) {
+      // Crosses midnight
+      return currentTimeInMinutes >= openTimeInMinutes || currentTimeInMinutes < closeTimeInMinutes;
+    } else {
+      // Normal case
+      return currentTimeInMinutes >= openTimeInMinutes && currentTimeInMinutes < closeTimeInMinutes;
+    }
+  }, [dispensary]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -1286,8 +1387,8 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
 
               <div className="flex flex-wrap gap-2 mb-4">
                 <span className="px-3 py-1 bg-green-100 text-green-700 text-sm font-medium rounded-full">{dispensary.locs_provides}</span>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${dispensary.is_open ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                  {dispensary.is_open ? 'Open Now' : 'Closed'}
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${isCurrentlyOpen ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  {isCurrentlyOpen ? 'Open Now' : 'Closed'}
                 </span>
               </div>
 
@@ -1742,12 +1843,30 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
           {activeTab === 'about' && (
             <div className="p-6">
               <div className={`grid grid-cols-1 md:grid-cols-2 gap-8 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                {/* Description */}
-                <div>
+                {/* Description - Full width if aboutus_public exists */}
+                <div className={dispensary.aboutus_public ? 'md:col-span-2' : ''}>
                   <h3 className={`font-semibold text-lg mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
                     About
                   </h3>
-                  <p>{dispensary.description || 'No description available'}</p>
+                  {dispensary.aboutus_public ? (
+                    <div 
+                      className={`prose prose-sm max-w-none ${
+                        isDarkMode 
+                          ? 'prose-invert prose-headings:text-white prose-p:text-gray-300 prose-a:text-teal-400' 
+                          : 'prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-teal-600'
+                      }`}
+                      style={{ 
+                        lineHeight: '1.6',
+                        wordBreak: 'break-word',
+                        overflowWrap: 'break-word'
+                      }}
+                      dangerouslySetInnerHTML={{ __html: dispensary.aboutus_public }}
+                    />
+                  ) : (
+                    <p className={isDarkMode ? 'text-gray-300' : 'text-gray-700'}>
+                      {dispensary.description || 'No description available'}
+                    </p>
+                  )}
                 </div>
 
                 {/* Hours */}
@@ -1758,8 +1877,10 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                   <div className="space-y-2">
                     {dispensary.hours.slice(0, showAllHours ? undefined : 3).map((hour) => (
                       <div key={hour.day} className="flex justify-between">
-                        <span>{hour.day}</span>
-                        <span>
+                        <span className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-900'}`}>
+                          {hour.day}
+                        </span>
+                        <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>
                           {hour.is_closed
                             ? 'Closed'
                             : hour.open && hour.close
@@ -1772,7 +1893,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                   {dispensary.hours.length > 3 && (
                     <button
                       onClick={() => setShowAllHours(!showAllHours)}
-                      className="text-teal-600 font-semibold text-sm mt-3"
+                      className="text-teal-600 font-semibold text-sm mt-3 hover:text-teal-700 transition-colors"
                     >
                       {showAllHours ? 'Show Less' : 'Show All'}
                     </button>
@@ -1817,7 +1938,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                   </div>
                 </div>
 
-                {/* Amenities */}
+                {/* Amenities 
                 {dispensary.amenities.length > 0 && (
                   <div>
                     <h3 className={`font-semibold text-lg mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
@@ -1838,7 +1959,7 @@ export default function DispensaryDetailPage({ slug }: DispensaryDetailPageProps
                       })}
                     </div>
                   </div>
-                )}
+                )}*/}
               </div>
             </div>
           )}

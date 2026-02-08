@@ -157,41 +157,83 @@ const Photos = () => {
   };
 
   const uploadPhoto = async (photoType: 'company' | 'cover' | 'invoiceLogo') => {
-    const photoFile = photoType === 'company' ? photoState.companyPhoto :
-                     photoType === 'cover' ? photoState.coverPhoto :
-                     photoState.invoiceLogo;
+    let photoFile: File | null;
+    if (photoType === 'company') {
+      photoFile = photoState.companyPhoto;
+    } else if (photoType === 'cover') {
+      photoFile = photoState.coverPhoto;
+    } else {
+      photoFile = photoState.invoiceLogo;
+    }
 
-    if (!photoFile || !businessId) return;
+    if (!photoFile) {
+      toast.error(`Please select a ${photoType} photo`);
+      return;
+    }
 
     try {
-      const loadingKey = photoType === 'company' ? 'companyPhotoLoading' :
-                         photoType === 'cover' ? 'coverPhotoLoading' :
-                         'invoiceLogoLoading';
+      let loadingKey: keyof PhotoUploadState;
+      if (photoType === 'company') {
+        loadingKey = 'companyPhotoLoading';
+      } else if (photoType === 'cover') {
+        loadingKey = 'coverPhotoLoading';
+      } else {
+        loadingKey = 'invoiceLogoLoading';
+      }
+      
+      setPhotoState((prev) => ({
+        ...prev,
+        [loadingKey]: true,
+      }));
 
-      setPhotoState(prev => ({ ...prev, [loadingKey]: true }));
+      const formDataUpload = new FormData();
+      formDataUpload.append('file', photoFile);
+      formDataUpload.append('businessId', businessId || '');
+      formDataUpload.append('photoType', photoType);
 
-      const formDataToUpload = new FormData();
-      formDataToUpload.append('file', photoFile);
-      formDataToUpload.append('type', photoType);
-
-      const response = await axios.post(
-        `/api/business/settings/company?business=${businessId}`,
-        formDataToUpload,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
+      const response = await axios.post('/api/business/settings/company/upload-photo', formDataUpload, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 30000,
+      });
 
       if (response.data.success) {
-        toast.success(`${photoType === 'company' ? 'Company' : photoType === 'cover' ? 'Cover' : 'Invoice'} photo uploaded successfully`);
-        setPhotoState(prev => ({ ...prev, [photoType === 'company' ? 'companyPhoto' : photoType === 'cover' ? 'coverPhoto' : 'invoiceLogo']: null }));
-        if (businessId) {
-          await fetchCompanyData(businessId);
-        }
+        const photoField = photoType === 'company' ? 'companyPhoto' : photoType === 'cover' ? 'coverPhoto' : 'invoiceLogo';
+        setFormData((prev) => ({
+          ...prev,
+          [photoField]: response.data.photoUrl,
+        }));
+
+        const fileField = photoType === 'company' ? 'companyPhoto' : photoType === 'cover' ? 'coverPhoto' : 'invoiceLogo';
+        setPhotoState((prev) => ({
+          ...prev,
+          [fileField]: null,
+        }));
+
+        toast.success(`${photoType} photo uploaded successfully`);
       }
     } catch (error) {
-      console.error('Error uploading photo:', error);
-      toast.error('Failed to upload photo');
+      const errorMsg =
+        axios.isAxiosError(error) && error.response?.data?.message
+          ? error.response.data.message
+          : `Failed to upload ${photoType} photo`;
+      toast.error(errorMsg);
+      console.error(error);
     } finally {
-      setPhotoState(prev => ({ ...prev, [photoType === 'company' ? 'companyPhotoLoading' : photoType === 'cover' ? 'coverPhotoLoading' : 'invoiceLogoLoading']: false }));
+      let loadingKey: keyof PhotoUploadState;
+      if (photoType === 'company') {
+        loadingKey = 'companyPhotoLoading';
+      } else if (photoType === 'cover') {
+        loadingKey = 'coverPhotoLoading';
+      } else {
+        loadingKey = 'invoiceLogoLoading';
+      }
+      
+      setPhotoState((prev) => ({
+        ...prev,
+        [loadingKey]: false,
+      }));
     }
   };
 
